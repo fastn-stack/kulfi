@@ -34,7 +34,7 @@ bb8 = "0.9"
 bytes = "1"
 clap = { version = "4", features = ["derive"] }
 clap-verbosity-flag = "3"
-data-encoding = "2.8"
+data-encoding = "2.9"
 diesel = { version = "2", default-features = false, features = ["chrono"] }
 directories = "6.0.0"
 eyre = "0.6"
