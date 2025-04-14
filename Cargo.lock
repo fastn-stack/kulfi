@@ -1220,7 +1220,7 @@ dependencies = [
  "iroh",
  "keyring",
  "rand 0.8.5",
- "rand_core 0.6.4",
+ "rand_core 0.9.3",
  "serde",
  "serde_json",
  "tokio",

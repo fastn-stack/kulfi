@@ -58,7 +58,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 zip = { version = "2", default-features = false }
 # iroh is on 0.6 so we use the same to avoid building multiple crates
-rand_core = "0.6"
+rand_core = "0.9"
 libdbus-sys = { version = "0.2", features = ["vendored"] }
 
 [workspace.dependencies.fastn-observer]
