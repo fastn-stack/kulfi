@@ -3,7 +3,11 @@
 -- fastn.package: malai.sh
 
 -- fastn.dependency: design-system.fifthtry.site
+provided-via: malai.sh/ds
 
+-- fastn.dependency: jetbrains-mono-typography.fifthtry.site
+
+-- fastn.auto-import: malai.sh/assets
 -- fastn.auto-import: design-system.fifthtry.site as ds
 
 -- fastn.url-mappings:

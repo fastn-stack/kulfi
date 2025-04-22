@@ -1,0 +1,12 @@
+-- ds.site-page: Announcing Malai
+description: Introducing Malai, a new open-source tool to share your local HTTP server with the world. Read more in this blog.
+
+-- ds.section-column:
+flush: narrow
+align-content: left
+
+-- ds.heading-large: Getting Started
+
+-- end: ds.section-column
+
+-- end: ds.site-page

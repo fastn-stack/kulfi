@@ -1,0 +1,26 @@
+-- import: malai.sh/components/header
+-- import: jetbrains-mono-typography.fifthtry.site
+
+-- import: design-system.fifthtry.site
+export: borders, button, icon-button, primary-button, video, toggle-image-link, secondary-button, circle-text-button, phosphor-icon-button, inline-row, footer-link, copyright-text, page-widths, header-link, page, heading-hero, heading-large, heading-medium, heading-small, heading-tiny, copy-large, copy-regular, copy-small, fine-print, source-code, link, section-row, section-column, column, element-radius, radius, row, flush, gap, hv, spaces, border-data, border-bottom, alert, container, text-input, danger-button, checkbox, link-button, floater, copy-to-clipboard-text, copy-to-clipboard-icon, label-text, package-info, storybook, code, colors, site-footer,
+exposing: page-widths
+
+-- page-widths widths:
+regular.px: 1400
+narrow.px: 900
+wide.px: 1600
+
+
+-- ftd.image-src site-logo: $assets.files.assets.logo.png
+
+
+-- string copyright: © 2025 Fifthtry. All rights reserved.
+
+-- component site-header:
+
+    -- header.header:
+    logo: $site-logo
+
+-- end: site-header
+
+-- ftd.type-data types: $jetbrains-mono-typography.types

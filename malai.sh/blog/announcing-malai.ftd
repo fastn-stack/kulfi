@@ -1,0 +1,131 @@
+-- ds.site-page: Announcing Malai
+description: Introducing Malai, a new open-source tool to share your local HTTP server with the world. Read more in this blog.
+
+-- ds.section-column:
+flush: narrow
+align-content: left
+
+-- ds.heading-large: Announcing Malai!
+
+-- ds.copy-regular:
+
+[`malai`](https://github.com/kulfi-project/kulfi) is a new open-source tool
+that helps you share your local HTTP server with the world — instantly and securely.
+
+Built on top of the powerful [iroh](https://iroh.computer) P2P stack, `malai`
+lets you expose your local development environment without deploying it to a
+public server or configuring firewalls and DNS.
+
+Whether you're testing webhooks, giving someone a quick demo, or just want to
+show off your side project, `malai` makes it dead simple.
+
+-- ds.copy-regular:
+
+Install `malai` today using:
+
+-- ds.code:
+lang: bash
+
+curl -fsSL https://malai.sh/install.sh | sh
+
+-- ds.copy-regular:
+
+And run:
+
+-- ds.code:
+lang: bash
+
+malai http 3000
+
+-- ds.copy-regular:
+
+This will share your local HTTP server running on `http://localhost:3000` with the
+world via a secure, shareable URL.
+
+See the [Getting Started guide](/docs/getting-started/) or run `malai --help` to explore all the options.
+
+-- ds.heading-medium: Use Cases
+
+-- ds.copy-regular:
+
+Here are just a few things you can do with `malai`:
+
+- **User Acceptance Testing**  
+  Share your in-progress app with non-technical stakeholders without pushing to staging.
+  
+- **HTTPS Testing**  
+  Test HTTPS-only features like Service Workers and OAuth callbacks with a trusted remote URL.
+  
+- **Webhook Testing**  
+  Test Stripe, GitHub, or any other webhook provider locally, without deploying your backend.
+
+- **Developer Preview**  
+  Send a URL to your teammate to get feedback on your frontend work before merging.
+
+All this without any config, DNS setup, or cloud deploys.
+
+-- ds.heading-medium: Bring your own HTTP bridge
+
+-- ds.copy-regular:
+
+Malai is designed with decentralization in mind. By default, Malai uses a free
+public HTTP bridge hosted at `kulfi.site`. This means you can start sharing
+your local server with the world right away — no setup required.
+
+But if you'd prefer more control, privacy, or reliability, you can run your own
+bridge. Malai makes it easy to self-host your own HTTP bridge, and you can
+configure the CLI to use your custom bridge instead of the default one.
+
+See the [Getting Started](/docs/getting-started/#run-your-own-bridge) guide for
+step-by-step instructions on setting up your own bridge and pointing Malai to
+it.
+
+-- ds.heading-medium: What’s Next?
+
+-- ds.copy-regular:
+
+We're actively working on expanding what you can do with `malai`. Here’s a peek
+at what’s coming:
+
+- Share any **TCP server**, not just HTTP  
+  Soon you'll be able to share any TCP-based service running locally —
+  including your Postgres database, Redis, or even a custom TCP protocol — using
+  the same seamless workflow.
+
+- Native support for **SSH** using `malai ssh`  
+  We're adding support for secure shell access over P2P with `malai ssh`. This
+  will let you remotely access your development machine or share a shell session
+  without needing public IPs or VPNs.
+
+- Experimental support for sharing **local devices** like printers and storage over peer-to-peer  
+  We're exploring ways to let you securely share physical hardware — like
+  printers or external drives — directly from your machine over P2P, with
+  fine-grained access controls.
+
+In parallel, we're building a companion GUI app called **Kulfi**. Kulfi will
+make it easy to browse and connect to shared services — no bridge required.
+It'll also include built-in access control (ACL) management, so you can choose
+exactly who gets access to what. Whether you’re sharing with teammates,
+friends, or devices across your network, Kulfi will give you visibility and
+control.
+
+-- ds.copy-regular:
+
+Stay tuned — and if you have ideas, feature requests, or want to contribute,
+feel free to open an issue or pull request on
+[GitHub](https://github.com/kulfi-project/kulfi)! You can also join our
+[discord](https://discord.gg/nK4ZP8HpV7) and chat about the project.
+
+-- ds.heading-medium: Star us on GitHub ⭐
+
+-- ds.copy-regular:
+
+We're just getting started, and your support means a lot.
+
+If you like what we're building, consider [starring the
+repo](https://github.com/kulfi-project/kulfi) on GitHub. It helps others
+discover the project and keeps us motivated to build more!
+
+-- end: ds.section-column
+
+-- end: ds.site-page

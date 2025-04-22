@@ -1,5 +1,18 @@
+-- import: malai.sh/components/hero
+-- import: malai.sh/components/banner
+
 -- ds.site-page: Malai.sh
 
--- ds.heading-medium: Welcome to Malai.sh!
+-- banner.banner: Big News! Read the
+cta-text: Announcement Post
+cta-link: blog/announcing-malai/
+
+-- hero.hero: Secure 
+highlight-text-1: Server 
+highlight-text-2: handling 
+sub-title: made easy
+
+Expose local servers to the internet securely. Perfect for demos, webhooks,
+and testing without the hassle of deployment.
 
 -- end: ds.site-page

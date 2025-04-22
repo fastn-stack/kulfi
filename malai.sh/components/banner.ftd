@@ -1,0 +1,41 @@
+-- component banner:
+caption title:
+string cta-text:
+string cta-link:
+boolean $close: false
+
+-- ds.row:
+
+-- ds.row:
+if: { !banner.close }
+background.solid: $ds.colors.accent.primary
+spacing: $ds.spaces.horizontal-gap.large
+anchor: parent
+width: hug-content
+z-index: 999
+inset: $ds.spaces.inset-wide.small
+align-content: center
+top: -118
+
+-- ds.row:
+align-content: left
+
+-- ds.copy-small: $banner.title
+color: $ds.colors.text-strong
+
+-- ds.copy-small: $banner.cta-text
+color: $ds.colors.text-strong
+link: $banner.cta-link
+style: underline, bold
+
+-- end: ds.row
+
+-- ftd.image:
+src: $assets.files.assets.cross.svg
+width.fixed.px: 16
+$on-click$: $ftd.toggle($a = $banner.close)
+
+-- end: ds.row
+-- end: ds.row
+
+-- end: banner

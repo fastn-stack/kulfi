@@ -1,0 +1,30 @@
+-- component header:
+ftd.image-src logo:
+
+-- ds.section-row:
+align-content: left
+inset: $ds.spaces.inset-square.medium
+spacing: $ds.spaces.horizontal-gap.space-between
+margin: $ds.spaces.vertical-gap.large
+
+        -- ftd.image:
+        src: $header.logo
+        width.fixed.px: 100
+        width.fixed.px if { ftd.device == "mobile" }: 140
+
+        -- ds.row:
+        align-content: right
+        width: hug-content
+
+        /-- ds.secondary-button: GitHub
+        link: https://github.com/kulfi-project/kulfi
+        open-in-new-tab: true
+
+        -- ds.primary-button: Get Started
+        link: get-started/
+
+        -- end: ds.row
+
+    -- end: ds.section-row
+
+-- end: header
