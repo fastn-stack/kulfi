@@ -6,45 +6,24 @@ string highlight-text-1:
 string highlight-text-2:
 ;;string github-star:
 
--- ds.section-row:
-spacing: $ds.spaces.horizontal-gap.extra-large
+-- ds.section-column:
 margin: $ds.spaces.vertical-gap.zero
+
+-- ftd.desktop:
+
+-- ds.row:
+spacing: $ds.spaces.horizontal-gap.extra-large
 
 -- ds.column:
 inset: $ds.spaces.inset-square.zero
 align-content: left
 spacing: $ds.spaces.vertical-gap.large
 width.fixed.vh: 100
-z-index: 5
 
--- ds.column:
-inset: $ds.spaces.inset-square.zero
-align-content: left
-spacing: $ds.spaces.vertical-gap.extra-small
-
--- ds.row:
-align-content: left
-spacing: $ds.spaces.horizontal-gap.large
-
--- ds.heading-hero: $hero.title
-
--- ds.heading-hero: $hero.highlight-text-1
-color: $ds.colors.accent.primary
-
--- end: ds.row
-
--- ds.row:
-align-content: left
-spacing: $ds.spaces.horizontal-gap.large
-
--- ds.heading-hero: $hero.highlight-text-2
-color: $ds.colors.accent.primary
-
--- ds.heading-hero: $hero.sub-title
-
--- end: ds.row
-
--- end: ds.column
+-- highlight-hero-title: $hero.title
+highlight-text-1: $hero.highlight-text-1 
+highlight-text-2: $hero.highlight-text-2 
+sub-title: $hero.sub-title
 
 -- ds.copy-regular: $hero.body
 color: $ds.colors.text-strong
@@ -66,7 +45,6 @@ color: $ds.colors.accent.primary
 
 -- end: ds.column 
 
-
 -- end: ds.column
 
 -- ds.column:
@@ -78,6 +56,126 @@ z-index: 5
 
 -- end: ds.column
 
--- end: ds.section-row
+-- end: ds.row
+
+-- end: ftd.desktop
+
+-- ftd.mobile:
+
+-- ds.column:
+inset: $ds.spaces.inset-square.zero
+align-content: left
+spacing: $ds.spaces.vertical-gap.large
+
+-- highlight-hero-title: $hero.title
+highlight-text-1: $hero.highlight-text-1 
+highlight-text-2: $hero.highlight-text-2 
+sub-title: $hero.sub-title
+
+-- ds.copy-regular: $hero.body
+color: $ds.colors.text-strong
+
+-- ds.column:
+inset: $ds.spaces.inset-square.zero
+align-content: left
+spacing: $ds.spaces.vertical-gap.small
+
+-- ds.code:
+lang: bash
+
+\curl -fsSL https://malai.sh/install.sh | sh
+
+-- ds.copy-regular: ⭐️ Star us on GitHub
+link: https://github.com/kulfi-project/kulfi
+style: bold
+color: $ds.colors.accent.primary
+
+-- end: ds.column 
+
+-- ds.column:
+background.solid: $ds.colors.background.step-1
+height.fixed.px: 250
+inset: $ds.spaces.inset-square.zero
+
+-- end: ds.column
+
+-- end: ds.column
+
+-- end: ftd.mobile
+
+-- end: ds.section-column
 
 -- end: hero
+
+
+
+
+
+-- component highlight-hero-title:
+caption title:
+string sub-title:
+string highlight-text-1:
+string highlight-text-2:
+
+-- ds.column:
+inset: $ds.spaces.inset-square.zero
+margin: $ds.spaces.vertical-gap.zero
+align-content: left
+
+-- ftd.desktop:
+
+-- ds.column:
+inset: $ds.spaces.inset-square.zero
+align-content: left
+spacing: $ds.spaces.vertical-gap.extra-small
+
+-- ds.row:
+align-content: left
+spacing: $ds.spaces.horizontal-gap.large
+
+-- ds.heading-hero: $highlight-hero-title.title
+
+-- ds.heading-hero: $highlight-hero-title.highlight-text-1
+color: $ds.colors.accent.primary
+
+-- end: ds.row
+
+-- ds.row:
+align-content: left
+spacing: $ds.spaces.horizontal-gap.large
+
+-- ds.heading-hero: $highlight-hero-title.highlight-text-2
+color: $ds.colors.accent.primary
+
+-- ds.heading-hero: $highlight-hero-title.sub-title
+
+-- end: ds.row
+
+-- end: ds.column
+
+-- end: ftd.desktop
+
+-- ftd.mobile:
+
+-- ds.column:
+inset: $ds.spaces.inset-square.zero
+align-content: left
+spacing: $ds.spaces.vertical-gap.extra-small
+
+-- ds.heading-hero: $highlight-hero-title.title
+
+-- ds.heading-hero: $highlight-hero-title.highlight-text-1
+color: $ds.colors.accent.primary
+
+-- ds.heading-hero: $highlight-hero-title.highlight-text-2
+color: $ds.colors.accent.primary
+
+-- ds.heading-hero: $highlight-hero-title.sub-title
+
+-- end: ds.column
+
+-- end: ftd.mobile
+
+-- end: ds.column
+
+-- end: highlight-hero-title

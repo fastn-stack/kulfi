@@ -3,8 +3,7 @@
 
 -- ds.site-page: Malai.sh
 
--- banner.banner: Big News! Read the
-cta-text: Announcement Post
+-- banner.banner: Read the **Announcement Post**
 cta-link: blog/announcing-malai/
 
 -- hero.hero: Secure 

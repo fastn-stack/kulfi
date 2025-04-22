@@ -10,7 +10,8 @@ margin: $ds.spaces.vertical-gap.large
         -- ftd.image:
         src: $header.logo
         width.fixed.px: 100
-        width.fixed.px if { ftd.device == "mobile" }: 140
+        width.fixed.px if { ftd.device == "mobile" }: 90
+        link: /
 
         -- ds.row:
         align-content: right
