@@ -17,7 +17,7 @@ where
 
     let (mut send, mut recv) = kulfi_utils::get_stream(
         self_endpoint,
-        kulfi_utils::Protocol::Identity,
+        kulfi_utils::Protocol::Http,
         remote_node_id52.to_string(),
         peer_connections.clone(),
     )

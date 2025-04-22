@@ -1,6 +1,6 @@
 pub const PONG: &[u8] = b"pong\n";
+pub const ACK_PONG: &[u8] = b"ack\npong\n";
 
-#[expect(unused)]
 pub async fn ping(conn: &iroh::endpoint::Connection) -> eyre::Result<()> {
     tracing::info!("ping called");
     let (mut send_stream, mut recv_stream) = conn.open_bi().await?;
@@ -16,7 +16,7 @@ pub async fn ping(conn: &iroh::endpoint::Connection) -> eyre::Result<()> {
         .await
         .inspect_err(|e| tracing::error!("failed to read: {e}"))?;
     tracing::info!("got {:?}, {PONG:?}", str::from_utf8(&msg));
-    if msg != PONG {
+    if msg != ACK_PONG {
         return Err(eyre::anyhow!("expected {PONG:?}, got {msg:?}"));
     }
     tracing::info!("got reply, finishing stream");

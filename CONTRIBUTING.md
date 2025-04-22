@@ -1,1 +1,1 @@
-# Contributing to FTNet
+# Contributing to Kulfi & Malai

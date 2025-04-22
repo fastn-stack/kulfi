@@ -8,16 +8,17 @@ extern crate self as kulfi; // TODO: Remove this and separate kulfi binary from 
 use clap as _;
 use clap_verbosity_flag as _;
 use directories as _;
-use fastn_observer as _;
+#[cfg(target_os = "linux")]
+use libdbus_sys as _;
 use tracing_subscriber as _;
 
-mod client;
 mod config;
 pub mod control_server;
 mod counters;
 mod identity;
 pub mod peer_server;
 mod start;
+#[cfg(feature = "ui")]
 mod tauri;
 pub mod utils;
 
@@ -29,4 +30,5 @@ pub use counters::{
 // pub use identity::{Identity, PeerIdentity};
 pub use identity::Identity;
 pub use start::start;
+#[cfg(feature = "ui")]
 pub use tauri::ui;

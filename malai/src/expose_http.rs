@@ -2,6 +2,7 @@ pub async fn expose_http(
     host: String,
     port: u16,
     _graceful_shutdown_rx: tokio::sync::watch::Receiver<bool>,
+    mut show_info_rx: tokio::sync::watch::Receiver<bool>,
 ) -> eyre::Result<()> {
     use eyre::WrapErr;
     use kulfi_utils::SecretStore;
@@ -12,35 +13,43 @@ pub async fn expose_http(
         .await
         .wrap_err_with(|| "failed to bind to iroh network")?;
 
-    print_id52_info(&host, port, &id52);
+    print_id52_info(&host, port, &id52, InfoMode::Startup);
 
     let client_pools = kulfi_utils::HttpConnectionPools::default();
 
     loop {
-        let conn = match ep.accept().await {
-            Some(conn) => conn,
-            None => {
-                tracing::info!("no connection");
-                break;
+        tokio::select! {
+            _ = show_info_rx.changed() => {
+                print_id52_info(&host, port, &id52, InfoMode::OnExit);
             }
-        };
-        let client_pools = client_pools.clone();
-        let host = host.clone();
+            conn = ep.accept() => {
+                let conn = match conn {
+                    Some(conn) => conn,
+                    None => {
+                        tracing::info!("no connection");
+                        break;
+                    }
+                };
 
-        tokio::spawn(async move {
-            let start = std::time::Instant::now();
-            let conn = match conn.await {
-                Ok(c) => c,
-                Err(e) => {
-                    tracing::error!("failed to convert incoming to connection: {:?}", e);
-                    return;
-                }
-            };
-            if let Err(e) = handle_connection(conn, client_pools, host, port).await {
-                tracing::error!("connection error3: {:?}", e);
+                let client_pools = client_pools.clone();
+                let host = host.clone();
+
+                tokio::spawn(async move {
+                    let start = std::time::Instant::now();
+                    let conn = match conn.await {
+                        Ok(c) => c,
+                        Err(e) => {
+                            tracing::error!("failed to convert incoming to connection: {:?}", e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handle_connection(conn, client_pools, host, port).await {
+                        tracing::error!("connection error3: {:?}", e);
+                    }
+                    tracing::info!("connection handled in {:?}", start.elapsed());
+                });
             }
-            tracing::info!("connection handled in {:?}", start.elapsed());
-        });
+        }
     }
 
     ep.close().await;
@@ -59,50 +68,45 @@ async fn handle_connection(
 
     tracing::info!("new client: {remote_id52}, waiting for bidirectional stream");
     loop {
-        let (mut send, recv, msg) = kulfi_utils::accept_bi(&conn)
+        let (mut send, recv) = kulfi_utils::accept_bi(&conn, kulfi_utils::Protocol::Http)
             .await
             .inspect_err(|e| tracing::error!("failed to accept bidirectional stream: {e:?}"))?;
-        tracing::info!("{remote_id52}: {msg:?}");
+        tracing::info!("{remote_id52}");
         let client_pools = client_pools.clone();
-        match msg {
-            kulfi_utils::Protocol::Identity => {
-                if let Err(e) = kulfi_utils::peer_to_http(
-                    &format!("{host}:{port}"),
-                    client_pools,
-                    &mut send,
-                    recv,
-                )
+        if let Err(e) =
+            kulfi_utils::peer_to_http(&format!("{host}:{port}"), client_pools, &mut send, recv)
                 .await
-                {
-                    tracing::error!("failed to proxy http: {e:?}");
-                }
-            }
-            _ => {
-                tracing::error!("unsupported protocol: {msg:?}");
-                send.write_all(b"error: unsupported protocol\n").await?;
-                break;
-            }
-        };
+        {
+            tracing::error!("failed to proxy http: {e:?}");
+        }
         tracing::info!("closing send stream");
         send.finish()?;
     }
-
-    let e = conn.closed().await;
-    tracing::info!("connection closed by peer: {e}");
-    conn.close(0u8.into(), &[]);
-    Ok(())
 }
 
-fn print_id52_info(host: &str, port: u16, id52: &str) {
+#[derive(PartialEq, Debug)]
+enum InfoMode {
+    Startup,
+    OnExit,
+}
+
+fn print_id52_info(host: &str, port: u16, id52: &str, mode: InfoMode) {
     use colored::Colorize;
 
-    println!(
-        "{} is now serving {}{}:{}",
-        "Malai".on_green().black(),
-        "http://".yellow(),
-        host.yellow(),
-        port.to_string().yellow()
-    );
+    if mode == InfoMode::Startup {
+        println!(
+            "{} is now serving {}",
+            "Malai".on_green().black(),
+            format!("http://{host}:{port}").yellow()
+        );
+    }
+
+    if mode == InfoMode::OnExit {
+        // an extra empty line to make the output more readable
+        // otherwise the first line is missed with keyboard input
+        println!("\nServing: {}", format!("http://{host}:{port}").yellow());
+    }
+
     println!("ID52: {}", id52.yellow());
     println!(
         "{} {}{}{}",
@@ -111,4 +115,8 @@ fn print_id52_info(host: &str, port: u16, id52: &str) {
         id52.yellow(),
         ".kulfi.site".yellow()
     );
+
+    if mode == InfoMode::OnExit {
+        println!("Press ctrl+c again to exit.");
+    }
 }

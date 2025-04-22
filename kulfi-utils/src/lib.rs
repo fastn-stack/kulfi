@@ -7,6 +7,7 @@ mod http_connection_manager;
 mod http_to_peer;
 mod peer_to_http;
 mod peer_to_tcp;
+mod ping;
 pub mod protocol;
 mod secret;
 mod utils;
@@ -21,6 +22,7 @@ pub use http_connection_manager::{HttpConnectionManager, HttpConnectionPool, Htt
 pub use http_to_peer::http_to_peer;
 pub use peer_to_http::peer_to_http;
 pub use peer_to_tcp::peer_to_tcp;
+pub use ping::{PONG, ping};
 pub use protocol::{APNS_IDENTITY, Protocol};
 pub use secret::{SecretStore, read_or_create_key};
 pub use utils::{

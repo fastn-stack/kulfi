@@ -41,7 +41,7 @@ jobs:
       - run: sudo apt install libdbus-1-dev pkg-config libgtk-3-dev libsoup-3.0-0 libwebkit2gtk-4.1-dev libc6
       - name: Check out
         uses: actions/checkout@v4
-      - uses: Swatinem/rust-cache@v2
+      # - uses: Swatinem/rust-cache@v2
       - name: Run cargo fmt
         id: fmt
         run: cargo fmt --all -- --check

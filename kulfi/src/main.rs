@@ -38,23 +38,18 @@ async fn main() -> eyre::Result<()> {
             );
             Ok(())
         }
+        #[cfg(feature = "ui")]
         None => {
             tracing::info!(verbose = ?cli.verbose, "Starting UI.");
             kulfi::ui()
         }
+        #[cfg(not(feature = "ui"))]
+        None => {
+            use clap::CommandFactory;
+            // TODO: handle error here
+            Cli::command().print_help().map_err(Into::into)
+        }
     }
-}
-
-#[expect(dead_code)]
-fn configure_tracing_subscriber() {
-    use tracing_subscriber::layer::SubscriberExt;
-
-    tracing::subscriber::set_global_default(
-        tracing_subscriber::registry()
-            .with(fastn_observer::Layer::default())
-            .with(tracing_subscriber::EnvFilter::from_default_env()),
-    )
-    .unwrap();
 }
 
 #[derive(clap::Parser, Debug)]

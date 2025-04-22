@@ -67,72 +67,21 @@ pub async fn handle_connection(
     tracing::info!("new client: {remote_id52}, waiting for bidirectional stream");
     loop {
         let client_pools = client_pools.clone();
-        let (mut send, recv, msg) = kulfi_utils::accept_bi(&conn)
+        let (mut send, recv) = kulfi_utils::accept_bi(&conn, kulfi_utils::Protocol::Http)
             .await
             .inspect_err(|e| tracing::error!("failed to accept bidirectional stream: {e:?}"))?;
-        tracing::info!("{remote_id52}: {msg:?}");
-        match msg {
-            kulfi_utils::Protocol::Quit => {
-                if !recv.read_buffer().is_empty() {
-                    send.write_all(b"error: quit message should not have payload\n")
-                        .await?;
-                } else {
-                    send.write_all(b"see you later!\n").await?;
-                }
-                send.finish()?;
-                // quit should close the connection, so we are breaking the for loop.
-                break;
-            }
-            kulfi_utils::Protocol::Ping => {
-                tracing::info!("got ping");
-                if !recv.read_buffer().is_empty() {
-                    send.write_all(b"error: ping message should not have payload\n")
-                        .await?;
-                    break;
-                }
-                tracing::info!("sending PONG");
-                send.write_all(kulfi::client::PONG)
-                    .await
-                    .inspect_err(|e| tracing::error!("failed to write PONG: {e:?}"))?;
-                tracing::info!("sent");
-            }
-            kulfi_utils::Protocol::WhatTimeIsIt => {
-                if !recv.read_buffer().is_empty() {
-                    send.write_all(b"error: quit message should not have payload\n")
-                        .await?;
-                } else {
-                    let d = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?;
-
-                    send.write_all(format!("{}\n", d.as_nanos()).as_bytes())
-                        .await?;
-                }
-            }
-            kulfi_utils::Protocol::Identity => {
-                if let Err(e) = kulfi_utils::peer_to_http(
-                    &format!("127.0.0.1:{fastn_port}"),
-                    client_pools,
-                    &mut send,
-                    recv,
-                )
-                .await
-                {
-                    tracing::error!("failed to proxy http: {e:?}");
-                }
-            }
-            kulfi_utils::Protocol::Http { .. } => todo!(),
-            kulfi_utils::Protocol::Socks5 { .. } => todo!(),
-            kulfi_utils::Protocol::Tcp { id } => {
-                if let Err(e) = kulfi_utils::peer_to_tcp(&remote_id52, &id, &mut send, recv).await {
-                    tracing::error!("tcp error: {e}");
-                }
-            }
-        };
+        tracing::info!("{remote_id52}");
+        if let Err(e) = kulfi_utils::peer_to_http(
+            &format!("127.0.0.1:{fastn_port}"),
+            client_pools,
+            &mut send,
+            recv,
+        )
+        .await
+        {
+            tracing::error!("failed to proxy http: {e:?}");
+        }
         tracing::info!("closing send stream");
         send.finish()?;
     }
-
-    let e = conn.closed().await;
-    tracing::info!("connection closed by peer: {e}");
-    conn.close(0u8.into(), &[]);
-    Ok(())
 }
