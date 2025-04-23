@@ -166,10 +166,6 @@ async fn connection_manager_(
                 }
                 idle_counter += 1;
             },
-            Ok((_send, _recv)) = conn.accept_bi() => {
-                // when the client is quitting, it will create a connection and send it to us
-                todo!("handle client quit message");
-            }
             Some((protocol, reply_channel)) = receiver.recv() => {
                 tracing::info!("connection ping: {protocol:?}, idle counter: {idle_counter}");
                 idle_counter = 0;
