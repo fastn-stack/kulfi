@@ -13,7 +13,7 @@ pub async fn run(
             }
         };
         let client_pools = client_pools.clone();
-        graceful.tracker.spawn(async move {
+        graceful.spawn(async move {
             let start = std::time::Instant::now();
             let conn = match conn.await {
                 Ok(c) => c,

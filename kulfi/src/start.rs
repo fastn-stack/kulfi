@@ -49,7 +49,7 @@ pub async fn start(
         let g = graceful.clone();
         let id_map = Arc::clone(&id_map);
         let data_dir = data_dir.clone();
-        graceful.tracker.spawn(async move {
+        graceful.spawn(async move {
             let public_key = identity.public_key;
             if let Err(e) = identity.run(g, id_map, &data_dir).await {
                 tracing::error!("failed to run identity: {public_key}: {e:?}");
@@ -58,7 +58,7 @@ pub async fn start(
     }
 
     let g = graceful.clone();
-    graceful.tracker.spawn(async move {
+    graceful.spawn(async move {
         tracing::info!("Starting control server with identity: {first}");
         kulfi::control_server::start(
             control_port,

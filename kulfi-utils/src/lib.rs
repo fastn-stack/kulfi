@@ -15,6 +15,7 @@ mod utils;
 use eyre::Context;
 #[cfg(feature = "keyring")]
 pub use secret::KeyringSecretStore;
+use tokio::task::JoinHandle;
 
 pub use get_endpoint::get_endpoint;
 pub use get_stream::{PeerStreamSenders, get_stream};
@@ -45,11 +46,21 @@ const ACK: &str = "ack";
 
 #[derive(Clone, Default)]
 pub struct Graceful {
-    pub cancel: tokio_util::sync::CancellationToken,
-    pub tracker: tokio_util::task::TaskTracker,
+    cancel: tokio_util::sync::CancellationToken,
+    tracker: tokio_util::task::TaskTracker,
 }
 
 impl Graceful {
+    #[inline]
+    #[track_caller]
+    pub fn spawn<F>(&self, task: F) -> JoinHandle<F::Output>
+    where
+        F: Future + Send + 'static,
+        F::Output: Send + 'static,
+    {
+        self.tracker.spawn(task)
+    }
+
     pub async fn shutdown(
         &self,
         show_info_tx: tokio::sync::watch::Sender<bool>,

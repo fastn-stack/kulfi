@@ -28,7 +28,7 @@ pub async fn tcp_bridge(
                 let proxy_target = proxy_target.clone();
                 match val {
                     Ok((stream, _addr)) => {
-                        graceful.tracker.spawn(async move { handle_connection(self_endpoint, stream, g, peer_connections, proxy_target).await });
+                        graceful.spawn(async move { handle_connection(self_endpoint, stream, g, peer_connections, proxy_target).await });
                     },
                     Err(e) => {
                         tracing::error!("failed to accept: {e:?}");

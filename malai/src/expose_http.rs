@@ -39,7 +39,7 @@ pub async fn expose_http(
                 let client_pools = client_pools.clone();
                 let host = host.clone();
 
-                graceful.tracker.spawn(async move {
+                graceful.spawn(async move {
                     let start = std::time::Instant::now();
                     let conn = match conn.await {
                         Ok(c) => c,
