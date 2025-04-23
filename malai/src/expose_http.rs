@@ -2,7 +2,7 @@ pub async fn expose_http(
     host: String,
     port: u16,
     bridge: String,
-    _graceful: kulfi_utils::Graceful,
+    graceful: kulfi_utils::Graceful,
     mut show_info_rx: tokio::sync::watch::Receiver<bool>,
 ) -> eyre::Result<()> {
     use eyre::WrapErr;
@@ -23,6 +23,10 @@ pub async fn expose_http(
             _ = show_info_rx.changed() => {
                 print_id52_info(&host, port, &id52, &bridge, InfoMode::OnExit);
             }
+            _ = graceful.cancelled() => {
+                tracing::info!("Stopping control server.");
+                break;
+            }
             conn = ep.accept() => {
                 let conn = match conn {
                     Some(conn) => conn,
@@ -35,7 +39,7 @@ pub async fn expose_http(
                 let client_pools = client_pools.clone();
                 let host = host.clone();
 
-                tokio::spawn(async move {
+                graceful.tracker.spawn(async move {
                     let start = std::time::Instant::now();
                     let conn = match conn.await {
                         Ok(c) => c,

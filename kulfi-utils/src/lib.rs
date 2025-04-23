@@ -60,6 +60,7 @@ impl Graceful {
                 .wrap_err_with(|| "failed to get ctrl-c signal handler")?;
 
             tracing::info!("Received ctrl-c signal, showing info.");
+            tracing::debug!("Pending tasks: {}", self.tracker.len());
 
             show_info_tx
                 .send(true)
@@ -68,10 +69,28 @@ impl Graceful {
             tokio::select! {
                 _ = tokio::signal::ctrl_c() => {
                     tracing::info!("Received second ctrl-c signal, shutting down.");
+                    tracing::debug!("Pending tasks: {}", self.tracker.len());
+
                     self.cancel.cancel();
                     self.tracker.close();
 
-                    self.tracker.wait().await;
+                    let mut count = 0;
+                    loop {
+                        tokio::select! {
+                            _ = self.tracker.wait() => {
+                                tracing::info!("All tasks have exited.");
+                                break;
+                            }
+                            _ = tokio::time::sleep(std::time::Duration::from_secs(3)) => {
+                                count += 1;
+                                if count > 10 {
+                                    eprintln!("Timeout expired, {} pending tasks. Exiting...", self.tracker.len());
+                                    break;
+                                }
+                                tracing::debug!("Pending tasks: {}", self.tracker.len());
+                            }
+                        }
+                    }
                     break;
                 }
                 _ = tokio::time::sleep(std::time::Duration::from_secs(3)) => {
