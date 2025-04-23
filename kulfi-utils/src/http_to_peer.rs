@@ -4,6 +4,7 @@ pub async fn http_to_peer<T>(
     remote_node_id52: &str,
     peer_connections: kulfi_utils::PeerStreamSenders,
     _patch: ftnet_sdk::RequestPatch,
+    graceful: kulfi_utils::Graceful,
 ) -> kulfi_utils::http::ProxyResult
 where
     T: hyper::body::Body + Unpin + Send,
@@ -20,6 +21,7 @@ where
         kulfi_utils::Protocol::Http,
         remote_node_id52.to_string(),
         peer_connections.clone(),
+        graceful,
     )
     .await?;
 

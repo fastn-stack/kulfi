@@ -1,7 +1,7 @@
 pub async fn expose_tcp(
     host: String,
     port: u16,
-    _graceful_shutdown_rx: tokio::sync::watch::Receiver<bool>,
+    _graceful: kulfi_utils::Graceful,
 ) -> eyre::Result<()> {
     use eyre::WrapErr;
     use kulfi_utils::SecretStore;

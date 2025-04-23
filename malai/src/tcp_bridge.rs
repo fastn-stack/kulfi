@@ -1,7 +1,7 @@
 pub async fn tcp_bridge(
     port: u16,
     proxy_target: String,
-    mut graceful_shutdown_rx: tokio::sync::watch::Receiver<bool>,
+    graceful: kulfi_utils::Graceful,
 ) -> eyre::Result<()> {
     use eyre::WrapErr;
 
@@ -17,18 +17,18 @@ pub async fn tcp_bridge(
 
     loop {
         tokio::select! {
-            _ = graceful_shutdown_rx.changed() => {
+            _ = graceful.cancelled() => {
                 tracing::info!("Stopping control server.");
                 break;
             }
             val = listener.accept() => {
                 let self_endpoint = malai::global_iroh_endpoint().await;
-                let graceful_shutdown_rx = graceful_shutdown_rx.clone();
+                let g = graceful.clone();
                 let peer_connections = peer_connections.clone();
                 let proxy_target = proxy_target.clone();
                 match val {
                     Ok((stream, _addr)) => {
-                        tokio::spawn(async move { handle_connection(self_endpoint, stream, graceful_shutdown_rx, peer_connections, proxy_target).await });
+                        graceful.tracker.spawn(async move { handle_connection(self_endpoint, stream, g, peer_connections, proxy_target).await });
                     },
                     Err(e) => {
                         tracing::error!("failed to accept: {e:?}");
@@ -44,7 +44,7 @@ pub async fn tcp_bridge(
 pub async fn handle_connection(
     _self_endpoint: iroh::Endpoint,
     _stream: tokio::net::TcpStream,
-    _graceful_shutdown_rx: tokio::sync::watch::Receiver<bool>,
+    _graceful_shutdown_rx: kulfi_utils::Graceful,
     _peer_connections: kulfi_utils::PeerStreamSenders,
     _proxy_target: String,
 ) {

@@ -5,13 +5,13 @@ impl kulfi::Identity {
     #[tracing::instrument(skip_all)]
     pub async fn run(
         self,
-        graceful_shutdown_rx: tokio::sync::watch::Receiver<bool>,
+        graceful: kulfi_utils::Graceful,
         id_map: kulfi_utils::IDMap,
         data_dir: &std::path::Path,
     ) -> eyre::Result<()> {
         let port = start_fastn(
             std::sync::Arc::clone(&id_map),
-            graceful_shutdown_rx.clone(),
+            graceful.clone(),
             &self.id52,
             data_dir,
         )
@@ -32,7 +32,7 @@ impl kulfi::Identity {
             id_map.lock().await.push((self.id52, (port, ep.clone())));
         }
 
-        kulfi::peer_server::run(ep, port, self.client_pools.clone(), graceful_shutdown_rx).await
+        kulfi::peer_server::run(ep, port, self.client_pools.clone(), graceful).await
     }
 }
 
@@ -40,7 +40,7 @@ impl kulfi::Identity {
 #[tracing::instrument(skip_all)]
 async fn start_fastn(
     _id_map: kulfi_utils::IDMap,
-    _graceful_shutdown_rx: tokio::sync::watch::Receiver<bool>,
+    _graceful: kulfi_utils::Graceful,
     id52: &str,
     data_dir: &std::path::Path,
 ) -> eyre::Result<u16> {

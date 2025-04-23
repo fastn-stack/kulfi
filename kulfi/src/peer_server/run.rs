@@ -2,7 +2,7 @@ pub async fn run(
     ep: iroh::Endpoint,
     fastn_port: u16,
     client_pools: kulfi_utils::HttpConnectionPools,
-    _graceful_shutdown_rx: tokio::sync::watch::Receiver<bool>,
+    graceful: kulfi_utils::Graceful,
 ) -> eyre::Result<()> {
     loop {
         let conn = match ep.accept().await {
@@ -13,7 +13,7 @@ pub async fn run(
             }
         };
         let client_pools = client_pools.clone();
-        tokio::spawn(async move {
+        graceful.tracker.spawn(async move {
             let start = std::time::Instant::now();
             let conn = match conn.await {
                 Ok(c) => c,
@@ -67,6 +67,7 @@ pub async fn handle_connection(
     tracing::info!("new client: {remote_id52}, waiting for bidirectional stream");
     loop {
         let client_pools = client_pools.clone();
+        // TODO: graceful shutdown
         let (mut send, recv) = kulfi_utils::accept_bi(&conn, kulfi_utils::Protocol::Http)
             .await
             .inspect_err(|e| tracing::error!("failed to accept bidirectional stream: {e:?}"))?;

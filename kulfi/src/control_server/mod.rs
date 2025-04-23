@@ -67,7 +67,7 @@ pub use proxy_pass::proxy_pass;
 pub async fn start(
     control_port: u16,
     id: String,
-    mut graceful_shutdown_rx: tokio::sync::watch::Receiver<bool>,
+    graceful: kulfi_utils::Graceful,
     id_map: kulfi_utils::IDMap,
     client_pools: kulfi_utils::HttpConnectionPools,
     peer_connections: kulfi_utils::PeerStreamSenders,
@@ -83,18 +83,18 @@ pub async fn start(
 
     loop {
         tokio::select! {
-            _ = graceful_shutdown_rx.changed() => {
+            _ = graceful.cancelled() => {
                 tracing::info!("Stopping control server.");
                 break;
             }
             val = listener.accept() => {
                 let id_map= id_map.clone();
                 let client_pools = client_pools.clone();
-                let graceful_shutdown_rx = graceful_shutdown_rx.clone();
+                let graceful = graceful.clone();
                 let peer_connections = peer_connections.clone();
                 match val {
                     Ok((stream, _addr)) => {
-                        tokio::spawn(async move { server::handle_connection(stream, graceful_shutdown_rx, id_map, client_pools, peer_connections).await });
+                        tokio::spawn(async move { server::handle_connection(stream, graceful, id_map, client_pools, peer_connections).await });
                     },
                     Err(e) => {
                         tracing::error!("failed to accept: {e:?}");

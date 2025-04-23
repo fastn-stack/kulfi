@@ -2,7 +2,7 @@ pub async fn expose_http(
     host: String,
     port: u16,
     bridge: String,
-    _graceful_shutdown_rx: tokio::sync::watch::Receiver<bool>,
+    _graceful: kulfi_utils::Graceful,
     mut show_info_rx: tokio::sync::watch::Receiver<bool>,
 ) -> eyre::Result<()> {
     use eyre::WrapErr;

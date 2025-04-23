@@ -11,7 +11,10 @@ async fn main() -> eyre::Result<()> {
 
     let cli = Cli::parse();
 
-    match cli.command {
+    let graceful = kulfi_utils::Graceful::default();
+    let (show_info_tx, _show_info_rx) = tokio::sync::watch::channel(false);
+
+    if let Err(e) = match cli.command {
         Some(Command::Start {
             foreground,
             data_dir,
@@ -30,7 +33,7 @@ async fn main() -> eyre::Result<()> {
                 },
             };
 
-            kulfi::start(foreground, data_dir, control_port).await
+            kulfi::start(foreground, data_dir, control_port, graceful.clone()).await
         }
         Some(Command::TcpProxy { id, port }) => {
             tracing::info!(
@@ -49,7 +52,11 @@ async fn main() -> eyre::Result<()> {
             // TODO: handle error here
             Cli::command().print_help().map_err(Into::into)
         }
+    } {
+        tracing::error!("Error: {e:?}");
     }
+
+    graceful.shutdown(show_info_tx).await
 }
 
 #[derive(clap::Parser, Debug)]

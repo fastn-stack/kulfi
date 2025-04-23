@@ -30,11 +30,17 @@ pub async fn get_stream(
     protocol: kulfi_utils::Protocol,
     remote_node_id52: RemoteID52,
     peer_stream_senders: PeerStreamSenders,
+    graceful: kulfi_utils::Graceful,
 ) -> eyre::Result<(iroh::endpoint::SendStream, kulfi_utils::FrameReader)> {
     use eyre::WrapErr;
 
-    let stream_request_sender =
-        get_stream_request_sender(self_endpoint, remote_node_id52, peer_stream_senders).await;
+    let stream_request_sender = get_stream_request_sender(
+        self_endpoint,
+        remote_node_id52,
+        peer_stream_senders,
+        graceful,
+    )
+    .await;
 
     let (reply_channel, receiver) = tokio::sync::oneshot::channel();
 
@@ -50,6 +56,7 @@ async fn get_stream_request_sender(
     self_endpoint: iroh::Endpoint,
     remote_node_id52: RemoteID52,
     peer_stream_senders: PeerStreamSenders,
+    graceful: kulfi_utils::Graceful,
 ) -> StreamRequestSender {
     let self_id52 = kulfi_utils::public_key_to_id52(&self_endpoint.node_id());
     let mut senders = peer_stream_senders.lock().await;
@@ -66,7 +73,7 @@ async fn get_stream_request_sender(
     );
     drop(senders);
 
-    tokio::spawn(async move {
+    graceful.tracker.spawn(async move {
         connection_manager(receiver, self_endpoint, remote_node_id52.clone()).await;
 
         // cleanup the peer_stream_senders map, so no future tasks will try to use this.
@@ -159,6 +166,10 @@ async fn connection_manager_(
                 }
                 idle_counter += 1;
             },
+            Ok((_send, _recv)) = conn.accept_bi() => {
+                // when the client is quitting, it will create a connection and send it to us
+                todo!("handle client quit message");
+            }
             Some((protocol, reply_channel)) = receiver.recv() => {
                 tracing::info!("connection ping: {protocol:?}, idle counter: {idle_counter}");
                 idle_counter = 0;

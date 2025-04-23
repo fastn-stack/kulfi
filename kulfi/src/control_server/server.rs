@@ -1,6 +1,6 @@
 pub async fn handle_connection(
     stream: tokio::net::TcpStream,
-    mut graceful_shutdown_rx: tokio::sync::watch::Receiver<bool>,
+    graceful: kulfi_utils::Graceful,
     id_map: kulfi_utils::IDMap,
     client_pools: kulfi_utils::HttpConnectionPools,
     peer_connections: kulfi_utils::PeerStreamSenders,
@@ -31,12 +31,12 @@ pub async fn handle_connection(
                 // send multiple requests on the same connection as they are independent of each
                 // other. without pipelining, we will end up having effectively more open
                 // connections between edge and js/wasm.
-                hyper::service::service_fn(|r| handle_request(r, id_map.clone(), client_pools.clone(), peer_connections.clone())),
+                hyper::service::service_fn(|r| handle_request(r, id_map.clone(), client_pools.clone(), peer_connections.clone(), graceful.clone())),
             );
     }
 
     if let Err(e) = tokio::select! {
-        _ = graceful_shutdown_rx.changed() => {
+        _ = graceful.cancelled() => {
             conn.as_mut().graceful_shutdown();
             conn.await
         }
@@ -53,10 +53,11 @@ async fn handle_request(
     id_map: kulfi_utils::IDMap,
     client_pools: kulfi_utils::HttpConnectionPools,
     peer_connections: kulfi_utils::PeerStreamSenders,
+    graceful: kulfi_utils::Graceful,
 ) -> kulfi_utils::http::ProxyResult {
     kulfi::CONTROL_REQUEST_COUNT.incr();
     kulfi::IN_FLIGHT_REQUESTS.incr();
-    let r = handle_request_(r, id_map, client_pools, peer_connections).await;
+    let r = handle_request_(r, id_map, client_pools, peer_connections, graceful).await;
     kulfi::IN_FLIGHT_REQUESTS.decr();
     r
 }
@@ -66,6 +67,7 @@ async fn handle_request_(
     id_map: kulfi_utils::IDMap,
     client_pools: kulfi_utils::HttpConnectionPools,
     peer_connections: kulfi_utils::PeerStreamSenders,
+    graceful: kulfi_utils::Graceful,
 ) -> kulfi_utils::http::ProxyResult {
     let id = match r
         .headers()
@@ -102,8 +104,15 @@ async fn handle_request_(
         // if the id belongs to a friend of an identity, send the request to the friend over iroh
         Ok(WhatToDo::ForwardToPeer { peer_id, patch }) => {
             let self_endpoint = get_endpoint(default_id.as_str(), id_map).await?;
-            kulfi_utils::http_to_peer(r, self_endpoint, peer_id.as_str(), peer_connections, patch)
-                .await
+            kulfi_utils::http_to_peer(
+                r,
+                self_endpoint,
+                peer_id.as_str(),
+                peer_connections,
+                patch,
+                graceful,
+            )
+            .await
         }
         // if not identity, find if the id is an http device owned by identity, if so proxy-pass the
         // request to that device
