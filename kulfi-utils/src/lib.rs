@@ -17,17 +17,17 @@ use eyre::Context;
 pub use secret::KeyringSecretStore;
 
 pub use get_endpoint::get_endpoint;
-pub use get_stream::{get_stream, PeerStreamSenders};
+pub use get_stream::{PeerStreamSenders, get_stream};
 pub use http::ProxyResult;
 pub use http_connection_manager::{HttpConnectionManager, HttpConnectionPool, HttpConnectionPools};
 pub use http_to_peer::http_to_peer;
 pub use peer_to_http::peer_to_http;
 pub use peer_to_tcp::peer_to_tcp;
-pub use ping::{ping, PONG};
-pub use protocol::{Protocol, APNS_IDENTITY};
-pub use secret::{read_or_create_key, SecretStore};
+pub use ping::{PONG, ping};
+pub use protocol::{APNS_IDENTITY, Protocol};
+pub use secret::{SecretStore, read_or_create_key};
 pub use utils::{
-    accept_bi, frame_reader, get_remote_id52, id52_to_public_key, public_key_to_id52, FrameReader,
+    FrameReader, accept_bi, frame_reader, get_remote_id52, id52_to_public_key, public_key_to_id52,
 };
 
 /// IDMap stores the fastn port and the endpoint for every identity
@@ -60,7 +60,7 @@ impl Graceful {
                 .wrap_err_with(|| "failed to get ctrl-c signal handler")?;
 
             tracing::info!("Received ctrl-c signal, showing info.");
-            tracing::debug!("Pending tasks: {}", self.tracker.len());
+            tracing::info!("Pending tasks: {}", self.tracker.len());
 
             show_info_tx
                 .send(true)
