@@ -165,8 +165,8 @@ setup() {
 
 check_architecture() {
     if [ "$(uname)" = "Darwin" ]; then
-        ARCH=$(uname -m)
-        if [ "$ARCH" = *"x86_64"* ]; then
+        ARCH=$(arch)
+        if [ "$ARCH" = "x86_64" ]; then
             log_error "Intel-based Macs are not yet supported."
             exit 1
         fi
