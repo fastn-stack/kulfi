@@ -30,9 +30,9 @@ impl kulfi::Identity {
         client_pools: kulfi_utils::HttpConnectionPools,
     ) -> eyre::Result<Self> {
         use eyre::WrapErr;
-        use kulfi_utils::SecretStore;
 
-        let public_key = kulfi_utils::KeyringSecretStore::generate(rand::rngs::OsRng)?;
+        let key_path = identities_folder.join("secret.key");
+        let secret_key = kulfi_utils::read_or_create_secret_key(&key_path)?;
 
         let now = std::time::SystemTime::now();
         let unixtime = now
@@ -41,7 +41,7 @@ impl kulfi::Identity {
             .as_secs();
         let tmp_dir = identities_folder.join(format!(
             "temp-{public_key}-{unixtime}",
-            public_key = kulfi_utils::public_key_to_id52(&public_key),
+            public_key = kulfi_utils::public_key_to_id52(&secret_key.public()),
         ));
 
         let package_template_folder = kulfi::utils::mkdir(&tmp_dir, "package-template")?;
@@ -69,14 +69,15 @@ impl kulfi::Identity {
         kulfi::utils::mkdir(&tmp_dir, "devices")?;
         kulfi::utils::mkdir(&tmp_dir, "logs")?;
 
-        let id52 = kulfi_utils::public_key_to_id52(&public_key);
+        let id52 = kulfi_utils::public_key_to_id52(&secret_key.public());
         let dir = identities_folder.join(&id52);
         std::fs::rename(&tmp_dir, dir)
             .wrap_err_with(|| "failed to rename {tmp_dir:?} to {dir:?}")?;
 
         Ok(Self {
             id52,
-            public_key,
+            secret_key_path: key_path,
+            public_key: secret_key.public(),
             client_pools,
         })
     }
