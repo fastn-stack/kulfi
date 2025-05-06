@@ -1,5 +1,17 @@
 # ChangeLog
 
+## Unreleased
+
+### malai 0.3.0
+
+- Remove dependency on the `keyring` crate. This allows use to use `malai`
+where keyring does not exist (AWS EC2 for example).
+- `malai keygen`: Generate new secret keys. These keys are required by various
+other subcommands to functions and are stored in user's data dir
+($HOME/.local/share/) by default.
+- Add `-k` (`--secret-key-path`) flag to `http`, `tcp` and, `folder` subcmd
+that takes a path to the key generate via `malai keygen`.
+
 ## 06 May 2025
 
 ### malai 0.2.3
