@@ -1,6 +1,6 @@
 # ChangeLog
 
-## Unreleased
+## 06 May 2025
 
 ### malai 0.3.0
 
@@ -11,8 +11,6 @@ other subcommands to functions and are stored in user's data dir
 ($HOME/.local/share/) by default.
 - Add `-k` (`--secret-key-path`) flag to `http`, `tcp` and, `folder` subcmd
 that takes a path to the key generate via `malai keygen`.
-
-## 06 May 2025
 
 ### malai 0.2.3
 
