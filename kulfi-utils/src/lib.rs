@@ -14,9 +14,6 @@ mod tcp;
 mod tcp_to_peer;
 mod utils;
 
-#[cfg(feature = "keyring")]
-pub use secret::KeyringSecretStore;
-
 pub use get_endpoint::get_endpoint;
 pub use get_stream::{PeerStreamSenders, get_stream};
 pub use graceful::Graceful;
@@ -26,7 +23,7 @@ pub use http_to_peer::http_to_peer;
 pub use peer_to_http::peer_to_http;
 pub use ping::{PONG, ping};
 pub use protocol::{APNS_IDENTITY, Protocol};
-pub use secret::{SecretStore, read_or_create_key};
+pub use secret::{generate_secret_key, get_secret_key, read_or_create_secret_key};
 pub use tcp::{peer_to_tcp, pipe_tcp_stream_over_iroh, tcp_to_peer};
 pub use utils::{
     FrameReader, accept_bi, frame_reader, get_remote_id52, id52_to_public_key, public_key_to_id52,

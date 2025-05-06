@@ -32,6 +32,7 @@ use render_folder::render_folder;
 pub async fn folder(
     path: String,
     bridge: String,
+    secret_key_path: std::path::PathBuf,
     graceful: kulfi_utils::Graceful,
 ) -> eyre::Result<()> {
     use eyre::WrapErr;
@@ -47,8 +48,9 @@ pub async fn folder(
 
     let g = graceful.clone();
 
-    graceful
-        .spawn(async move { malai::expose_http("127.0.0.1".to_string(), port, bridge, g).await });
+    graceful.spawn(async move {
+        malai::expose_http("127.0.0.1".to_string(), port, bridge, &secret_key_path, g).await
+    });
 
     let mut g = graceful.clone();
 

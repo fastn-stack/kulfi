@@ -1,13 +1,13 @@
 pub async fn expose_tcp(
     host: String,
     port: u16,
+    secret_key_path: &std::path::Path,
     mut graceful: kulfi_utils::Graceful,
 ) -> eyre::Result<()> {
     use eyre::WrapErr;
-    use kulfi_utils::SecretStore;
 
-    let id52 = kulfi_utils::read_or_create_key().await?;
-    let secret_key = kulfi_utils::KeyringSecretStore::new(id52.clone()).get()?;
+    let secret_key = kulfi_utils::read_or_create_secret_key(secret_key_path)?;
+    let id52 = kulfi_utils::public_key_to_id52(&secret_key.public());
     let ep = kulfi_utils::get_endpoint(secret_key)
         .await
         .wrap_err_with(|| "failed to bind to iroh network")?;

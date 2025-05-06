@@ -22,6 +22,7 @@ async fn main() -> eyre::Result<()> {
             host,
             bridge,
             public,
+            secret_key_path,
             // secure,
             // what_to_do,
         }) => {
@@ -30,12 +31,19 @@ async fn main() -> eyre::Result<()> {
                 "HTTP service",
                 &format!("malai http {port} --public"),
             ) {
-                return Ok(());
+                std::process::exit(1);
             }
+
+            let secret_key_path = match resolve_secret_key_path(secret_key_path) {
+                Ok(v) => v,
+                Err(_) => std::process::exit(1), // error msg is printed
+            };
 
             tracing::info!(port, host, verbose = ?cli.verbose, "Exposing HTTP service on kulfi.");
             let g = graceful.clone();
-            graceful.spawn(async move { malai::expose_http(host, port, bridge, g).await });
+            graceful.spawn(async move {
+                malai::expose_http(host, port, bridge, &secret_key_path, g).await
+            });
         }
         Some(Command::HttpBridge { proxy_target, port }) => {
             tracing::info!(port, proxy_target, verbose = ?cli.verbose, "Starting HTTP bridge.");
@@ -43,18 +51,28 @@ async fn main() -> eyre::Result<()> {
             graceful
                 .spawn(async move { malai::http_bridge(port, proxy_target, g, |_| Ok(())).await });
         }
-        Some(Command::Tcp { port, host, public }) => {
+        Some(Command::Tcp {
+            port,
+            host,
+            public,
+            secret_key_path,
+        }) => {
             if !malai::public_check(
                 public,
                 "HTTP service",
                 &format!("malai http {port} --public"),
             ) {
-                return Ok(());
+                std::process::exit(1);
             }
+
+            let secret_key_path = match resolve_secret_key_path(secret_key_path) {
+                Ok(v) => v,
+                Err(_) => std::process::exit(1), // error msg is printed
+            };
 
             tracing::info!(port, host, verbose = ?cli.verbose, "Exposing TCP service on kulfi.");
             let g = graceful.clone();
-            graceful.spawn(async move { malai::expose_tcp(host, port, g).await });
+            graceful.spawn(async move { malai::expose_tcp(host, port, &secret_key_path, g).await });
         }
         Some(Command::TcpBridge { proxy_target, port }) => {
             tracing::info!(port, proxy_target, verbose = ?cli.verbose, "Starting TCP bridge.");
@@ -70,14 +88,62 @@ async fn main() -> eyre::Result<()> {
             path,
             bridge,
             public,
+            secret_key_path,
         }) => {
             if !malai::public_check(public, "folder", &format!("malai folder --public {path}")) {
-                return Ok(());
+                std::process::exit(1);
             }
+
+            let secret_key_path = match resolve_secret_key_path(secret_key_path) {
+                Ok(v) => v,
+                Err(_) => std::process::exit(1), // error msg is printed
+            };
 
             tracing::info!(path, verbose = ?cli.verbose, "Exposing folder to kulfi network.");
             let g = graceful.clone();
-            graceful.spawn(async move { malai::folder(path, bridge, g).await });
+            graceful.spawn(async move { malai::folder(path, bridge, secret_key_path, g).await });
+        }
+        Some(Command::Keygen { path }) => {
+            let secret_key_path = match path {
+                Some(v) => std::path::PathBuf::from(v),
+                None => directories::BaseDirs::new()
+                    .expect("Failed to get valid HOME dir")
+                    .data_dir()
+                    .join("malai")
+                    .join("default.key"),
+            };
+
+            if secret_key_path.exists() {
+                eprintln!(
+                    "Path {secret_key_path:?} already exists. Please provide a different path or delete the existing file."
+                );
+                std::process::exit(1);
+            }
+
+            if secret_key_path.is_dir() {
+                eprintln!("Secret key path is a directory. Please provide a valid file path.");
+                std::process::exit(1);
+            }
+
+            tracing::info!(path = ?secret_key_path, verbose = ?cli.verbose, "Generating new secret key.");
+
+            std::fs::create_dir_all(
+                secret_key_path
+                    .parent()
+                    .expect("Failed to get parent directory"),
+            )?;
+
+            match kulfi_utils::generate_secret_key(&secret_key_path) {
+                Err(e) => {
+                    tracing::error!(error = ?e, "Failed to generate secret key");
+                    std::process::exit(1);
+                }
+                Ok(_) => {
+                    tracing::info!(path = ?secret_key_path, "Secret key generated successfully.");
+                    println!("Secret key generated successfully at {secret_key_path:?}");
+                    std::process::exit(0);
+                }
+            }
         }
         #[cfg(feature = "ui")]
         None => {
@@ -94,6 +160,30 @@ async fn main() -> eyre::Result<()> {
     };
 
     graceful.shutdown().await
+}
+
+fn resolve_secret_key_path(path_arg: Option<String>) -> Result<std::path::PathBuf, ()> {
+    let secret_key_path = match path_arg {
+        Some(v) => std::path::PathBuf::from(v),
+        None => directories::BaseDirs::new()
+            .expect("Failed to get valid HOME dir")
+            .data_dir()
+            .join("malai")
+            .join("default.key"),
+    };
+
+    if !secret_key_path.exists() {
+        eprintln!(
+            "Secret key file does not exist at {secret_key_path:?}. Please create it using `malai keygen {secret_key_path:?}` or provide a valid path."
+        );
+        return Err(());
+    }
+
+    if secret_key_path.is_dir() {
+        eprintln!("Secret key path is a directory. Please provide a valid file path.");
+    }
+
+    Ok(secret_key_path)
 }
 
 #[derive(clap::Parser, Debug)]
@@ -139,6 +229,12 @@ pub enum Command {
             help = "Make the exposed service public. Anyone will be able to access."
         )]
         public: bool,
+        #[arg(
+            long,
+            short('k'),
+            help = "The path to the secret key file. If not provided, it'll read it from the default location. Use `malai keygen` to create new secret keys."
+        )]
+        secret_key_path: Option<String>,
         // #[arg(
         //     long,
         //     default_value_t = false,
@@ -171,6 +267,12 @@ pub enum Command {
             help = "Make the exposed service public. Anyone will be able to access."
         )]
         public: bool,
+        #[arg(
+            long,
+            short('k'),
+            help = "The path to the secret key file. If not provided, it'll read it from the default location. Use `malai keygen` to create new secret keys."
+        )]
+        secret_key_path: Option<String>,
     },
     #[clap(
         about = "Run an http server that forwards requests to the given id52 taken from the HOST header"
@@ -213,5 +315,20 @@ pub enum Command {
         bridge: String,
         #[arg(long, help = "Make the folder public. Anyone will be able to access.")]
         public: bool,
+        #[arg(
+            long,
+            short('k'),
+            help = "The path to the secret key file. If not provided, it'll read it from the default location. Use `malai keygen` to create new secret keys."
+        )]
+        secret_key_path: Option<String>,
+    },
+    #[clap(about = "Generate a new secret key")]
+    Keygen {
+        #[arg(
+            long,
+            short('p'),
+            help = "The path to store the secret key. Leave empty to use the default location."
+        )]
+        path: Option<String>,
     },
 }
