@@ -134,10 +134,17 @@ jobs:
         run: |
           sed -i "s/GITHUB_SHA/${GITHUB_SHA}/g" .github/MALAI_RELEASE_TEMPLATE.md
           sed -i "s/DATE/$(date)/g" .github/MALAI_RELEASE_TEMPLATE.md
+      - name: setup release template
+        run: |
+          awk -v version="### malai ${{ github.event.inputs.releaseTag }}" '
+            $0 == version { found=1; print; next }
+            found && /^## [0-9]{2}/ { exit }
+            found && /^### malai / { exit }
+            found { print }
+          ' CHANGELOG.md | sed "1s/.*/# What's Changed/" >> .github/MALAI_RELEASE_TEMPLATE.md
       - uses: ncipollo/release-action@v1
         with:
           artifacts: "~/download/macos/malai_macos_x86_64,~/download/linux/malai_linux_x86_64,~/download/windows/malai_windows_x86_64.zip"
-          generateReleaseNotes: true
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: malai-${{ github.event.inputs.releaseTag }}
           prerelease: ${{ github.event.inputs.productionRelease && github.event.inputs.productionRelease == 'false' }}
