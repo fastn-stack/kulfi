@@ -136,7 +136,7 @@ fn resolve_secret_key_path(path_arg: Option<String>) -> Result<std::path::PathBu
 
     if !secret_key_path.exists() {
         eprintln!(
-            "Secret key file does not exist at {secret_key_path:?}. Please create it using `malai keygen {secret_key_path:?}` or provide a valid path."
+            "Secret key file does not exist at {secret_key_path:?}. Please create it using `malai keygen -p {secret_key_path:?}` or provide a valid path."
         );
         return Err(());
     }
