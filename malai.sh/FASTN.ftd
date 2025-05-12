@@ -8,7 +8,7 @@ provided-via: malai.sh/ds
 
 -- fastn.dependency: site-banner.fifthtry.site
 
--- fastn.dependency: jetbrains-mono-typography.fifthtry.site
+-- fastn.dependency: fastn-typography.fifthtry.site
 
 -- fastn.auto-import: malai.sh/assets
 -- fastn.auto-import: design-system.fifthtry.site as ds

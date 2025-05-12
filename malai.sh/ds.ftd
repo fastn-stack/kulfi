@@ -1,5 +1,5 @@
 -- import: malai.sh/components/header
--- import: jetbrains-mono-typography.fifthtry.site
+-- import: fastn-typography.fifthtry.site
 -- import: site-banner.fifthtry.site as banner
 
 -- import: design-system.fifthtry.site
@@ -36,4 +36,4 @@ margin: $ds.spaces.vertical-gap.large
 
 -- end: site-header
 
--- ftd.type-data types: $jetbrains-mono-typography.types
+-- ftd.type-data types: $fastn-typography.types
