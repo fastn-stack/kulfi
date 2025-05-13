@@ -21,40 +21,59 @@ pub async fn http_bridge(
 
     let peer_connections = kulfi_utils::PeerStreamSenders::default();
 
-    let mut g = graceful.clone();
+    // let mut g = graceful.clone();
 
     loop {
         tracing::trace!("waiting for connection");
-        tokio::select! {
-            () = graceful.cancelled() => {
-                tracing::info!("Stopping control server.");
-                break;
-            }
-            r = g.show_info() => {
-                match r {
-                    Ok(_) => {
-                        println!("Listening on http://127.0.0.1:{port}");
-                        println!("Press ctrl+c again to exit.");
-                    }
-                    Err(e) => {
-                        tracing::error!("failed to show info: {e:?}");
-                    }
-                }
-            }
-            Ok((stream, _addr)) = listener.accept() => {
+
+        match listener.accept().await {
+            Ok((stream, _addr)) => {
                 tracing::info!("got connection");
                 let g = graceful.clone();
                 let peer_connections = peer_connections.clone();
                 let proxy_target = proxy_target.clone();
                 graceful.spawn(async move {
                     let self_endpoint = malai::global_iroh_endpoint().await;
-                    handle_connection(self_endpoint, stream, g, peer_connections, proxy_target).await
+                    handle_connection(self_endpoint, stream, g, peer_connections, proxy_target)
+                        .await
                 });
             }
-            Err(e) = listener.accept() => {
+            Err(e) => {
                 tracing::error!("failed to accept: {e:?}");
-            },
+                break;
+            }
         }
+
+        // tokio::select! {
+        //     () = graceful.cancelled() => {
+        //         tracing::info!("Stopping control server.");
+        //         break;
+        //     }
+        //     r = g.show_info() => {
+        //         match r {
+        //             Ok(_) => {
+        //                 println!("Listening on http://127.0.0.1:{port}");
+        //                 println!("Press ctrl+c again to exit.");
+        //             }
+        //             Err(e) => {
+        //                 tracing::error!("failed to show info: {e:?}");
+        //             }
+        //         }
+        //     }
+        //     Ok((stream, _addr)) = listener.accept() => {
+        //         tracing::info!("got connection");
+        //         let g = graceful.clone();
+        //         let peer_connections = peer_connections.clone();
+        //         let proxy_target = proxy_target.clone();
+        //         graceful.spawn(async move {
+        //             let self_endpoint = malai::global_iroh_endpoint().await;
+        //             handle_connection(self_endpoint, stream, g, peer_connections, proxy_target).await
+        //         });
+        //     }
+        //     Err(e) = listener.accept() => {
+        //         tracing::error!("failed to accept: {e:?}");
+        //     },
+        // }
     }
 
     Ok(())
