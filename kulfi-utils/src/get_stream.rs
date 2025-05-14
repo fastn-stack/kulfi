@@ -81,8 +81,9 @@ async fn get_stream_request_sender(
     );
     drop(senders);
 
+    let g = graceful.clone();
     graceful.spawn(async move {
-        connection_manager(receiver, self_endpoint, remote_node_id52.clone()).await;
+        connection_manager(receiver, self_endpoint, remote_node_id52.clone(), g).await;
 
         // cleanup the peer_stream_senders map, so no future tasks will try to use this.
         let mut senders = peer_stream_senders.lock().await;
@@ -96,8 +97,15 @@ async fn connection_manager(
     mut receiver: StreamRequestReceiver,
     self_endpoint: iroh::Endpoint,
     remote_node_id52: RemoteID52,
+    graceful: kulfi_utils::Graceful,
 ) {
-    let e = match connection_manager_(&mut receiver, self_endpoint, remote_node_id52.clone()).await
+    let e = match connection_manager_(
+        &mut receiver,
+        self_endpoint,
+        remote_node_id52.clone(),
+        graceful,
+    )
+    .await
     {
         Ok(()) => {
             tracing::info!("connection manager closed");
@@ -142,6 +150,7 @@ async fn connection_manager_(
     receiver: &mut StreamRequestReceiver,
     self_endpoint: iroh::Endpoint,
     remote_node_id52: RemoteID52,
+    graceful: kulfi_utils::Graceful,
 ) -> eyre::Result<()> {
     let conn = match self_endpoint
         .connect(
@@ -168,6 +177,10 @@ async fn connection_manager_(
         }
 
         tokio::select! {
+            _ = graceful.cancelled() => {
+                tracing::info!("graceful shutdown");
+                break;
+            },
             _ = tokio::time::sleep(timeout) => {
                 if let Err(e) = kulfi_utils::ping(&conn).await {
                     tracing::error!("pinging failed: {e:?}");
