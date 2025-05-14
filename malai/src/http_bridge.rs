@@ -23,12 +23,14 @@ pub async fn http_bridge(
 
     let mut g = graceful.clone();
     let g2 = graceful.clone();
-    g.spawn(async move { listener_loop(listener, g2, peer_connections, proxy_target).await });
+    let listener_handle =
+        g.spawn(async move { listener_loop(listener, g2, peer_connections, proxy_target).await });
 
     loop {
         tokio::select! {
             () = graceful.cancelled() => {
                 tracing::info!("Stopping control server.");
+                listener_handle.abort();
                 break;
             }
             r = g.show_info() => {
