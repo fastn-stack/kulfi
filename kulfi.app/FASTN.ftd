@@ -3,8 +3,10 @@
 -- fastn.package: kulfi.app
 
 -- fastn.dependency: design-system.fifthtry.site
+provided-via: kulfi.app/ds
 
 -- fastn.auto-import: design-system.fifthtry.site as ds
+-- fastn.auto-import: kulfi.app/assets
 
 -- fastn.url-mappings:
 
