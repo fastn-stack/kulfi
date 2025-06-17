@@ -1,8 +1,12 @@
-// #![deny(unused_extern_crates)]
-// #![deny(unused_crate_dependencies)]
+#![deny(unused_extern_crates)]
+#![deny(unused_crate_dependencies)]
 #![deny(unsafe_code)]
 
 extern crate self as malai;
+
+use clap as _;
+use clap_verbosity_flag as _;
+use tracing_subscriber as _;
 
 mod browse;
 mod expose_http;
