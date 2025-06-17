@@ -6,6 +6,9 @@ pub async fn generate(file: Option<String>) -> eyre::Result<()> {
 
     match file {
         Some(ref file) => {
+            if std::path::Path::new(file).exists() {
+                return Err(eyre::eyre!("File `{file}` already exists. Please choose a different file name."));
+            }
             writeln!(std::fs::File::create(file)?, "{secret_key}")?;
             println!("Private key saved to `{file}`.");
         }

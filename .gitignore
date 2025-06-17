@@ -34,3 +34,4 @@ kulfi/gen
 *.wasm
 
 .malai.id52
+.malai.secret-key
