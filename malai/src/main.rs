@@ -274,7 +274,7 @@ pub enum Command {
             long,
             short,
             num_args=0..=1,
-            default_missing_value=".malai.private-key",
+            default_missing_value=kulfi_utils::SECRET_KEY_FILE,
             help = "The file where the generated key will be live, by default we do not create any file."
         )]
         file: Option<String>,
