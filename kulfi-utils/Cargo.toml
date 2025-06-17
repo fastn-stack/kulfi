@@ -20,16 +20,11 @@ http-body-util.workspace = true
 hyper-util.workspace = true
 hyper.workspace = true
 iroh.workspace = true
-keyring = { workspace = true, optional = true }
+keyring.workspace = true
 rand.workspace = true
-rand_core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio-stream.workspace = true
 tokio-util.workspace = true
 tokio.workspace = true
 tracing.workspace = true
-
-[features]
-default = ["keyring"]
-keyring = ["dep:keyring"]
