@@ -278,5 +278,5 @@ pub enum Command {
             help = "The file where the generated key will be live, by default we do not create any file."
         )]
         file: Option<String>,
-    }
+    },
 }

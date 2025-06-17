@@ -1,42 +1,23 @@
 use eyre::WrapErr;
 
-fn get(id52: &str) -> eyre::Result<iroh::SecretKey> {
-    let entry = keyring_entry(id52)?;
+pub const SECRET_KEY_ENV_VAR: &str = "KULFI_SECRET_KEY";
+pub const SECRET_KEY_FILE: &str = ".malai.secret-key";
+pub const ID52_FILE: &str = ".malai.id52";
 
-    let secret = entry
-        .get_secret()
-        .wrap_err_with(|| format!("keyring: secret not found for {id52}"))?;
-
-    if secret.len() != 32 {
-        return Err(eyre::anyhow!(
-            "keyring: secret has invalid length: {}",
-            secret.len()
-        ));
-    }
-
-    let bytes: [u8; 32] = secret.try_into().expect("already checked for length");
-    Ok(iroh::SecretKey::from_bytes(&bytes))
+pub fn generate_private_key() -> eyre::Result<(String, iroh::SecretKey)> {
+    let private_key = iroh::SecretKey::generate(&mut rand::rngs::OsRng);
+    let public_key = private_key.public();
+    let id52 = kulfi_utils::public_key_to_id52(&public_key);
+    Ok((id52, private_key))
 }
 
-fn save(_secret_key: &iroh::SecretKey) -> eyre::Result<()> {
-    // Ok(self.keyring_entry()?.set_secret(&secret_key.to_bytes())?)
-
-    todo!()
-}
-
-fn generate(mut rng: impl rand_core::CryptoRngCore) -> eyre::Result<iroh::PublicKey> {
-    let secret_key = iroh::SecretKey::generate(&mut rng);
-    // we do not want to keep secret key in memory, only in keychain
-    let _id52 = kulfi_utils::public_key_to_id52(&secret_key.public());
-    // store
-    //     .save(&secret_key)
-    //     .wrap_err_with(|| "failed to store secret key to keychain")?;
-    // todo!()
-    Ok(secret_key.public())
-}
-
-pub fn generate_public_key(_rng: impl rand_core::CryptoRngCore) ->  eyre::Result<iroh::PublicKey> {
-    todo!()
+pub async fn generate_and_save_key() -> eyre::Result<(String, iroh::SecretKey)> {
+    let (id52, private_key) = generate_private_key()?;
+    let e = keyring_entry(&id52)?;
+    e.set_secret(&private_key.to_bytes())
+        .wrap_err_with(|| format!("failed to save private key for {id52}"))?;
+    tokio::fs::write(ID52_FILE, &id52).await?;
+    Ok((id52, private_key))
 }
 
 fn keyring_entry(id52: &str) -> eyre::Result<keyring::Entry> {
@@ -44,16 +25,63 @@ fn keyring_entry(id52: &str) -> eyre::Result<keyring::Entry> {
         .wrap_err_with(|| format!("failed to create keyring Entry for {id52}"))
 }
 
+fn handle_secret(secret: &str) -> eyre::Result<(String, iroh::SecretKey)> {
+    use std::str::FromStr;
+
+    let private_key = iroh::SecretKey::from_str(secret)
+        .wrap_err_with(|| "failed to parse secret key from string")?;
+    let public_key = private_key.public();
+    let id52 = kulfi_utils::public_key_to_id52(&public_key);
+    Ok((id52, private_key))
+}
+
+pub fn get_secret_key(_id52: &str, _path: &str) -> eyre::Result<iroh::SecretKey> {
+    // intentionally left unimplemented as design is changing
+    todo!()
+}
+
 pub async fn read_or_create_key() -> eyre::Result<(String, iroh::SecretKey)> {
-    match tokio::fs::read_to_string(".malai.id52").await {
-        Ok(v) => Ok((v, todo!())),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            tracing::info!("no key found, creating new one");
-            let public_key = generate(rand::rngs::OsRng)?;
-            let public_key = kulfi_utils::public_key_to_id52(&public_key);
-            tokio::fs::write(".malai.id52", public_key.as_str()).await?;
-            Ok((public_key, todo!()))
+    if let Ok(secret) = std::env::var(SECRET_KEY_ENV_VAR) {
+        return handle_secret(&secret);
+    } else {
+        match tokio::fs::read_to_string(SECRET_KEY_FILE).await {
+            Ok(secret) => {
+                return handle_secret(&secret);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => {
+                tracing::error!("failed to read {SECRET_KEY_FILE}: {e}");
+                return Err(e.into());
+            }
         }
+    }
+
+    match tokio::fs::read_to_string(ID52_FILE).await {
+        Ok(id52) => {
+            let e = keyring_entry(&id52)?;
+            match e.get_secret() {
+                Ok(secret) => {
+                    if secret.len() != 32 {
+                        return Err(eyre::anyhow!(
+                            "keyring: secret has invalid length: {}",
+                            secret.len()
+                        ));
+                    }
+
+                    let bytes: [u8; 32] = secret.try_into().expect("already checked for length");
+                    let secret_key = iroh::SecretKey::from_bytes(&bytes);
+                    Ok((
+                        kulfi_utils::public_key_to_id52(&secret_key.public()),
+                        secret_key,
+                    ))
+                }
+                Err(e) => {
+                    tracing::error!("failed to read secret from keyring: {e}");
+                    Err(e.into())
+                }
+            }
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => generate_and_save_key().await,
         Err(e) => {
             tracing::error!("failed to read key: {e}");
             Err(e.into())

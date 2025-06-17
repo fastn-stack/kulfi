@@ -15,15 +15,15 @@ mod tcp;
 mod utils;
 
 pub use get_endpoint::get_endpoint;
-pub use get_stream::{get_stream, PeerStreamSenders};
+pub use get_stream::{PeerStreamSenders, get_stream};
 pub use graceful::Graceful;
 pub use http::ProxyResult;
 pub use http_connection_manager::{HttpConnectionManager, HttpConnectionPool, HttpConnectionPools};
 pub use http_to_peer::{http_to_peer, http_to_peer_non_streaming};
 pub use peer_to_http::peer_to_http;
-pub use ping::{ping, PONG};
-pub use protocol::{Protocol, ProtocolHeader, APNS_IDENTITY};
-pub use secret::{generate_public_key, read_or_create_key};
+pub use ping::{PONG, ping};
+pub use protocol::{APNS_IDENTITY, Protocol, ProtocolHeader};
+pub use secret::{generate_and_save_key, generate_private_key, get_secret_key, read_or_create_key};
 pub use tcp::{peer_to_tcp, pipe_tcp_stream_over_iroh, tcp_to_peer};
 pub use utils::{
     accept_bi, accept_bi_with, get_remote_id52, global_iroh_endpoint, id52_to_public_key, mkdir,

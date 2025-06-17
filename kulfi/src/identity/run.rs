@@ -22,7 +22,8 @@ impl kulfi::Identity {
         });
         tracing::info!("fastn started on port {port}");
 
-        let secret_key = todo!();
+        let secret_key = kulfi_utils::get_secret_key(self.id52.as_str(), "todo")
+            .wrap_err_with(|| "failed to read or secret key")?;
         let ep = kulfi_utils::get_endpoint(secret_key)
             .await
             .wrap_err_with(|| "failed to bind to iroh network")?;

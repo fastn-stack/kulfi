@@ -31,17 +31,14 @@ impl kulfi::Identity {
     ) -> eyre::Result<Self> {
         use eyre::WrapErr;
 
-        let public_key = kulfi_utils::generate_public_key(rand::rngs::OsRng)?;
+        let (id52, secret_key) = kulfi_utils::generate_and_save_key().await?;
 
         let now = std::time::SystemTime::now();
         let unixtime = now
             .duration_since(std::time::UNIX_EPOCH)
             .wrap_err_with(|| "failed to get unix time")?
             .as_secs();
-        let tmp_dir = identities_folder.join(format!(
-            "temp-{public_key}-{unixtime}",
-            public_key = kulfi_utils::public_key_to_id52(&public_key),
-        ));
+        let tmp_dir = identities_folder.join(format!("temp-{id52}-{unixtime}",));
 
         let package_template_folder = kulfi::utils::mkdir(&tmp_dir, "package-template")?;
 
@@ -68,14 +65,13 @@ impl kulfi::Identity {
         kulfi::utils::mkdir(&tmp_dir, "devices")?;
         kulfi::utils::mkdir(&tmp_dir, "logs")?;
 
-        let id52 = kulfi_utils::public_key_to_id52(&public_key);
         let dir = identities_folder.join(&id52);
         std::fs::rename(&tmp_dir, dir)
             .wrap_err_with(|| "failed to rename {tmp_dir:?} to {dir:?}")?;
 
         Ok(Self {
             id52,
-            public_key,
+            public_key: secret_key.public(),
             client_pools,
         })
     }
