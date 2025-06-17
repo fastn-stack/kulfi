@@ -3017,7 +3017,6 @@ dependencies = [
  "iroh",
  "kulfi-utils",
  "libdbus-sys",
- "rand 0.8.5",
  "reqwest",
  "serde",
  "tauri",

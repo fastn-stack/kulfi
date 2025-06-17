@@ -18,7 +18,6 @@ hyper-util.workspace = true
 hyper.workspace = true
 iroh.workspace = true
 kulfi-utils.workspace = true
-rand.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 tauri-plugin-opener.workspace = true
