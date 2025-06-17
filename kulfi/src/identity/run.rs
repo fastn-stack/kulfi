@@ -1,5 +1,4 @@
 use eyre::WrapErr;
-use kulfi_utils::SecretStore;
 
 impl kulfi::Identity {
     #[tracing::instrument(skip_all)]
@@ -23,7 +22,7 @@ impl kulfi::Identity {
         });
         tracing::info!("fastn started on port {port}");
 
-        let secret_key = kulfi_utils::KeyringSecretStore::new(self.id52.clone()).get()?;
+        let secret_key = todo!();
         let ep = kulfi_utils::get_endpoint(secret_key)
             .await
             .wrap_err_with(|| "failed to bind to iroh network")?;

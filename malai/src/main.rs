@@ -108,6 +108,11 @@ async fn main() -> eyre::Result<()> {
                 malai::http_proxy(port, remote, graceful_for_tcp_bridge, |_| Ok(())).await
             });
         }
+        Some(Command::Generate { file }) => {
+            tracing::info!(verbose = ?cli.verbose, "Generating new identity.");
+            malai::generate(file).await?;
+            return Ok(());
+        }
         #[cfg(feature = "ui")]
         None => {
             tracing::info!(verbose = ?cli.verbose, "Starting UI.");
@@ -263,4 +268,15 @@ pub enum Command {
         )]
         port: u16,
     },
+    #[clap(about = "Generate a new identity.")]
+    Generate {
+        #[arg(
+            long,
+            short,
+            num_args=0..=1,
+            default_missing_value=".malai.private-key",
+            help = "The file where the generated key will be live, by default we do not create any file."
+        )]
+        file: Option<String>,
+    }
 }

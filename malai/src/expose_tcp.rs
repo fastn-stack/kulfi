@@ -4,10 +4,8 @@ pub async fn expose_tcp(
     graceful: kulfi_utils::Graceful,
 ) -> eyre::Result<()> {
     use eyre::WrapErr;
-    use kulfi_utils::SecretStore;
 
-    let id52 = kulfi_utils::read_or_create_key().await?;
-    let secret_key = kulfi_utils::KeyringSecretStore::new(id52.clone()).get()?;
+    let (id52, secret_key) = kulfi_utils::read_or_create_key().await?;
     let ep = kulfi_utils::get_endpoint(secret_key)
         .await
         .wrap_err_with(|| "failed to bind to iroh network")?;

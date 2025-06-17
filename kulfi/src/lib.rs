@@ -1,5 +1,5 @@
 #![deny(unused_extern_crates)]
-#![deny(unused_crate_dependencies)]
+// #![deny(unused_crate_dependencies)]
 #![deny(unsafe_code)]
 
 extern crate self as kulfi; // TODO: Remove this and separate kulfi binary from library to get rid of unused_crate_dependencies

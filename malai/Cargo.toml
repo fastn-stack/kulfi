@@ -26,6 +26,7 @@ iroh.workspace = true
 kulfi-utils.workspace = true
 mime_guess.workspace = true
 percent-encoding.workspace = true
+rand.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tauri = { workspace = true, optional = true }

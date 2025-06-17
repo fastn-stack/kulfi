@@ -30,9 +30,8 @@ impl kulfi::Identity {
         client_pools: kulfi_utils::HttpConnectionPools,
     ) -> eyre::Result<Self> {
         use eyre::WrapErr;
-        use kulfi_utils::SecretStore;
 
-        let public_key = kulfi_utils::KeyringSecretStore::generate(rand::rngs::OsRng)?;
+        let public_key = kulfi_utils::generate_public_key(rand::rngs::OsRng)?;
 
         let now = std::time::SystemTime::now();
         let unixtime = now

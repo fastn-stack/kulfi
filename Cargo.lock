@@ -3224,6 +3224,7 @@ dependencies = [
  "libdbus-sys",
  "mime_guess",
  "percent-encoding",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "tauri",
