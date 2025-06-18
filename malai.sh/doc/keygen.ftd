@@ -1,0 +1,44 @@
+-- import: malai.sh/components/page as p
+
+-- p.doc-page: `malai keygen`: Generate identities
+
+It is possible for some systems to not have a working keyring. In such cases,
+you can use `malai keygen`.
+
+-- ds.heading-large: `malai keygen`: Generate identities
+
+-- ds.code: Using `malai keygen`
+lang: bash
+
+\$ malai keygen --file
+
+Generated Public Key (ID52): vvffhikufe6rb648ee3cfmeh1m5hk7gq2pa8jqpb2l3svpcvsop0
+Private key saved to `.malai.secret-key`.
+
+-- ds.copy-regular:
+
+You can use the `--file` option to save the private key to a file. If no value
+is passed to the `--file` argument, it uses `.malai.secret-key` as the default
+file name.
+
+The public key is printed to the console.
+
+If the `--file` arg is not supplied then the private key is also printed to
+stdout.
+
+Other `malai` commands like `malai http` or `malai tcp` will try to read from
+the following sources in order:
+
+-- ds.copy-regular:
+
+- `KULFI_SECRET_KEY` environment variable if set.
+- `.malai.secret-key` file in the current directory.
+- system keyring.
+
+-- ds.copy-regular:
+
+So for example you can run `KULFI_SECRET_KEY="<secret>" malai http` and it'll
+use the environment variable value as secret instead of relying on your system
+keyring.
+
+-- end: p.doc-page

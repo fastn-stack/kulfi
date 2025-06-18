@@ -35,6 +35,8 @@ provided-via: malai.sh/ds
   document: doc/tcp.ftd
 - `malai tcp-bridge`: /tcp-bridge/
   document: doc/tcp-bridge.ftd
+- `malai keygen`: /keygen/
+  document: doc/keygen.ftd
 ;; - `malai http-proxy`: /http-proxy/
 ;;   document: doc/http-proxy.ftd
 ;; - `malai http-proxy-remote`: /http-proxy-remote/
