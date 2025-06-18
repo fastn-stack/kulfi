@@ -1,4 +1,4 @@
-pub fn generate(filename: Option<String>) {
+pub fn keygen(filename: Option<String>) {
     use std::io::Write;
 
     let (id52, secret_key) = match kulfi_utils::generate_secret_key() {
