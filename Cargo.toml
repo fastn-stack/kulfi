@@ -48,9 +48,8 @@ http-body-util = "0.1"
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1.10", features = ["tokio", "server"] }
 iroh = { version = "0.35", features = ["discovery-local-network"] }
-keyring = "4.0.0-rc.1"
+keyring = { version = "4.0.0-rc.1", features = ["vendored"] }
 kulfi-utils = { path = "kulfi-utils", version = "0.1.0" }
-libdbus-sys = { version = "0.2", features = ["vendored"] }
 mime_guess = "2"
 percent-encoding = "2"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }

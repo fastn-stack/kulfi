@@ -6,8 +6,6 @@ extern crate self as malai;
 
 use clap as _;
 use clap_verbosity_flag as _;
-#[cfg(target_os = "linux")]
-use libdbus_sys as _;
 use tracing_subscriber as _;
 
 mod browse;

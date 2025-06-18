@@ -8,8 +8,6 @@ extern crate self as kulfi; // TODO: Remove this and separate kulfi binary from 
 use clap as _;
 use clap_verbosity_flag as _;
 use directories as _;
-#[cfg(target_os = "linux")]
-use libdbus_sys as _;
 use thiserror as _;
 use tracing_subscriber as _;
 

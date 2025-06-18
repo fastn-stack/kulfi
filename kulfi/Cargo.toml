@@ -30,9 +30,5 @@ tracing.workspace = true
 zip.workspace = true
 
 
-[target.'cfg(target_os = "linux")'.dependencies]
-libdbus-sys.workspace = true
-
-
 [build-dependencies]
 tauri-build.workspace = true
