@@ -1,10 +1,18 @@
-pub async fn http_proxy_remote(graceful: kulfi_utils::Graceful) -> eyre::Result<()> {
-    use eyre::WrapErr;
-
-    let (id52, secret_key) = kulfi_utils::read_or_create_key().await?;
-    let ep = kulfi_utils::get_endpoint(secret_key)
-        .await
-        .wrap_err_with(|| "failed to bind to iroh network")?;
+pub async fn http_proxy_remote(graceful: kulfi_utils::Graceful) {
+    let (id52, secret_key) = match kulfi_utils::read_or_create_key().await {
+        Ok(v) => v,
+        Err(e) => {
+            malai::identity_read_err_msg(e);
+            std::process::exit(1);
+        }
+    };
+    let ep = match kulfi_utils::get_endpoint(secret_key).await {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("Failed to bind to iroh network: {e:?}");
+            std::process::exit(1);
+        }
+    };
 
     let http_connection_pools = kulfi_utils::HttpConnectionPools::default();
     InfoMode::Startup.print(&id52);
@@ -50,7 +58,6 @@ pub async fn http_proxy_remote(graceful: kulfi_utils::Graceful) -> eyre::Result<
     }
 
     ep.close().await;
-    Ok(())
 }
 
 async fn handle_connection(

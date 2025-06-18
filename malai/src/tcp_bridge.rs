@@ -2,14 +2,14 @@ pub async fn tcp_bridge(
     port: u16,
     proxy_target: String,
     graceful: kulfi_utils::Graceful,
-) -> eyre::Result<()> {
+) {
     use eyre::WrapErr;
 
     let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{port}"))
         .await
         .wrap_err_with(|| {
             format!("can not listen to port {port}, is it busy, or you do not have root access?")
-        })?;
+        }).unwrap();
 
     println!("Listening on 127.0.0.1:{port}");
 
@@ -38,8 +38,6 @@ pub async fn tcp_bridge(
             }
         }
     }
-
-    Ok(())
 }
 
 pub async fn handle_connection(

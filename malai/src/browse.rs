@@ -13,7 +13,6 @@ pub async fn browse(url: String, graceful: kulfi_utils::Graceful) {
         webbrowser::open(&url).map_err(Into::into)
     })
     .await
-    .expect("Failed to start HTTP bridge");
 }
 
 /// This function extracts the id52 and the path from the URL

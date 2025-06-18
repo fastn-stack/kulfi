@@ -1,15 +1,20 @@
-pub async fn expose_http(
-    host: String,
-    port: u16,
-    bridge: String,
-    graceful: kulfi_utils::Graceful,
-) -> eyre::Result<()> {
-    use eyre::WrapErr;
+pub async fn expose_http(host: String, port: u16, bridge: String, graceful: kulfi_utils::Graceful) {
+    let (id52, secret_key) = match kulfi_utils::read_or_create_key().await {
+        Ok(v) => v,
+        Err(e) => {
+            malai::identity_read_err_msg(e);
+            std::process::exit(1);
+        }
+    };
 
-    let (id52, secret_key) = kulfi_utils::read_or_create_key().await?;
-    let ep = kulfi_utils::get_endpoint(secret_key)
-        .await
-        .wrap_err_with(|| "failed to bind to iroh network")?;
+    let ep = match kulfi_utils::get_endpoint(secret_key).await {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("Failed to bind to iroh network:");
+            eprintln!("{e:?}");
+            std::process::exit(1);
+        }
+    };
 
     InfoMode::Startup.print(&host, port, &id52, &bridge);
 
@@ -57,7 +62,6 @@ pub async fn expose_http(
     }
 
     ep.close().await;
-    Ok(())
 }
 
 async fn handle_connection(

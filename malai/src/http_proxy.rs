@@ -3,19 +3,30 @@ pub async fn http_proxy(
     remote: String,
     graceful: kulfi_utils::Graceful,
     post_start: impl FnOnce(u16) -> eyre::Result<()>,
-) -> eyre::Result<()> {
+) {
     use eyre::WrapErr;
 
-    let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{port}"))
-        .await
-        .wrap_err_with(|| {
-            format!("can not listen on port {port}, is it busy, or you do not have root access?")
-        })?;
+    let listener = match tokio::net::TcpListener::bind(format!("127.0.0.1:{port}")).await.wrap_err_with(|| {
+        format!("can not listen on port {port}, is it busy, or you do not have root access?")
+    }) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("Failed to bind to port {port}: {e:?}");
+            std::process::exit(1);
+        }
+    };
 
-    // because the caller can pass the port as 0 if they want to bind to a random port
-    let port = listener.local_addr()?.port();
+    let port = match listener.local_addr() {
+        Ok(addr) => addr.port(),
+        Err(e) => {
+            eprintln!("Failed to get local address: {e:?}");
+            std::process::exit(1);
+        }
+    };
 
-    post_start(port)?;
+    if let Err(e) = post_start(port) {
+        eprintln!("Failed to run post start function: {e:?}");
+    }
 
     println!("Listening on http://127.0.0.1:{port}");
 
@@ -66,8 +77,6 @@ pub async fn http_proxy(
             }
         }
     }
-
-    Ok(())
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]

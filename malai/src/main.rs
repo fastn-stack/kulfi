@@ -110,7 +110,7 @@ async fn main() -> eyre::Result<()> {
         }
         Some(Command::Generate { file }) => {
             tracing::info!(verbose = ?cli.verbose, "Generating new identity.");
-            malai::generate(file).await?;
+            malai::generate(file);
             return Ok(());
         }
         #[cfg(feature = "ui")]

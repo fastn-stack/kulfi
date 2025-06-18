@@ -57,3 +57,11 @@ pub fn public_check(public: bool, service: &str, cmd: &str) -> bool {
 
     public
 }
+
+pub fn identity_read_err_msg(e: eyre::Report) {
+    eprintln!("failed to get identity");
+    eprintln!("malai uses your system keyring for storing identities securely.");
+    eprintln!("use `malai keygen` if system keyring is not available.");
+    eprintln!("full error:");
+    eprintln!("{e:?}");
+}

@@ -33,16 +33,30 @@ pub async fn folder(
     path: String,
     bridge: String,
     graceful: kulfi_utils::Graceful,
-) -> eyre::Result<()> {
-    use eyre::WrapErr;
+) {
+    let path = match validate_path(&path) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Failed to validate path: {e}");
+            std::process::exit(1);
+        }
+    };
 
-    let path = validate_path(&path)?;
+    let listener = match tokio::net::TcpListener::bind("127.0.0.1:0").await {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("Failed to bind to port: {e}");
+            std::process::exit(1);
+        }
+    };
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .wrap_err_with(|| "can not listen, is it busy, or you do not have root access?")?;
-
-    let port = listener.local_addr()?.port();
+    let port = match listener.local_addr() {
+        Ok(addr) => addr.port(),
+        Err(e) => {
+            eprintln!("Failed to get local address: {e}");
+            std::process::exit(1);
+        }
+    };
     println!("Serving {path:?} on http://127.0.0.1:{port}");
 
     let graceful_for_expose_http = graceful.clone();
@@ -83,8 +97,6 @@ pub async fn folder(
             }
         }
     }
-
-    Ok(())
 }
 
 pub async fn handle_connection(
