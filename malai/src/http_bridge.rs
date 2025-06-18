@@ -23,7 +23,7 @@ pub async fn http_bridge(
     let port = listener.local_addr().unwrap().port();
 
     match post_start(port) {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(e) => {
             eprintln!("Failed to run post start function: {e:?}");
         }

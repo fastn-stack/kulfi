@@ -12,10 +12,10 @@ mod browse;
 mod expose_http;
 mod expose_tcp;
 mod folder;
-mod keygen;
 mod http_bridge;
 mod http_proxy;
 mod http_proxy_remote;
+mod keygen;
 mod run;
 mod tcp_bridge;
 
@@ -23,10 +23,10 @@ pub use browse::browse;
 pub use expose_http::expose_http;
 pub use expose_tcp::expose_tcp;
 pub use folder::folder;
-pub use keygen::keygen;
 pub use http_bridge::http_bridge;
 pub use http_proxy::{ProxyData, http_proxy};
 pub use http_proxy_remote::http_proxy_remote;
+pub use keygen::keygen;
 pub use run::run;
 pub use tcp_bridge::tcp_bridge;
 

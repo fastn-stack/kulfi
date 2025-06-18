@@ -1,8 +1,4 @@
-pub async fn expose_tcp(
-    host: String,
-    port: u16,
-    graceful: kulfi_utils::Graceful,
-) {
+pub async fn expose_tcp(host: String, port: u16, graceful: kulfi_utils::Graceful) {
     let (id52, secret_key) = match kulfi_utils::read_or_create_key().await {
         Ok(v) => v,
         Err(e) => {

@@ -6,9 +6,11 @@ pub async fn http_proxy(
 ) {
     use eyre::WrapErr;
 
-    let listener = match tokio::net::TcpListener::bind(format!("127.0.0.1:{port}")).await.wrap_err_with(|| {
-        format!("can not listen on port {port}, is it busy, or you do not have root access?")
-    }) {
+    let listener = match tokio::net::TcpListener::bind(format!("127.0.0.1:{port}"))
+        .await
+        .wrap_err_with(|| {
+            format!("can not listen on port {port}, is it busy, or you do not have root access?")
+        }) {
         Ok(l) => l,
         Err(e) => {
             eprintln!("Failed to bind to port {port}: {e:?}");

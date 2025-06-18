@@ -29,11 +29,7 @@ use render_folder::render_folder;
 ///
 /// having said all that, the first version of malai browsing will be a simple HTML page, and we
 /// will compile `folder.html` template as part of the build process.
-pub async fn folder(
-    path: String,
-    bridge: String,
-    graceful: kulfi_utils::Graceful,
-) {
+pub async fn folder(path: String, bridge: String, graceful: kulfi_utils::Graceful) {
     let path = match validate_path(&path) {
         Ok(p) => p,
         Err(e) => {
