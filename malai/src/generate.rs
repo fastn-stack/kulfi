@@ -11,7 +11,7 @@ pub async fn generate(file: Option<String>) -> eyre::Result<()> {
                     "File `{file}` already exists. Please choose a different file name."
                 ));
             }
-            writeln!(std::fs::File::create(file)?, "{secret_key}")?;
+            write!(std::fs::File::create(file)?, "{secret_key}")?;
             println!("Private key saved to `{file}`.");
         }
         None => {

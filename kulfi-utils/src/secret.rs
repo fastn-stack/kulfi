@@ -36,16 +36,20 @@ fn handle_secret(secret: &str) -> eyre::Result<(String, iroh::SecretKey)> {
 }
 
 pub fn get_secret_key(_id52: &str, _path: &str) -> eyre::Result<iroh::SecretKey> {
-    // intentionally left unimplemented as design is changing
-    todo!()
+    // intentionally left unimplemented as design is changing in kulfi
+    // this is not used in malai
+    todo!("implement for kulfi")
 }
 
+#[tracing::instrument]
 pub async fn read_or_create_key() -> eyre::Result<(String, iroh::SecretKey)> {
     if let Ok(secret) = std::env::var(SECRET_KEY_ENV_VAR) {
+        tracing::info!("Using secret key from environment variable {SECRET_KEY_ENV_VAR}");
         return handle_secret(&secret);
     } else {
         match tokio::fs::read_to_string(SECRET_KEY_FILE).await {
             Ok(secret) => {
+                tracing::info!("Using secret key from file {SECRET_KEY_FILE}");
                 return handle_secret(&secret);
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
@@ -56,6 +60,7 @@ pub async fn read_or_create_key() -> eyre::Result<(String, iroh::SecretKey)> {
         }
     }
 
+    tracing::info!("No secret key found in environment or file, trying {ID52_FILE}");
     match tokio::fs::read_to_string(ID52_FILE).await {
         Ok(id52) => {
             let e = keyring_entry(&id52)?;
