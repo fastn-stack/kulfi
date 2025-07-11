@@ -17,7 +17,7 @@ inset if { ftd.device == "mobile" }: $ds.spaces.inset-square.small
 
 -- ds.copy-regular:
 
-[`malai`](https://github.com/kulfi-project/kulfi) is a new open-source tool
+[`malai`](https://github.com/fastn-stack/kulfi) is a new open-source tool
 from the team at [FifthTry](https://fifthtry.com/team/). It helps you share
 your local HTTP server with the world — instantly and securely.
 
@@ -73,16 +73,16 @@ See the [Getting Started guide](/get-started/) or run `malai --help` to explore 
 
 Here are just a few things you can do with `malai`:
 
-- **User Acceptance Testing**  
+- **User Acceptance Testing**
   Share your in-progress app with non-technical stakeholders without pushing to staging.
-  
-- **HTTPS Testing**  
+
+- **HTTPS Testing**
   Test HTTPS-only features like Service Workers and OAuth callbacks with a trusted remote URL.
-  
-- **Webhook Testing**  
+
+- **Webhook Testing**
   Test Stripe, GitHub, or any other webhook provider locally, without deploying your backend.
 
-- **Developer Preview**  
+- **Developer Preview**
   Send a URL to your teammate to get feedback on your frontend work before merging.
 
 All this without any config, DNS setup, or cloud deploys.
@@ -110,12 +110,12 @@ it.
 We're actively working on expanding what you can do with `malai`. Here’s a peek
 at what’s coming:
 
-- Share any **TCP server**, not just HTTP  
+- Share any **TCP server**, not just HTTP
   Soon you'll be able to share any TCP-based service running locally —
   including your Postgres database, Redis, or even a custom TCP protocol — using
   the same seamless workflow.
 
-- Native support for **SSH** using `malai ssh`  
+- Native support for **SSH** using `malai ssh`
   We're adding support for secure shell access over P2P with `malai ssh`. This
   will let you remotely access your development machine or share a shell session
   without needing public IPs or VPNs.
@@ -133,13 +133,13 @@ friends, or devices across your network, Kulfi will give you visibility and
 control.
 
 You can learn more about our plans for `kulfi` and `malai` on our [GitHub
-Discussions](https://github.com/kulfi-project/kulfi/discussions) page.
+Discussions](https://github.com/fastn-stack/kulfi/discussions) page.
 
 -- ds.copy-regular:
 
 Stay tuned — and if you have ideas, feature requests, or want to contribute,
 feel free to open an issue or pull request on
-[GitHub](https://github.com/kulfi-project/kulfi)! You can also join our
+[GitHub](https://github.com/fastn-stack/kulfi)! You can also join our
 [discord](https://discord.gg/nK4ZP8HpV7) and chat about the project.
 
 -- ds.heading-medium: Star us on GitHub ⭐
@@ -149,7 +149,7 @@ feel free to open an issue or pull request on
 We're just getting started, and your support means a lot.
 
 If you like what we're building, consider [starring the
-repo](https://github.com/kulfi-project/kulfi) on GitHub. It helps others
+repo](https://github.com/fastn-stack/kulfi) on GitHub. It helps others
 discover the project and keeps us motivated to build more!
 
 -- end: ds.section-column

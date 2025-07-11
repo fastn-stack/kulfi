@@ -9,7 +9,7 @@ authors = [
 ]
 edition = "2024"
 license = "UPL-1.0"
-repository = "https://github.com/kulfi-project/kulfi"
+repository = "https://github.com/fastn-stack/kulfi"
 homepage = "https://kulfi.app"
 publish = true
 rust-version = "1.87"  # update this when you update rust-toolchain.toml

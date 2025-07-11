@@ -21,7 +21,7 @@ inset if { ftd.device == "mobile" }: $ds.spaces.inset-square.small
 
 -- ds.copy-regular:
 
-[`malai-0.2.5`](https://github.com/kulfi-project/kulfi/releases/) is out now!
+[`malai-0.2.5`](https://github.com/fastn-stack/kulfi/releases/) is out now!
 It brings a new feature to share your local TCP server with the world!
 
 Now you can share any TCP-based service running locally — including your
@@ -157,7 +157,7 @@ src: $assets.files.assets.malai-folder-browser-view.png
 We're just getting started, and your support means a lot.
 
 If you like what we're building, consider [starring the
-repo](https://github.com/kulfi-project/kulfi) on GitHub. It helps others
+repo](https://github.com/fastn-stack/kulfi) on GitHub. It helps others
 discover the project and keeps us motivated to build more!
 
 -- end: ds.section-column

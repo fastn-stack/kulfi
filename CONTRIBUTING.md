@@ -1,6 +1,6 @@
 # Contributing to Kulfi & Malai
 
-It is recommended to first open a [discussion](https://github.com/kulfi-project/kulfi/discussions) to discuss your ideas, before opening a pull request. This helps us to understand your changes better, and also helps you to get feedback on your changes before you spend time on implementing them.
+It is recommended to first open a [discussion](https://github.com/fastn-stack/kulfi/discussions) to discuss your ideas, before opening a pull request. This helps us to understand your changes better, and also helps you to get feedback on your changes before you spend time on implementing them.
 
 ## Building from source
 

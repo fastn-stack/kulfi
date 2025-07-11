@@ -20,7 +20,7 @@ id: install
 -- ds.heading-small: MacOS/Linux
 
 Run the following command in your terminal. Alternatively, you can download the
-binaries directly from [GitHub Releases](https://github.com/kulfi-project/kulfi/releases/).
+binaries directly from [GitHub Releases](https://github.com/fastn-stack/kulfi/releases/).
 
 -- ds.code:
 lang: bash
@@ -29,7 +29,7 @@ lang: bash
 
 -- ds.heading-small: Windows
 
-- Download `malai_windows_x86_64.zip` file from [GitHub Releases](https://github.com/kulfi-project/kulfi/releases/).
+- Download `malai_windows_x86_64.zip` file from [GitHub Releases](https://github.com/fastn-stack/kulfi/releases/).
 - Unzip the file to a directory of your choice.
 - Add the directory to your system's `PATH` environment variable.
 
@@ -81,7 +81,7 @@ id: more
 id: help
 
 - Chat with us on [Discord](https://discord.gg/nK4ZP8HpV7)
-- Create a new discussion on [GitHub](https://github.com/kulfi-project/kulfi/discussions)
+- Create a new discussion on [GitHub](https://github.com/fastn-stack/kulfi/discussions)
 
 
 -- end: p.doc-page

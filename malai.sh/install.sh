@@ -135,7 +135,7 @@ setup() {
         mkdir -p "$DESTINATION_PATH"
     fi
 
-    URL="https://github.com/kulfi-project/kulfi/releases/download/malai-$MALAI_VERSION"
+    URL="https://github.com/fastn-stack/kulfi/releases/download/malai-$MALAI_VERSION"
     log_message "Installing malai $MALAI_VERSION in $DESTINATION_PATH."
 
     if [ "$(uname)" = "Darwin" ]; then
@@ -168,7 +168,7 @@ check_architecture() {
         ARCH=$(arch)
         if [ "$ARCH" != "arm64" ]; then
             log_error "Only Apple Silicon (arm64) is supported on macOS."
-            log_error "Subscribe to https://github.com/kulfi-project/kulfi/issues/28"
+            log_error "Subscribe to https://github.com/fastn-stack/kulfi/issues/28"
             log_error "to get notified when x86_64 support is added."
             exit 1
         fi

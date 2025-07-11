@@ -26,7 +26,7 @@
 - `malai {http, tcp}-bridge`: `port` is now optional, if you don't provide a
   port, it will be assigned a random port.
 - fix: [malai tcp bridge was only handling one concurrent
-  connection](https://github.com/kulfi-project/kulfi/issues/61), now it can
+  connection](https://github.com/fastn-stack/kulfi/issues/61), now it can
   handle multiple connections.
 
 ## 14 May 2025
@@ -38,7 +38,7 @@
 - fixed: `malai http-bridge` used to not cleanly exit because iroh connection
   cleanup was buggy.
 
-[1]: https://github.com/kulfi-project/kulfi/issues/60
+[1]: https://github.com/fastn-stack/kulfi/issues/60
 
 ## 06 May 2025
 
@@ -60,7 +60,7 @@
   optional when we have access control.
 - `malai.sh/install.sh`: refuse to install on non-Apple M series Macs. This is
   to prevent segfaults on Intel Macs. See [issue
-  #28](https://github.com/kulfi-project/kulfi/issues/28).
+  #28](https://github.com/fastn-stack/kulfi/issues/28).
 
 ## 23 April 2025
 
@@ -71,16 +71,16 @@ release binary to be only available for **Apple M series Macs (arm64)**. This
 is done because the x86_64 build is segfaulting when run on intel macs and we
 can't figure out the cause.
 
-More details at: https://github.com/kulfi-project/kulfi/issues/28
+More details at: https://github.com/fastn-stack/kulfi/issues/28
 
 ## 22 April 2025
 
 ### malai 0.2.0
 
 - Feat: `ctrl+c` to print info. Quick succession of `ctrl+c` within 3 seconds to
-  exit. [More details](https://github.com/kulfi-project/kulfi/discussions/9)
+  exit. [More details](https://github.com/fastn-stack/kulfi/discussions/9)
 - Feat: Configurable HTTP bridge address in the
-  output. [More details](https://github.com/kulfi-project/kulfi/discussions/17)
+  output. [More details](https://github.com/fastn-stack/kulfi/discussions/17)
 - Breaking: Rename subcommands `expose-http` -> `http` and `expose-tcp` ->
   `tcp`.
 - Breaking [Networking Internals]: Merged `Protocol::Identity` with

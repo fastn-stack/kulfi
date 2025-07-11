@@ -7,10 +7,10 @@ your database server or ssh server. Learn more about "malai tcp" on this page.
 
 -- ds.heading-large: `malai tcp`: Share a TCP Service Using `malai`
 
--- ds.copy-regular: 
+-- ds.copy-regular:
 
 Starting
-[`malai-0.2.3`](https://github.com/kulfi-project/kulfi/releases/tag/malai-0.2.3).
+[`malai-0.2.3`](https://github.com/fastn-stack/kulfi/releases/tag/malai-0.2.3).
 You can share your local TCP server with the world. This can be your database
 server or ssh server for example.
 

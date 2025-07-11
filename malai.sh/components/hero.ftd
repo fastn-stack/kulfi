@@ -39,11 +39,11 @@ Or use: malai browse kulfi://pubqaksutn9im0ncln2bki3i8diekh3sr4vp94o2cg1agjrb8dh
 
 
 -- ds.copy-small: ⭐️ Star us on GitHub
-link: https://github.com/kulfi-project/kulfi
+link: https://github.com/fastn-stack/kulfi
 style: bold
 color: $ds.colors.accent.primary
 
--- end: ds.column 
+-- end: ds.column
 
 -- end: ds.column
 
@@ -78,11 +78,11 @@ lang: bash
 \curl -fsSL https://malai.sh/install.sh | sh
 
 -- ds.copy-regular: ⭐️ Star us on GitHub
-link: https://github.com/kulfi-project/kulfi
+link: https://github.com/fastn-stack/kulfi
 style: bold
 color: $ds.colors.accent.primary
 
--- end: ds.column 
+-- end: ds.column
 
 -- ds.image:
 src: $assets.files.assets.demo.svg

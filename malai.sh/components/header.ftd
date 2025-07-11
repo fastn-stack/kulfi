@@ -30,9 +30,9 @@ spacing: $ds.spaces.horizontal-gap.space-between
         -- ds.primary-button: Get Started
         link: /get-started/
 
-        -- ftd.image: 
+        -- ftd.image:
         src: $assets.files.assets.github.svg
-        link: https://github.com/kulfi-project/kulfi
+        link: https://github.com/fastn-stack/kulfi
         width.fixed.px: 24
         height.fixed.px: 24
         padding-top.px: 4
