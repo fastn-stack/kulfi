@@ -27,3 +27,6 @@ tokio-stream.workspace = true
 tokio-util.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+hex = "0.4"

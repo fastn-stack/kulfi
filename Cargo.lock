@@ -2982,6 +2982,7 @@ dependencies = [
  "eyre",
  "file-guard",
  "futures-util",
+ "hex",
  "http-body-util",
  "hyper",
  "hyper-util",
