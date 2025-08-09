@@ -21,6 +21,7 @@ jobs:
             name: linux_x86_64
           - target: aarch64-unknown-linux-gnu
             name: linux_aarch64
+            linker: aarch64-linux-gnu-gcc
     env:
       CARGO_TERM_COLOR: always
     steps:
@@ -49,6 +50,12 @@ jobs:
           sudo apt update
           sudo apt install gcc-aarch64-linux-gnu
           rustup target add aarch64-unknown-linux-gnu
+
+      - name: Set linker env for ARM64
+        if: ${{ matrix.target == 'aarch64-unknown-linux-gnu' }}
+        run: |
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=${{ matrix.linker }}" >> $GITHUB_ENV
+          echo "CC_aarch64_unknown_linux_gnu=${{ matrix.linker }}" >> $GITHUB_ENV
 
       - name: Cargo build for ${{ matrix.target }}
         run: cargo build --release --bin malai --target ${{ matrix.target }}
