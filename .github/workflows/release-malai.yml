@@ -151,12 +151,17 @@ jobs:
           path: ~/download/linux
       - uses: actions/download-artifact@v4
         with:
+          name: linux_aarch64
+          path: ~/download/linux_aarch64
+      - uses: actions/download-artifact@v4
+        with:
           name: windows_x64_latest
           path: ~/download/windows
       - name: Rename assets
         run: |
           mv ~/download/macos/malai ~/download/macos/malai_macos_x86_64
           mv ~/download/linux/malai ~/download/linux/malai_linux_x86_64
+          mv ~/download/linux_aarch64/malai ~/download/linux_aarch64/malai_linux_aarch64
           mv ~/download/windows/malai.zip ~/download/windows/malai_windows_x86_64.zip
       - name: Update .github/MALAI_RELEASE_TEMPLATE.md
         run: |
@@ -172,7 +177,7 @@ jobs:
           ' CHANGELOG.md | sed "1s/.*/# What's Changed/" >> .github/MALAI_RELEASE_TEMPLATE.md
       - uses: ncipollo/release-action@v1
         with:
-          artifacts: "~/download/macos/malai_macos_x86_64,~/download/linux/malai_linux_x86_64,~/download/windows/malai_windows_x86_64.zip"
+          artifacts: "~/download/macos/malai_macos_x86_64,~/download/linux/malai_linux_x86_64,~/download/linux_aarch64/malai_linux_aarch64,~/download/windows/malai_windows_x86_64.zip"
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: malai-${{ github.event.inputs.releaseTag }}
           prerelease: ${{ github.event.inputs.productionRelease && github.event.inputs.productionRelease == 'false' }}
