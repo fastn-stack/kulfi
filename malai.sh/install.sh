@@ -141,7 +141,15 @@ setup() {
     if [ "$(uname)" = "Darwin" ]; then
         FILENAME="malai_macos_x86_64"
     else
-        FILENAME="malai_linux_x86_64"
+        # Check architecture for Linux
+        case $(uname -m) in
+            aarch64|arm64)
+                FILENAME="malai_linux_aarch64"
+                ;;
+            *)
+                FILENAME="malai_linux_x86_64"
+                ;;
+        esac
     fi
 
     # Download the binary directly using the URL
