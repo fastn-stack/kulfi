@@ -82,8 +82,7 @@ async fn handle_connection(
         tracing::info!("{remote_id52}");
         let client_pools = client_pools.clone();
         if let Err(e) =
-            fastn_net::peer_to_http(&format!("{host}:{port}"), client_pools, &mut send, recv)
-                .await
+            fastn_net::peer_to_http(&format!("{host}:{port}"), client_pools, &mut send, recv).await
         {
             tracing::error!("failed to proxy http: {e:?}");
         }

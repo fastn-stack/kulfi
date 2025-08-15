@@ -13,10 +13,7 @@ pub struct Identity {
 }
 
 impl Identity {
-    pub fn from_id52(
-        id: &str,
-        client_pools: fastn_net::HttpConnectionPools,
-    ) -> eyre::Result<Self> {
+    pub fn from_id52(id: &str, client_pools: fastn_net::HttpConnectionPools) -> eyre::Result<Self> {
         use std::str::FromStr;
         let public_key = fastn_id52::PublicKey::from_str(id)?;
         Ok(Self {
