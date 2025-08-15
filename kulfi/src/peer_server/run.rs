@@ -1,8 +1,8 @@
 pub async fn run(
     ep: iroh::Endpoint,
     fastn_port: u16,
-    client_pools: kulfi_utils::HttpConnectionPools,
-    graceful: kulfi_utils::Graceful,
+    client_pools: fastn_net::HttpConnectionPools,
+    graceful: fastn_net::Graceful,
 ) -> eyre::Result<()> {
     loop {
         let conn = match ep.accept().await {
@@ -39,7 +39,7 @@ pub async fn run(
 
 // async fn enqueue_connection(
 //     conn: iroh::endpoint::Connection,
-//     peer_connections: kulfi_utils::get_stream2::PeerStreamSenders,
+//     peer_connections: fastn_net::get_stream2::PeerStreamSenders,
 // ) -> eyre::Result<()> {
 //     let public_key = match conn.remote_node_id() {
 //         Ok(v) => v,
@@ -48,7 +48,7 @@ pub async fn run(
 //             return Err(eyre::anyhow!("can not get remote id: {e:?}"));
 //         }
 //     };
-//     let id = kulfi_utils::public_key_to_id52(&public_key);
+//     let id = fastn_net::public_key_to_id52(&public_key);
 //     let mut connections = peer_connections.lock().await;
 //     connections.insert(id.clone(), conn);
 //
@@ -57,22 +57,22 @@ pub async fn run(
 
 pub async fn handle_connection(
     conn: iroh::endpoint::Connection,
-    client_pools: kulfi_utils::HttpConnectionPools,
+    client_pools: fastn_net::HttpConnectionPools,
     fastn_port: u16,
 ) -> eyre::Result<()> {
     tracing::info!("got connection from: {:?}", conn.remote_node_id());
-    let remote_id52 = kulfi_utils::get_remote_id52(&conn)
+    let remote_id52 = fastn_net::get_remote_id52(&conn)
         .await
         .inspect_err(|e| tracing::error!("failed to get remote id: {e:?}"))?;
     tracing::info!("new client: {remote_id52}, waiting for bidirectional stream");
     loop {
         let client_pools = client_pools.clone();
         // TODO: graceful shutdown
-        let (mut send, recv) = kulfi_utils::accept_bi(&conn, kulfi_utils::Protocol::Http)
+        let (mut send, recv) = fastn_net::accept_bi(&conn, fastn_net::Protocol::Http)
             .await
             .inspect_err(|e| tracing::error!("failed to accept bidirectional stream: {e:?}"))?;
         tracing::info!("{remote_id52}");
-        if let Err(e) = kulfi_utils::peer_to_http(
+        if let Err(e) = fastn_net::peer_to_http(
             &format!("127.0.0.1:{fastn_port}"),
             client_pools,
             &mut send,

@@ -1,5 +1,5 @@
 [workspace]
-members = ["malai", "kulfi", "kulfi-utils", "kulfi-id52"]
+members = ["malai", "kulfi"]
 resolver = "2"
 
 [workspace.package]
@@ -46,8 +46,8 @@ hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1.15", features = ["tokio", "server"] }
 iroh = { version = "0.91", features = ["discovery-local-network"] }
 keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native", "vendored"] }
-kulfi-utils = { path = "kulfi-utils", version = "0.1.0" }
-kulfi-id52 = { path = "kulfi-id52", version = "0.1.0" }
+fastn-net = "0.1.1"
+fastn-id52 = "0.1.0"
 mime_guess = "2"
 percent-encoding = "2"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }

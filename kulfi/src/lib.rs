@@ -15,6 +15,7 @@ mod browse;
 mod config;
 pub mod control_server;
 mod counters;
+pub mod dot_kulfi;
 mod identity;
 pub mod peer_server;
 mod start;

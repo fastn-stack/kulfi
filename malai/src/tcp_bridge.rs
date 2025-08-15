@@ -1,4 +1,4 @@
-pub async fn tcp_bridge(port: u16, proxy_target: String, graceful: kulfi_utils::Graceful) {
+pub async fn tcp_bridge(port: u16, proxy_target: String, graceful: fastn_net::Graceful) {
     use eyre::WrapErr;
 
     let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{port}"))
@@ -10,7 +10,7 @@ pub async fn tcp_bridge(port: u16, proxy_target: String, graceful: kulfi_utils::
 
     println!("Listening on 127.0.0.1:{port}");
 
-    let peer_connections = kulfi_utils::PeerStreamSenders::default();
+    let peer_connections = fastn_net::PeerStreamSenders::default();
 
     loop {
         tokio::select! {
@@ -20,7 +20,7 @@ pub async fn tcp_bridge(port: u16, proxy_target: String, graceful: kulfi_utils::
             }
             val = listener.accept() => {
                 tracing::info!("got connection");
-                let self_endpoint = kulfi_utils::global_iroh_endpoint().await;
+                let self_endpoint = fastn_net::global_iroh_endpoint().await;
                 let graceful_for_handle_connection = graceful.clone();
                 let peer_connections = peer_connections.clone();
                 let proxy_target = proxy_target.clone();
@@ -40,13 +40,13 @@ pub async fn tcp_bridge(port: u16, proxy_target: String, graceful: kulfi_utils::
 pub async fn handle_connection(
     self_endpoint: iroh::Endpoint,
     stream: tokio::net::TcpStream,
-    graceful: kulfi_utils::Graceful,
-    peer_connections: kulfi_utils::PeerStreamSenders,
+    graceful: fastn_net::Graceful,
+    peer_connections: fastn_net::PeerStreamSenders,
     remote_node_id52: String,
 ) {
     println!("forwarding tcp connection to {remote_node_id52}");
-    if let Err(e) = kulfi_utils::tcp_to_peer(
-        kulfi_utils::Protocol::Tcp.into(),
+    if let Err(e) = fastn_net::tcp_to_peer(
+        fastn_net::Protocol::Tcp.into(),
         self_endpoint,
         stream,
         &remote_node_id52,

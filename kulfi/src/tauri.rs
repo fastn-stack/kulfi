@@ -82,7 +82,7 @@ pub fn ui() -> eyre::Result<()> {
         })
         .register_asynchronous_uri_scheme_protocol("kulfi", |_ctx, request, responder| {
             tauri::async_runtime::spawn(async move {
-                let mut request = kulfi_utils::http::vec_u8_to_bytes(request);
+                let mut request = fastn_net::http::vec_u8_to_bytes(request);
 
                 let (new_uri, id52) = kulfi_uri_to_path_and_id52(request.uri());
 
@@ -100,19 +100,19 @@ pub fn ui() -> eyre::Result<()> {
 
                 tracing::info!(?request, "Sending Request");
 
-                let graceful = kulfi_utils::Graceful::default();
-                let peer_connections = kulfi_utils::PeerStreamSenders::default();
-                let response = kulfi_utils::http_to_peer_non_streaming(
-                    kulfi_utils::Protocol::Http.into(),
+                let graceful = fastn_net::Graceful::default();
+                let peer_connections = fastn_net::PeerStreamSenders::default();
+                let response = fastn_net::http_to_peer_non_streaming(
+                    fastn_net::Protocol::Http.into(),
                     request,
-                    kulfi_utils::global_iroh_endpoint().await,
+                    fastn_net::global_iroh_endpoint().await,
                     &id52,
                     peer_connections,
                     graceful,
                 )
                 .await;
 
-                let response = kulfi_utils::http::response_to_static(response)
+                let response = fastn_net::http::response_to_static(response)
                     .await
                     .expect("failed to convert response to static");
 

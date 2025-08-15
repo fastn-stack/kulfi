@@ -8,17 +8,17 @@ mod run;
 #[derive(Debug)]
 pub struct Identity {
     pub id52: String,
-    pub public_key: kulfi_id52::PublicKey,
-    pub client_pools: kulfi_utils::HttpConnectionPools,
+    pub public_key: fastn_id52::PublicKey,
+    pub client_pools: fastn_net::HttpConnectionPools,
 }
 
 impl Identity {
     pub fn from_id52(
         id: &str,
-        client_pools: kulfi_utils::HttpConnectionPools,
+        client_pools: fastn_net::HttpConnectionPools,
     ) -> eyre::Result<Self> {
         use std::str::FromStr;
-        let public_key = kulfi_id52::PublicKey::from_str(id)?;
+        let public_key = fastn_id52::PublicKey::from_str(id)?;
         Ok(Self {
             id52: public_key.to_string(),
             public_key,

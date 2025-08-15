@@ -13,7 +13,7 @@ async fn main() -> eyre::Result<()> {
 
     let cli = Cli::parse();
 
-    let graceful = kulfi_utils::Graceful::default();
+    let graceful = fastn_net::Graceful::default();
 
     match cli.command {
         Some(Command::Http {
@@ -274,7 +274,7 @@ pub enum Command {
             long,
             short,
             num_args=0..=1,
-            default_missing_value=kulfi_utils::SECRET_KEY_FILE,
+            default_missing_value=fastn_net::SECRET_KEY_FILE,
             help = "The file where the private key of the identity will be stored. If not provided, the private key will be printed to stdout."
         )]
         file: Option<String>,

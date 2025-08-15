@@ -1,12 +1,12 @@
-pub async fn http_proxy_remote(graceful: kulfi_utils::Graceful) {
-    let (id52, secret_key) = match kulfi_utils::read_or_create_key().await {
+pub async fn http_proxy_remote(graceful: fastn_net::Graceful) {
+    let (id52, secret_key) = match fastn_net::read_or_create_key().await {
         Ok(v) => v,
         Err(e) => {
             malai::identity_read_err_msg(e);
             std::process::exit(1);
         }
     };
-    let ep = match kulfi_utils::get_endpoint(secret_key).await {
+    let ep = match fastn_net::get_endpoint(secret_key).await {
         Ok(v) => v,
         Err(e) => {
             eprintln!("Failed to bind to iroh network: {e:?}");
@@ -14,7 +14,7 @@ pub async fn http_proxy_remote(graceful: kulfi_utils::Graceful) {
         }
     };
 
-    let http_connection_pools = kulfi_utils::HttpConnectionPools::default();
+    let http_connection_pools = fastn_net::HttpConnectionPools::default();
     InfoMode::Startup.print(&id52);
 
     let mut graceful_mut = graceful.clone();
@@ -62,17 +62,17 @@ pub async fn http_proxy_remote(graceful: kulfi_utils::Graceful) {
 
 async fn handle_connection(
     conn: iroh::endpoint::Connection,
-    http_connection_pools: kulfi_utils::HttpConnectionPools,
-    graceful: kulfi_utils::Graceful,
+    http_connection_pools: fastn_net::HttpConnectionPools,
+    graceful: fastn_net::Graceful,
 ) -> eyre::Result<()> {
-    let remote_id52 = kulfi_utils::get_remote_id52(&conn)
+    let remote_id52 = fastn_net::get_remote_id52(&conn)
         .await
         .inspect_err(|e| tracing::error!("failed to get remote id: {e:?}"))?;
 
     tracing::info!("new client: {remote_id52}, waiting for bidirectional stream");
     loop {
         let (extra, mut send, recv): (malai::ProxyData, _, _) =
-            kulfi_utils::accept_bi_with(&conn, kulfi_utils::Protocol::HttpProxy)
+            fastn_net::accept_bi_with(&conn, fastn_net::Protocol::HttpProxy)
                 .await
                 .inspect_err(|e| tracing::error!("failed to accept bidirectional stream: {e:?}"))?;
         tracing::info!("got connection from {remote_id52}, extra: {extra:?}");
@@ -81,10 +81,10 @@ async fn handle_connection(
         graceful.spawn(async move {
             if let Err(e) = match extra {
                 malai::ProxyData::Connect { addr } => {
-                    kulfi_utils::peer_to_tcp(&addr, send, recv).await
+                    fastn_net::peer_to_tcp(&addr, send, recv).await
                 }
                 malai::ProxyData::Http { addr } => {
-                    kulfi_utils::peer_to_http(&addr, http_connection_pools, &mut send, recv).await
+                    fastn_net::peer_to_http(&addr, http_connection_pools, &mut send, recv).await
                 }
             } {
                 tracing::error!("failed to proxy tcp: {e:?}");

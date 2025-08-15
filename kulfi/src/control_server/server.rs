@@ -1,9 +1,9 @@
 pub async fn handle_connection(
     stream: tokio::net::TcpStream,
-    graceful: kulfi_utils::Graceful,
-    id_map: kulfi_utils::IDMap,
-    client_pools: kulfi_utils::HttpConnectionPools,
-    peer_connections: kulfi_utils::PeerStreamSenders,
+    graceful: fastn_net::Graceful,
+    id_map: fastn_net::IDMap,
+    client_pools: fastn_net::HttpConnectionPools,
+    peer_connections: fastn_net::PeerStreamSenders,
 ) {
     kulfi::OPEN_CONTROL_CONNECTION_COUNT.incr();
     kulfi::CONTROL_CONNECTION_COUNT.incr();
@@ -50,11 +50,11 @@ pub async fn handle_connection(
 
 async fn handle_request(
     r: hyper::Request<hyper::body::Incoming>,
-    id_map: kulfi_utils::IDMap,
-    client_pools: kulfi_utils::HttpConnectionPools,
-    peer_connections: kulfi_utils::PeerStreamSenders,
-    graceful: kulfi_utils::Graceful,
-) -> kulfi_utils::http::ProxyResult<eyre::Error> {
+    id_map: fastn_net::IDMap,
+    client_pools: fastn_net::HttpConnectionPools,
+    peer_connections: fastn_net::PeerStreamSenders,
+    graceful: fastn_net::Graceful,
+) -> fastn_net::http::ProxyResult<eyre::Error> {
     kulfi::CONTROL_REQUEST_COUNT.incr();
     kulfi::IN_FLIGHT_REQUESTS.incr();
     let r = handle_request_(r, id_map, client_pools, peer_connections, graceful).await;
@@ -64,11 +64,11 @@ async fn handle_request(
 
 async fn handle_request_(
     r: hyper::Request<hyper::body::Incoming>,
-    id_map: kulfi_utils::IDMap,
-    client_pools: kulfi_utils::HttpConnectionPools,
-    peer_connections: kulfi_utils::PeerStreamSenders,
-    graceful: kulfi_utils::Graceful,
-) -> kulfi_utils::http::ProxyResult<eyre::Error> {
+    id_map: fastn_net::IDMap,
+    client_pools: fastn_net::HttpConnectionPools,
+    peer_connections: fastn_net::PeerStreamSenders,
+    graceful: fastn_net::Graceful,
+) -> fastn_net::http::ProxyResult<eyre::Error> {
     let id = match r
         .headers()
         .get("Host")
@@ -78,7 +78,7 @@ async fn handle_request_(
         Some((first, _)) => first,
         None => {
             tracing::error!("got http request without Host header");
-            return Ok(kulfi_utils::bad_request!(
+            return Ok(fastn_net::bad_request!(
                 "got http request without Host header"
             ));
         }
@@ -99,8 +99,8 @@ async fn handle_request_(
         // if the id belongs to a friend of an identity, send the request to the friend over iroh
         Ok(WhatToDo::ForwardToPeer { peer_id }) => {
             let self_endpoint = get_endpoint(default_id.as_str(), id_map).await?;
-            kulfi_utils::http_to_peer(
-                kulfi_utils::Protocol::Http.into(),
+            fastn_net::http_to_peer(
+                fastn_net::Protocol::Http.into(),
                 r,
                 self_endpoint,
                 peer_id.as_str(),
@@ -117,11 +117,11 @@ async fn handle_request_(
         }
         Ok(WhatToDo::UnknownPeer) => {
             tracing::error!("unknown peer: {id}");
-            Ok(kulfi_utils::server_error!("unknown peer"))
+            Ok(fastn_net::server_error!("unknown peer"))
         }
         Err(e) => {
             tracing::error!("proxy error: {e}");
-            Ok(kulfi_utils::server_error!(
+            Ok(fastn_net::server_error!(
                 "failed to contact default identity service"
             ))
         }
@@ -129,9 +129,9 @@ async fn handle_request_(
 }
 
 pub async fn find_pool(
-    client_pools: kulfi_utils::HttpConnectionPools,
+    client_pools: fastn_net::HttpConnectionPools,
     addr: &str,
-) -> eyre::Result<kulfi_utils::HttpConnectionPool> {
+) -> eyre::Result<fastn_net::HttpConnectionPool> {
     {
         let pools = client_pools.lock().await;
         if let Some(v) = pools.get(addr) {
@@ -139,8 +139,8 @@ pub async fn find_pool(
         }
     }
 
-    let c = kulfi_utils::HttpConnectionPool::builder()
-        .build(kulfi_utils::HttpConnectionManager::new(addr.to_string()))
+    let c = fastn_net::HttpConnectionPool::builder()
+        .build(fastn_net::HttpConnectionManager::new(addr.to_string()))
         .await?;
 
     {
@@ -167,7 +167,7 @@ async fn what_to_do(_port: u16, id: &str) -> eyre::Result<WhatToDo> {
     })
 }
 
-async fn find_identity(id: &str, id_map: kulfi_utils::IDMap) -> eyre::Result<Option<u16>> {
+async fn find_identity(id: &str, id_map: fastn_net::IDMap) -> eyre::Result<Option<u16>> {
     for (i, (port, _ep)) in id_map.lock().await.iter() {
         // if i.starts_with(id) {
         if i == id {
@@ -178,7 +178,7 @@ async fn find_identity(id: &str, id_map: kulfi_utils::IDMap) -> eyre::Result<Opt
     Ok(None)
 }
 
-async fn default_identity(id_map: kulfi_utils::IDMap) -> eyre::Result<(String, u16)> {
+async fn default_identity(id_map: fastn_net::IDMap) -> eyre::Result<(String, u16)> {
     Ok(id_map
         .lock()
         .await
@@ -189,7 +189,7 @@ async fn default_identity(id_map: kulfi_utils::IDMap) -> eyre::Result<(String, u
 
 async fn get_endpoint(
     self_id52: &str,
-    id_map: kulfi_utils::IDMap,
+    id_map: fastn_net::IDMap,
 ) -> eyre::Result<iroh::endpoint::Endpoint> {
     let map = id_map.lock().await;
 

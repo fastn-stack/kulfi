@@ -1,7 +1,7 @@
 pub fn keygen(filename: Option<String>) {
     use std::io::Write;
 
-    let (id52, secret_key) = match kulfi_utils::generate_secret_key() {
+    let (id52, secret_key) = match fastn_net::generate_secret_key() {
         Ok(v) => v,
         Err(e) => {
             eprintln!("Failed to generate secret key: {e}");

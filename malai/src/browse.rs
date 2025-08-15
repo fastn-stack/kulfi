@@ -1,4 +1,4 @@
-pub async fn browse(url: String, graceful: kulfi_utils::Graceful) {
+pub async fn browse(url: String, graceful: fastn_net::Graceful) {
     let (id52, path) = match parse_url(&url) {
         Ok(v) => v,
         Err(e) => {

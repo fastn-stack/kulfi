@@ -1,3 +1,3 @@
-pub async fn browse(_url: String, _graceful: kulfi_utils::Graceful) -> eyre::Result<()> {
+pub async fn browse(_url: String, _graceful: fastn_net::Graceful) -> eyre::Result<()> {
     todo!("browse");
 }

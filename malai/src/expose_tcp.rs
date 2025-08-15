@@ -1,5 +1,5 @@
-pub async fn expose_tcp(host: String, port: u16, graceful: kulfi_utils::Graceful) {
-    let (id52, secret_key) = match kulfi_utils::read_or_create_key().await {
+pub async fn expose_tcp(host: String, port: u16, graceful: fastn_net::Graceful) {
+    let (id52, secret_key) = match fastn_net::read_or_create_key().await {
         Ok(v) => v,
         Err(e) => {
             malai::identity_read_err_msg(e);
@@ -7,7 +7,7 @@ pub async fn expose_tcp(host: String, port: u16, graceful: kulfi_utils::Graceful
         }
     };
 
-    let ep = match kulfi_utils::get_endpoint(secret_key).await {
+    let ep = match fastn_net::get_endpoint(secret_key).await {
         Ok(v) => v,
         Err(e) => {
             eprintln!("Failed to bind to iroh network:");
@@ -65,21 +65,21 @@ async fn handle_connection(
     conn: iroh::endpoint::Connection,
     host: String,
     port: u16,
-    graceful: kulfi_utils::Graceful,
+    graceful: fastn_net::Graceful,
 ) -> eyre::Result<()> {
-    let remote_id52 = kulfi_utils::get_remote_id52(&conn)
+    let remote_id52 = fastn_net::get_remote_id52(&conn)
         .await
         .inspect_err(|e| tracing::error!("failed to get remote id: {e:?}"))?;
 
     tracing::info!("new client: {remote_id52}, waiting for bidirectional stream");
     loop {
-        let (send, recv) = kulfi_utils::accept_bi(&conn, kulfi_utils::Protocol::Tcp)
+        let (send, recv) = fastn_net::accept_bi(&conn, fastn_net::Protocol::Tcp)
             .await
             .inspect_err(|e| tracing::error!("failed to accept bidirectional stream: {e:?}"))?;
         tracing::info!("{remote_id52}");
         let addr = format!("{host}:{port}");
         graceful.spawn(async move {
-            if let Err(e) = kulfi_utils::peer_to_tcp(&addr, send, recv).await {
+            if let Err(e) = fastn_net::peer_to_tcp(&addr, send, recv).await {
                 tracing::error!("failed to proxy tcp: {e:?}");
             }
             tracing::info!("closing send stream");

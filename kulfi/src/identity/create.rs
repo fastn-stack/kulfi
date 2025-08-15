@@ -27,11 +27,11 @@ impl kulfi::Identity {
     #[tracing::instrument(skip(client_pools))]
     pub async fn create(
         identities_folder: &std::path::Path,
-        client_pools: kulfi_utils::HttpConnectionPools,
+        client_pools: fastn_net::HttpConnectionPools,
     ) -> eyre::Result<Self> {
         use eyre::WrapErr;
 
-        let (id52, secret_key) = kulfi_utils::generate_and_save_key().await?;
+        let (id52, secret_key) = fastn_net::generate_and_save_key().await?;
 
         let now = std::time::SystemTime::now();
         let unixtime = now

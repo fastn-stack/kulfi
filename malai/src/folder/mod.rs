@@ -29,7 +29,7 @@ use render_folder::render_folder;
 ///
 /// having said all that, the first version of malai browsing will be a simple HTML page, and we
 /// will compile `folder.html` template as part of the build process.
-pub async fn folder(path: String, bridge: String, graceful: kulfi_utils::Graceful) {
+pub async fn folder(path: String, bridge: String, graceful: fastn_net::Graceful) {
     let path = match validate_path(&path) {
         Ok(p) => p,
         Err(e) => {
@@ -98,7 +98,7 @@ pub async fn folder(path: String, bridge: String, graceful: kulfi_utils::Gracefu
 pub async fn handle_connection(
     stream: tokio::net::TcpStream,
     path: std::path::PathBuf,
-    graceful: kulfi_utils::Graceful,
+    graceful: fastn_net::Graceful,
 ) {
     let io = hyper_util::rt::TokioIo::new(stream);
 
@@ -154,7 +154,7 @@ async fn handle_request(
 
     if path.is_dir() {
         tracing::info!("rendering folder");
-        return Ok(kulfi_utils::http::bytes_to_resp::<std::io::Error>(
+        return Ok(fastn_net::http::bytes_to_resp::<std::io::Error>(
             malai::folder::render_folder(&path, &base_path)?.into_bytes(),
             hyper::StatusCode::OK,
         ));

@@ -59,7 +59,7 @@ pub struct PeerIdentity {
     pub fastn_port: u16,
     pub self_public_key: iroh::PublicKey,
     pub peer_public_key: iroh::PublicKey,
-    pub client_pools: kulfi_utils::ConnectionPools,
+    pub client_pools: fastn_net::ConnectionPools,
 }
 
 impl kulfi::Identity {

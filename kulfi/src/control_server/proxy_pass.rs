@@ -1,8 +1,8 @@
 pub async fn proxy_pass(
     mut req: hyper::Request<hyper::body::Incoming>,
-    pool: kulfi_utils::HttpConnectionPool,
+    pool: fastn_net::HttpConnectionPool,
     addr: &str,
-) -> kulfi_utils::ProxyResult<eyre::Error> {
+) -> fastn_net::ProxyResult<eyre::Error> {
     use eyre::WrapErr;
     use http_body_util::BodyExt;
 

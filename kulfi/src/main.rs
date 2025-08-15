@@ -11,7 +11,7 @@ async fn main() -> eyre::Result<()> {
 
     let cli = Cli::parse();
 
-    let graceful = kulfi_utils::Graceful::default();
+    let graceful = fastn_net::Graceful::default();
 
     if let Err(e) = match cli.command {
         Some(Command::Start {

@@ -1,7 +1,7 @@
 impl kulfi::Config {
     pub async fn identities(
         &self,
-        client_pools: kulfi_utils::HttpConnectionPools,
+        client_pools: fastn_net::HttpConnectionPools,
     ) -> eyre::Result<Vec<kulfi::Identity>> {
         use eyre::WrapErr;
 

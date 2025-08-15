@@ -67,10 +67,10 @@ pub use proxy_pass::proxy_pass;
 pub async fn start(
     control_port: u16,
     id: String,
-    graceful: kulfi_utils::Graceful,
-    id_map: kulfi_utils::IDMap,
-    client_pools: kulfi_utils::HttpConnectionPools,
-    peer_connections: kulfi_utils::PeerStreamSenders,
+    graceful: fastn_net::Graceful,
+    id_map: fastn_net::IDMap,
+    client_pools: fastn_net::HttpConnectionPools,
+    peer_connections: fastn_net::PeerStreamSenders,
 ) -> eyre::Result<()> {
     use eyre::WrapErr;
 

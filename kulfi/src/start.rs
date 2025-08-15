@@ -10,12 +10,12 @@ pub async fn start(
     _fg: bool,
     data_dir: std::path::PathBuf,
     control_port: u16,
-    graceful: kulfi_utils::Graceful,
+    graceful: fastn_net::Graceful,
 ) -> eyre::Result<()> {
     use eyre::WrapErr;
 
-    let client_pools = kulfi_utils::HttpConnectionPools::default();
-    let peer_connections = kulfi_utils::PeerStreamSenders::default();
+    let client_pools = fastn_net::HttpConnectionPools::default();
+    let peer_connections = fastn_net::PeerStreamSenders::default();
 
     let config = kulfi::Config::read(&data_dir, client_pools.clone())
         .await
@@ -41,7 +41,7 @@ pub async fn start(
         .map(|v| v.id52.clone())
         .ok_or_else(|| eyre::eyre!("no identities found"))?;
 
-    let id_map = kulfi_utils::IDMap::default();
+    let id_map = fastn_net::IDMap::default();
 
     for identity in identities {
         use std::sync::Arc;

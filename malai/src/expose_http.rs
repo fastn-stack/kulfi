@@ -1,5 +1,5 @@
-pub async fn expose_http(host: String, port: u16, bridge: String, graceful: kulfi_utils::Graceful) {
-    let (id52, secret_key) = match kulfi_utils::read_or_create_key().await {
+pub async fn expose_http(host: String, port: u16, bridge: String, graceful: fastn_net::Graceful) {
+    let (id52, secret_key) = match fastn_net::read_or_create_key().await {
         Ok(v) => v,
         Err(e) => {
             malai::identity_read_err_msg(e);
@@ -7,7 +7,7 @@ pub async fn expose_http(host: String, port: u16, bridge: String, graceful: kulf
         }
     };
 
-    let ep = match kulfi_utils::get_endpoint(secret_key).await {
+    let ep = match fastn_net::get_endpoint(secret_key).await {
         Ok(v) => v,
         Err(e) => {
             eprintln!("Failed to bind to iroh network:");
@@ -18,7 +18,7 @@ pub async fn expose_http(host: String, port: u16, bridge: String, graceful: kulf
 
     InfoMode::Startup.print(&host, port, &id52, &bridge);
 
-    let client_pools = kulfi_utils::HttpConnectionPools::default();
+    let client_pools = fastn_net::HttpConnectionPools::default();
 
     let mut graceful_mut = graceful.clone();
 
@@ -66,23 +66,23 @@ pub async fn expose_http(host: String, port: u16, bridge: String, graceful: kulf
 
 async fn handle_connection(
     conn: iroh::endpoint::Connection,
-    client_pools: kulfi_utils::HttpConnectionPools,
+    client_pools: fastn_net::HttpConnectionPools,
     host: String,
     port: u16,
 ) -> eyre::Result<()> {
-    let remote_id52 = kulfi_utils::get_remote_id52(&conn)
+    let remote_id52 = fastn_net::get_remote_id52(&conn)
         .await
         .inspect_err(|e| tracing::error!("failed to get remote id: {e:?}"))?;
 
     tracing::info!("new client: {remote_id52}, waiting for bidirectional stream");
     loop {
-        let (mut send, recv) = kulfi_utils::accept_bi(&conn, kulfi_utils::Protocol::Http)
+        let (mut send, recv) = fastn_net::accept_bi(&conn, fastn_net::Protocol::Http)
             .await
             .inspect_err(|e| tracing::error!("failed to accept bidirectional stream: {e:?}"))?;
         tracing::info!("{remote_id52}");
         let client_pools = client_pools.clone();
         if let Err(e) =
-            kulfi_utils::peer_to_http(&format!("{host}:{port}"), client_pools, &mut send, recv)
+            fastn_net::peer_to_http(&format!("{host}:{port}"), client_pools, &mut send, recv)
                 .await
         {
             tracing::error!("failed to proxy http: {e:?}");
