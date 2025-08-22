@@ -769,7 +769,7 @@ version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fde0e0ec90c9dfb3b4b1a0891a7dcd0e2bffde2f7efed5fe7c9bb00e5bfb915e"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -1489,7 +1489,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "778e2ac28f6c47af28e4907f13ffd1e1ddbd400980a9abd7c8df189bf578a5ad"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2780,7 +2780,7 @@ dependencies = [
  "once_cell",
  "socket2 0.5.10",
  "tracing",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4778,7 +4778,7 @@ dependencies = [
  "once_cell",
  "socket2 0.5.10",
  "tracing",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5104,7 +5104,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.60.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5617,7 +5617,7 @@ version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1961e2ef424c1424204d3a5d6975f934f56b6d50ff5732382d84ebf460e147f7"
 dependencies = [
- "heck 0.5.0",
+ "heck 0.4.1",
  "proc-macro2",
  "quote",
  "syn 2.0.105",
@@ -6040,9 +6040,9 @@ dependencies = [
 
 [[package]]
 name = "tauri-build"
-version = "2.3.1"
+version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "182d688496c06bf08ea896459bf483eb29cdff35c1c4c115fb14053514303064"
+checksum = "67945dbaf8920dbe3a1e56721a419a0c3d085254ab24cff5b9ad55e2b0016e0b"
 dependencies = [
  "anyhow",
  "cargo_toml",
@@ -6056,7 +6056,7 @@ dependencies = [
  "serde_json",
  "tauri-utils",
  "tauri-winres",
- "toml 0.8.23",
+ "toml 0.9.5",
  "walkdir",
 ]
 
@@ -6190,9 +6190,9 @@ dependencies = [
 
 [[package]]
 name = "tauri-utils"
-version = "2.6.0"
+version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9330c15cabfe1d9f213478c9e8ec2b0c76dab26bb6f314b8ad1c8a568c1d186e"
+checksum = "41a3852fdf9a4f8fbeaa63dc3e9a85284dd6ef7200751f0bd66ceee30c93f212"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -6219,7 +6219,7 @@ dependencies = [
  "serde_with",
  "swift-rs",
  "thiserror 2.0.14",
- "toml 0.8.23",
+ "toml 0.9.5",
  "url",
  "urlpattern",
  "uuid",
@@ -6246,7 +6246,7 @@ dependencies = [
  "getrandom 0.3.3",
  "once_cell",
  "rustix",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -7223,7 +7223,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
