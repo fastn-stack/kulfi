@@ -40,7 +40,6 @@ directories = "6.0.0"
 eyre = "0.6"
 file-guard = "0.2.0"
 futures-util = "0.3"
-http = "1"
 http-body-util = "0.1"
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1.15", features = ["tokio", "server"] }
