@@ -23,6 +23,8 @@
 //!
 //! `logs` is the folder that contains the logs for this identity. This contains fastn access logs
 //! and other device access logs etc.
+
+use std::path::PathBuf;
 impl kulfi::Identity {
     #[tracing::instrument(skip(client_pools))]
     pub async fn create(
@@ -31,7 +33,9 @@ impl kulfi::Identity {
     ) -> eyre::Result<Self> {
         use eyre::WrapErr;
 
-        let (id52, secret_key) = kulfi_utils::generate_and_save_key().await?;
+        let (id52, secret_key) = kulfi_utils::generate_and_save_key(Some(PathBuf::from(
+            kulfi_utils::secret::ID52_FILE,
+        )))?;
 
         let now = std::time::SystemTime::now();
         let unixtime = now

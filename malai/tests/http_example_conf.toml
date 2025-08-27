@@ -1,0 +1,20 @@
+[malai]
+log = "/var/log/malai.log"
+
+[http.service1]
+identity = "<id52>"
+port = 3000
+public = true
+active = true
+
+[http.service2]
+secret_file = "Path"
+port = 3001
+public = true
+active = true
+
+[tcp.service3]
+identity = "<another-id52>"
+port = 3002
+public = true
+active = true

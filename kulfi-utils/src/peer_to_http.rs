@@ -12,7 +12,7 @@ pub async fn peer_to_http(
 
     let req: crate::http::Request = crate::next_json(&mut recv).await?;
 
-    tracing::info!("got request: {req:?}");
+    tracing::debug!("got request: {req:?}");
 
     let mut r = hyper::Request::builder()
         .method(req.method.as_str())

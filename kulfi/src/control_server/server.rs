@@ -84,7 +84,7 @@ async fn handle_request_(
         }
     };
 
-    tracing::info!("got request for {id}");
+    tracing::debug!("got request for {id}");
 
     // if this is an identity, if so forward the request to fastn corresponding to that identity
     if let Some(fastn_port) = find_identity(id, id_map.clone()).await? {

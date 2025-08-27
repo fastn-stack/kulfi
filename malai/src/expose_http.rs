@@ -1,12 +1,11 @@
-pub async fn expose_http(host: String, port: u16, bridge: String, graceful: kulfi_utils::Graceful) {
-    let (id52, secret_key) = match kulfi_utils::read_or_create_key().await {
-        Ok(v) => v,
-        Err(e) => {
-            malai::identity_read_err_msg(e);
-            std::process::exit(1);
-        }
-    };
-
+pub async fn expose_http(
+    host: String,
+    port: u16,
+    bridge: String,
+    id52: String,
+    secret_key: kulfi_id52::SecretKey,
+    graceful: kulfi_utils::Graceful,
+) {
     let ep = match kulfi_utils::get_endpoint(secret_key).await {
         Ok(v) => v,
         Err(e) => {

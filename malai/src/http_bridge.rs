@@ -135,7 +135,7 @@ async fn handle_request(
         }
     };
 
-    tracing::info!("got request for {peer_id}");
+    tracing::debug!("got request for {peer_id}");
 
     kulfi_utils::http_to_peer(
         kulfi_utils::Protocol::Http.into(),
