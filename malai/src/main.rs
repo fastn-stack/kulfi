@@ -113,6 +113,58 @@ async fn main() -> eyre::Result<()> {
             malai::keygen(file);
             return Ok(());
         }
+        Some(Command::Ssh { ssh_command }) => {
+            match ssh_command {
+                SshCommand::CreateCluster { alias } => {
+                    println!("Creating cluster...");
+                    // TODO: Implement cluster creation
+                    println!("Cluster created with ID: placeholder-cluster-id52");
+                    if let Some(alias) = alias {
+                        println!("Cluster alias: {}", alias);
+                    }
+                    return Ok(());
+                }
+                SshCommand::Agent { environment, lockdown, http } => {
+                    if *environment {
+                        // Print environment variables
+                        println!("MALAI_SSH_AGENT=/tmp/placeholder-agent.sock");
+                        if *lockdown {
+                            println!("MALAI_LOCKDOWN_MODE=true");
+                        }
+                        if *http {
+                            println!("HTTP_PROXY=http://127.0.0.1:8080");
+                        }
+                        return Ok(());
+                    } else {
+                        println!("Starting SSH agent...");
+                        // TODO: Implement agent startup
+                        println!("SSH agent started");
+                        return Ok(());
+                    }
+                }
+                SshCommand::ClusterInfo => {
+                    println!("Cluster info...");
+                    // TODO: Implement cluster info display
+                    println!("Role: placeholder");
+                    return Ok(());
+                }
+                SshCommand::Execute { machine, command, args } => {
+                    println!("Executing '{}' on machine '{}'", command, machine);
+                    // TODO: Implement command execution
+                    return Ok(());
+                }
+                SshCommand::Shell { machine } => {
+                    println!("Starting shell on machine '{}'", machine);
+                    // TODO: Implement shell session
+                    return Ok(());
+                }
+                SshCommand::Curl { url, curl_args } => {
+                    println!("Curl to '{}' with args: {:?}", url, curl_args);
+                    // TODO: Implement HTTP proxy curl
+                    return Ok(());
+                }
+            }
+        }
         #[cfg(feature = "ui")]
         None => {
             tracing::info!(verbose = ?cli.verbose, "Starting UI.");
@@ -288,12 +340,10 @@ pub enum Command {
 
 #[derive(clap::Subcommand, Debug)]
 pub enum SshCommand {
-    #[clap(about = "Start SSH server to accept incoming connections")]
-    Server {
-        #[arg(long, help = "Path to cluster configuration file")]
-        config: Option<String>,
-        #[arg(long, help = "Server name in the cluster configuration")]
-        name: Option<String>,
+    #[clap(about = "Create a new cluster (generates cluster manager identity)")]
+    CreateCluster {
+        #[arg(long, help = "Optional cluster alias")]
+        alias: Option<String>,
     },
     #[clap(about = "Start SSH agent for connection management and HTTP proxy")]
     Agent {
@@ -308,19 +358,21 @@ pub enum SshCommand {
         #[arg(long, help = "Enable HTTP proxy functionality", default_value = "true")]
         http: bool,
     },
-    #[clap(about = "Execute command on remote server", name = "exec")]
+    #[clap(about = "Show cluster information for this machine")]
+    ClusterInfo,
+    #[clap(about = "Execute command on remote machine", name = "exec")]
     Execute {
-        #[arg(help = "Server address (e.g., web01.company.com, web01.cluster-id52)")]
-        server: String,
+        #[arg(help = "Machine address (e.g., web01.company.com, web01.cluster-id52)")]
+        machine: String,
         #[arg(help = "Command to execute")]
         command: String,
         #[arg(help = "Command arguments")]
         args: Vec<String>,
     },
-    #[clap(about = "Start interactive shell session on remote server")]
+    #[clap(about = "Start interactive shell session on remote machine")]
     Shell {
-        #[arg(help = "Server address (e.g., web01.company.com, web01.cluster-id52)")]
-        server: String,
+        #[arg(help = "Machine address (e.g., web01.company.com, web01.cluster-id52)")]
+        machine: String,
     },
     #[clap(about = "Access HTTP service through malai network")]
     Curl {

@@ -5,8 +5,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub cluster_manager: ClusterManagerConfig,
-    pub servers: HashMap<String, ServerConfig>,
-    pub devices: HashMap<String, DeviceConfig>,
+    pub machines: HashMap<String, MachineConfig>,
     pub groups: HashMap<String, GroupConfig>,
 }
 
@@ -20,19 +19,17 @@ pub struct ClusterManagerConfig {
     pub private_key: Option<String>,
 }
 
-/// Server configuration
+/// Machine configuration (unified for all machine types)
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ServerConfig {
+pub struct MachineConfig {
     pub id52: String,
-    pub allow_from: Option<String>,
-    pub commands: HashMap<String, CommandConfig>,
-    pub services: HashMap<String, ServiceConfig>,
-}
-
-/// Device configuration (client-only nodes)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeviceConfig {
-    pub id52: String,
+    #[serde(default)]
+    pub accept_ssh: bool,                      // true = can accept SSH connections
+    pub allow_from: Option<String>,           // SSH access control
+    #[serde(default)]
+    pub commands: HashMap<String, CommandConfig>, // Command-specific access
+    #[serde(default)]
+    pub services: HashMap<String, ServiceConfig>, // HTTP services
 }
 
 /// Group configuration for easier management
@@ -50,8 +47,17 @@ pub struct CommandConfig {
 /// HTTP service configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServiceConfig {
-    pub http: u16, // port number
-    pub allow_from: String, // comma-separated id52 list or "*"
+    pub port: u16,             // port number (renamed from 'http')
+    pub allow_from: String,    // comma-separated id52 list or "*"
+}
+
+/// Role that a machine plays in the cluster
+#[derive(Debug, Clone, PartialEq)]
+pub enum MachineRole {
+    ClusterManager,                    // This machine manages the cluster
+    SshServer(String),                // This machine accepts SSH (machine name)  
+    ClientOnly(String),               // This machine is client-only (machine name)
+    Unknown,                          // Machine not found in config
 }
 
 fn default_true() -> bool {
@@ -73,14 +79,16 @@ impl Config {
         Ok(())
     }
 
-    /// Get servers that a device/client can access
-    pub fn get_accessible_servers(&self, client_id52: &str) -> Vec<String> {
+    /// Get machines that a client can access via SSH
+    pub fn get_accessible_machines(&self, client_id52: &str) -> Vec<String> {
         let mut accessible = Vec::new();
         
-        for (server_name, server_config) in &self.servers {
-            if let Some(allow_from) = &server_config.allow_from {
-                if allow_from.contains(client_id52) || allow_from.contains('*') {
-                    accessible.push(server_name.clone());
+        for (machine_name, machine_config) in &self.machines {
+            if machine_config.accept_ssh {
+                if let Some(allow_from) = &machine_config.allow_from {
+                    if allow_from.contains(client_id52) || allow_from.contains('*') {
+                        accessible.push(machine_name.clone());
+                    }
                 }
             }
         }
@@ -88,18 +96,23 @@ impl Config {
         accessible
     }
 
-    /// Check if a client can execute a command on a server
-    pub fn can_execute_command(&self, client_id52: &str, server_name: &str, command: &str) -> bool {
-        if let Some(server) = self.servers.get(server_name) {
-            // Check server-level access first
-            if let Some(allow_from) = &server.allow_from {
+    /// Check if a client can execute a command on a machine
+    pub fn can_execute_command(&self, client_id52: &str, machine_name: &str, command: &str) -> bool {
+        if let Some(machine) = self.machines.get(machine_name) {
+            // Machine must accept SSH connections
+            if !machine.accept_ssh {
+                return false;
+            }
+            
+            // Check machine-level access first
+            if let Some(allow_from) = &machine.allow_from {
                 if allow_from.contains(client_id52) || allow_from.contains('*') {
                     return true;
                 }
             }
             
             // Check command-specific access
-            if let Some(cmd_config) = server.commands.get(command) {
+            if let Some(cmd_config) = machine.commands.get(command) {
                 return cmd_config.allow_from.contains(client_id52) || cmd_config.allow_from.contains('*');
             }
         }
@@ -107,13 +120,34 @@ impl Config {
     }
 
     /// Check if a client can access an HTTP service
-    pub fn can_access_service(&self, client_id52: &str, server_name: &str, service_name: &str) -> bool {
-        if let Some(server) = self.servers.get(server_name) {
-            if let Some(service) = server.services.get(service_name) {
+    pub fn can_access_service(&self, client_id52: &str, machine_name: &str, service_name: &str) -> bool {
+        if let Some(machine) = self.machines.get(machine_name) {
+            if let Some(service) = machine.services.get(service_name) {
                 return service.allow_from.contains(client_id52) || service.allow_from.contains('*');
             }
         }
         false
+    }
+
+    /// Get role of local machine by matching identity
+    pub fn get_local_role(&self, local_id52: &str) -> MachineRole {
+        // Check if this is the cluster manager
+        if self.cluster_manager.id52 == local_id52 {
+            return MachineRole::ClusterManager;
+        }
+
+        // Check if this is a configured machine
+        for (machine_name, machine_config) in &self.machines {
+            if machine_config.id52 == local_id52 {
+                if machine_config.accept_ssh {
+                    return MachineRole::SshServer(machine_name.clone());
+                } else {
+                    return MachineRole::ClientOnly(machine_name.clone());
+                }
+            }
+        }
+
+        MachineRole::Unknown
     }
 }
 
@@ -128,18 +162,19 @@ mod tests {
 id52 = "test-cluster-manager-id52"
 use_keyring = true
 
-[servers.web01]
+[machine.web01]
 id52 = "web01-id52"
-allow_from = "device1-id52,device2-id52"
+accept_ssh = true
+allow_from = "laptop-id52,admin-id52"
 
-[servers.web01.commands.ls]
-allow_from = "readonly-device-id52"
+[machine.web01.commands.ls]
+allow_from = "readonly-id52"
 
-[servers.web01.services.admin]
-http = 8080
-allow_from = "admin-device-id52"
+[machine.web01.services.admin]
+port = 8080
+allow_from = "admin-id52"
 
-[devices.laptop]
+[machine.laptop]
 id52 = "laptop-id52"
 
 [groups.web_servers]
@@ -148,9 +183,10 @@ members = "web01,web02"
 
         let config: Config = toml::from_str(toml_content).unwrap();
         assert_eq!(config.cluster_manager.id52, "test-cluster-manager-id52");
-        assert_eq!(config.servers.len(), 1);
-        assert_eq!(config.devices.len(), 1);
+        assert_eq!(config.machines.len(), 2);
         assert_eq!(config.groups.len(), 1);
+        assert!(config.machines.get("web01").unwrap().accept_ssh);
+        assert!(!config.machines.get("laptop").unwrap().accept_ssh);
     }
 
     #[test]
@@ -159,22 +195,51 @@ members = "web01,web02"
 [cluster_manager]
 id52 = "cluster-manager-id52"
 
-[servers.web01]
+[machine.web01]
 id52 = "web01-id52"
-allow_from = "device1-id52,device2-id52"
+accept_ssh = true
+allow_from = "client1-id52,client2-id52"
 
-[servers.web01.commands.ls]
-allow_from = "readonly-device-id52"
+[machine.web01.commands.ls]
+allow_from = "readonly-client-id52"
+
+[machine.laptop]
+id52 = "laptop-id52"
 "#;
 
         let config: Config = toml::from_str(toml_content).unwrap();
         
-        // Test server access
-        assert!(config.can_execute_command("device1-id52", "web01", "bash"));
-        assert!(!config.can_execute_command("device3-id52", "web01", "bash"));
+        // Test machine SSH access
+        assert!(config.can_execute_command("client1-id52", "web01", "bash"));
+        assert!(!config.can_execute_command("client3-id52", "web01", "bash"));
         
         // Test command-specific access
-        assert!(config.can_execute_command("readonly-device-id52", "web01", "ls"));
-        assert!(!config.can_execute_command("readonly-device-id52", "web01", "bash"));
+        assert!(config.can_execute_command("readonly-client-id52", "web01", "ls"));
+        assert!(!config.can_execute_command("readonly-client-id52", "web01", "bash"));
+        
+        // Test client-only machine cannot accept SSH
+        assert!(!config.can_execute_command("client1-id52", "laptop", "bash"));
+    }
+
+    #[test]
+    fn test_role_detection() {
+        let toml_content = r#"
+[cluster_manager]
+id52 = "manager-id52"
+
+[machine.web01]
+id52 = "web01-id52"
+accept_ssh = true
+
+[machine.laptop]  
+id52 = "laptop-id52"
+"#;
+
+        let config: Config = toml::from_str(toml_content).unwrap();
+        
+        assert_eq!(config.get_local_role("manager-id52"), MachineRole::ClusterManager);
+        assert_eq!(config.get_local_role("web01-id52"), MachineRole::SshServer("web01".to_string()));
+        assert_eq!(config.get_local_role("laptop-id52"), MachineRole::ClientOnly("laptop".to_string()));
+        assert_eq!(config.get_local_role("unknown-id52"), MachineRole::Unknown);
     }
 }

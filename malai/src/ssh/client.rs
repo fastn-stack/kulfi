@@ -32,7 +32,7 @@ impl Client {
             working_dir: std::env::current_dir().ok().map(|p| p.to_string_lossy().to_string()),
         };
 
-        match fastn_p2p::call(
+        match fastn_p2p::call::<SshProtocol, ExecuteRequest, ExecuteResponse, ExecuteError>(
             self.secret_key.clone(),
             &server_public_key,
             SshProtocol::Execute,
@@ -58,7 +58,7 @@ impl Client {
             env: std::env::vars().collect(),
         };
 
-        match fastn_p2p::call(
+        match fastn_p2p::call::<SshProtocol, ShellRequest, ShellResponse, ShellError>(
             self.secret_key.clone(),
             &server_public_key,
             SshProtocol::Shell,
@@ -91,7 +91,7 @@ impl Client {
         if address.contains('.') {
             let parts: Vec<&str> = address.split('.').collect();
             if parts.len() >= 2 {
-                let node_part = parts[0];
+                let _node_part = parts[0];
                 let cluster_part = parts[1..].join(".");
                 
                 // TODO: Implement proper address resolution
@@ -123,10 +123,10 @@ impl Client {
         crate::ssh::config::Config::load_from_file(config_path.to_str().unwrap())
     }
 
-    /// Get available servers in a cluster
-    pub fn get_available_servers(&self, cluster_id: &str) -> Result<Vec<String>> {
+    /// Get available machines in a cluster
+    pub fn get_accessible_machines(&self, cluster_id: &str) -> Result<Vec<String>> {
         let config = self.load_cluster_config(cluster_id)?;
-        Ok(config.get_accessible_servers(&self.secret_key.public_key().id52()))
+        Ok(config.get_accessible_machines(&self.secret_key.public_key().id52()))
     }
 }
 

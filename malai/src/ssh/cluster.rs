@@ -26,36 +26,23 @@ impl ClusterManager {
     }
 
     /// Start the cluster manager
-    pub async fn start(&mut self, graceful: kulfi_utils::Graceful) -> Result<()> {
+    pub async fn start(&self, graceful: kulfi_utils::Graceful) -> Result<()> {
         tracing::info!("Starting SSH cluster manager");
 
         // Start configuration monitoring
-        let config_monitor = self.start_config_monitor(graceful.clone());
+        self.start_config_monitor(graceful.clone()).await?;
         
         // Start member synchronization
-        let sync_task = self.start_member_sync(graceful.clone());
-
-        // Wait for shutdown
-        graceful.spawn(async move {
-            tokio::select! {
-                _ = config_monitor => {
-                    tracing::info!("Config monitor stopped");
-                }
-                _ = sync_task => {
-                    tracing::info!("Member sync stopped");
-                }
-            }
-            Ok::<(), eyre::Error>(())
-        });
+        self.start_member_sync(graceful.clone()).await?;
 
         Ok(())
     }
 
     /// Monitor configuration file for changes
-    async fn start_config_monitor(&mut self, graceful: kulfi_utils::Graceful) -> Result<()> {
+    async fn start_config_monitor(&self, graceful: kulfi_utils::Graceful) -> Result<()> {
         let config_path = self.config_path.clone();
         
-        graceful.spawn(async move {
+        graceful.clone().spawn(async move {
             let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
             
             loop {
@@ -82,7 +69,7 @@ impl ClusterManager {
 
     /// Start member synchronization task
     async fn start_member_sync(&self, graceful: kulfi_utils::Graceful) -> Result<()> {
-        graceful.spawn(async move {
+        graceful.clone().spawn(async move {
             let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
             
             loop {
@@ -146,11 +133,8 @@ impl ClusterManager {
     pub fn get_all_members(&self) -> Vec<String> {
         let mut members = Vec::new();
         
-        // Add all servers
-        members.extend(self.config.servers.keys().cloned());
-        
-        // Add all devices
-        members.extend(self.config.devices.keys().cloned());
+        // Add all machines
+        members.extend(self.config.machines.keys().cloned());
         
         members
     }

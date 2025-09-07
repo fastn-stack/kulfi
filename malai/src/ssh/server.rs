@@ -8,29 +8,29 @@ use tokio::process::Command;
 #[derive(Clone)]
 pub struct Server {
     config: Config,
-    server_name: String,
+    machine_name: String,
     secret_key: fastn_id52::SecretKey,
 }
 
 impl Server {
     /// Create a new SSH server
-    pub fn new(config: Config, server_name: String, secret_key: fastn_id52::SecretKey) -> Self {
+    pub fn new(config: Config, machine_name: String, secret_key: fastn_id52::SecretKey) -> Self {
         Self {
             config,
-            server_name,
+            machine_name,
             secret_key,
         }
     }
 
     /// Start the SSH server
     pub async fn start(&self, graceful: fastn_p2p::Graceful) -> Result<()> {
-        tracing::info!("Starting SSH server: {}", self.server_name);
+        tracing::info!("Starting SSH server: {}", self.machine_name);
 
-        // Get our server configuration
-        let server_config = self.config.servers.get(&self.server_name)
-            .ok_or_else(|| eyre::eyre!("Server '{}' not found in configuration", self.server_name))?;
+        // Get our machine configuration
+        let machine_config = self.config.machines.get(&self.machine_name)
+            .ok_or_else(|| eyre::eyre!("Machine '{}' not found in configuration", self.machine_name))?;
 
-        tracing::info!("Server ID52: {}", server_config.id52);
+        tracing::info!("Machine ID52: {}", machine_config.id52);
 
         // Start listening for different SSH protocols
         let protocols = vec![
@@ -40,10 +40,13 @@ impl Server {
             SshProtocol::ConfigSync,
         ];
 
-        let mut request_stream = fastn_p2p::server::listen(self.secret_key.clone(), &protocols)?;
+        use futures_util::stream::StreamExt;
+
+        let request_stream = fastn_p2p::server::listen(self.secret_key.clone(), &protocols)?;
+        let mut request_stream = std::pin::pin!(request_stream);
 
         fastn_p2p::spawn(async move {
-            while let Some(request_result) = request_stream.recv().await {
+            while let Some(request_result) = request_stream.next().await {
                 match request_result {
                     Ok(request) => {
                         let server_clone = self.clone();
@@ -58,7 +61,7 @@ impl Server {
                     }
                 }
             }
-            Ok(())
+            Ok::<(), eyre::Error>(())
         });
 
         Ok(())
@@ -95,10 +98,10 @@ impl Server {
                       execute_request.client_id52, execute_request.command, execute_request.args);
 
         // Check if client has permission to execute this command
-        if !self.config.can_execute_command(&execute_request.client_id52, &self.server_name, &execute_request.command) {
+        if !self.config.can_execute_command(&execute_request.client_id52, &self.machine_name, &execute_request.command) {
             let error = ExecuteError {
                 message: format!("Permission denied: {} cannot execute '{}' on {}", 
-                               execute_request.client_id52, execute_request.command, self.server_name),
+                               execute_request.client_id52, execute_request.command, self.machine_name),
                 error_code: ExecuteErrorCode::PermissionDenied,
             };
             return handle.send::<ExecuteResponse, ExecuteError>(Err(error)).await.map_err(|e| eyre::eyre!("Failed to send error: {}", e));
@@ -121,7 +124,7 @@ impl Server {
         }
 
         let result = match cmd.spawn() {
-            Ok(mut child) => {
+            Ok(child) => {
                 match child.wait_with_output().await {
                     Ok(output) => {
                         let response = ExecuteResponse {
@@ -158,10 +161,10 @@ impl Server {
         tracing::info!("Shell request from {}", shell_request.client_id52);
 
         // Check if client has shell access
-        if !self.config.can_execute_command(&shell_request.client_id52, &self.server_name, "bash") {
+        if !self.config.can_execute_command(&shell_request.client_id52, &self.machine_name, "bash") {
             let error = ShellError {
                 message: format!("Permission denied: {} cannot access shell on {}", 
-                               shell_request.client_id52, self.server_name),
+                               shell_request.client_id52, self.machine_name),
                 error_code: ShellErrorCode::PermissionDenied,
             };
             return handle.send::<ShellResponse, ShellError>(Err(error)).await.map_err(|e| eyre::eyre!("Failed to send error: {}", e));
@@ -186,10 +189,10 @@ impl Server {
                       proxy_request.client_id52, proxy_request.service_name);
 
         // Check if client can access this service
-        if !self.config.can_access_service(&proxy_request.client_id52, &self.server_name, &proxy_request.service_name) {
+        if !self.config.can_access_service(&proxy_request.client_id52, &self.machine_name, &proxy_request.service_name) {
             let error = HttpProxyError {
                 message: format!("Permission denied: {} cannot access service {} on {}", 
-                               proxy_request.client_id52, proxy_request.service_name, self.server_name),
+                               proxy_request.client_id52, proxy_request.service_name, self.machine_name),
                 error_code: HttpProxyErrorCode::PermissionDenied,
             };
             return handle.send::<HttpProxyResponse, HttpProxyError>(Err(error)).await.map_err(|e| eyre::eyre!("Failed to send error: {}", e));
@@ -222,12 +225,12 @@ impl Server {
         Ok(())
     }
 
-    /// Get list of HTTP services this server exposes
+    /// Get list of HTTP services this machine exposes
     pub fn get_exposed_services(&self) -> Vec<(String, u16)> {
-        if let Some(server_config) = self.config.servers.get(&self.server_name) {
-            server_config.services
+        if let Some(machine_config) = self.config.machines.get(&self.machine_name) {
+            machine_config.services
                 .iter()
-                .map(|(name, service_config)| (name.clone(), service_config.http))
+                .map(|(name, service_config)| (name.clone(), service_config.port))
                 .collect()
         } else {
             Vec::new()
@@ -236,7 +239,7 @@ impl Server {
 
     /// Check if a client can access an HTTP service
     pub fn can_client_access_service(&self, client_id52: &str, service_name: &str) -> bool {
-        self.config.can_access_service(client_id52, &self.server_name, service_name)
+        self.config.can_access_service(client_id52, &self.machine_name, service_name)
     }
 }
 
@@ -252,18 +255,19 @@ mod tests {
 [cluster_manager]
 id52 = "cluster-manager-id52"
 
-[servers.web01]
+[machine.web01]
 id52 = "web01-id52"
+accept_ssh = true
 allow_from = "client1-id52,client2-id52"
 
-[servers.web01.commands.ls]
+[machine.web01.commands.ls]
 allow_from = "readonly-client-id52"
 
-[servers.web01.services.admin]
-http = 8080
+[machine.web01.services.admin]
+port = 8080
 allow_from = "admin-client-id52"
 
-[devices.client]
+[machine.client]
 id52 = "client1-id52"
 "#;
 
@@ -276,8 +280,8 @@ id52 = "client1-id52"
         let secret_key = fastn_id52::SecretKey::generate();
         let server = Server::new(config, "web01".to_string(), secret_key);
         
-        assert_eq!(server.server_name, "web01");
-        assert_eq!(server.config.servers.len(), 1);
+        assert_eq!(server.machine_name, "web01");
+        assert_eq!(server.config.machines.len(), 2);
     }
 
     #[test]

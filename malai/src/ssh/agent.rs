@@ -52,14 +52,14 @@ impl Agent {
         self.start_connection_manager(graceful.clone()).await?;
 
         // Handle client connections
-        graceful.spawn(async move {
+        graceful.clone().spawn(async move {
             loop {
                 tokio::select! {
                     result = listener.accept() => {
                         match result {
                             Ok((stream, _addr)) => {
-                                let graceful_for_connection = graceful.clone();
-                                graceful.spawn(async move {
+                                let _graceful_for_connection = graceful.clone();
+                                graceful.clone().spawn(async move {
                                     if let Err(e) = Self::handle_client_connection(stream).await {
                                         tracing::error!("Error handling client connection: {}", e);
                                     }
@@ -103,15 +103,15 @@ impl Agent {
 
         tracing::info!("Starting HTTP proxy on port {}", proxy_port);
 
-        graceful.spawn(async move {
+        graceful.clone().spawn(async move {
             loop {
                 tokio::select! {
                     result = listener.accept() => {
                         match result {
                             Ok((stream, addr)) => {
                                 tracing::debug!("HTTP proxy connection from: {}", addr);
-                                let graceful_for_request = graceful.clone();
-                                graceful.spawn(async move {
+                                let _graceful_for_request = graceful.clone();
+                                graceful.clone().spawn(async move {
                                     if let Err(e) = Self::handle_http_request(stream).await {
                                         tracing::error!("Error handling HTTP request: {}", e);
                                     }
@@ -149,7 +149,7 @@ impl Agent {
 
     /// Start the connection manager
     async fn start_connection_manager(&self, graceful: kulfi_utils::Graceful) -> Result<()> {
-        graceful.spawn(async move {
+        graceful.clone().spawn(async move {
             let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
             
             loop {
