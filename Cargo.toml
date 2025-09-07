@@ -37,6 +37,7 @@ clap-verbosity-flag = "3"
 colored = "3"
 data-encoding = "2.8"
 directories = "6.0.0"
+dirs = "5"
 eyre = "0.6"
 file-guard = "0.2.0"
 futures-util = "0.3"
@@ -53,6 +54,9 @@ keyring = { version = "3", features = [
 ] }
 kulfi-utils = { path = "kulfi-utils" }
 kulfi-id52 = { path = "kulfi-id52" }
+fastn-p2p = { path = "/Users/amitu/Projects/fastn-me/v0.5/fastn-p2p" }
+fastn-net = { path = "/Users/amitu/Projects/fastn-me/v0.5/fastn-net" }
+fastn-id52 = { path = "/Users/amitu/Projects/fastn-me/v0.5/fastn-id52" }
 mime_guess = "2"
 percent-encoding = "2"
 reqwest = { version = "0.12", default-features = false, features = [
@@ -62,10 +66,12 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tauri-build = { version = "2", features = ["config-json5"] }
 tauri-plugin-opener = "2"
+tempfile = "3"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = "0.1"
 tokio-util = { version = "0.7", features = ["rt"] }
 thiserror = "2"
+toml = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 webbrowser = "1"

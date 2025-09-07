@@ -279,4 +279,54 @@ pub enum Command {
         )]
         file: Option<String>,
     },
+    #[clap(about = "SSH functionality for secure P2P remote access")]
+    Ssh {
+        #[command(subcommand)]
+        ssh_command: SshCommand,
+    },
+}
+
+#[derive(clap::Subcommand, Debug)]
+pub enum SshCommand {
+    #[clap(about = "Start SSH server to accept incoming connections")]
+    Server {
+        #[arg(long, help = "Path to cluster configuration file")]
+        config: Option<String>,
+        #[arg(long, help = "Server name in the cluster configuration")]
+        name: Option<String>,
+    },
+    #[clap(about = "Start SSH agent for connection management and HTTP proxy")]
+    Agent {
+        #[arg(
+            long,
+            short = 'e',
+            help = "Print environment variables for shell integration"
+        )]
+        environment: bool,
+        #[arg(long, help = "Enable lockdown mode (keys only accessible to agent)")]
+        lockdown: bool,
+        #[arg(long, help = "Enable HTTP proxy functionality", default_value = "true")]
+        http: bool,
+    },
+    #[clap(about = "Execute command on remote server", name = "exec")]
+    Execute {
+        #[arg(help = "Server address (e.g., web01.company.com, web01.cluster-id52)")]
+        server: String,
+        #[arg(help = "Command to execute")]
+        command: String,
+        #[arg(help = "Command arguments")]
+        args: Vec<String>,
+    },
+    #[clap(about = "Start interactive shell session on remote server")]
+    Shell {
+        #[arg(help = "Server address (e.g., web01.company.com, web01.cluster-id52)")]
+        server: String,
+    },
+    #[clap(about = "Access HTTP service through malai network")]
+    Curl {
+        #[arg(help = "Service URL (e.g., admin.web01.company.com/api)")]
+        url: String,
+        #[arg(help = "Additional curl arguments")]
+        curl_args: Vec<String>,
+    },
 }

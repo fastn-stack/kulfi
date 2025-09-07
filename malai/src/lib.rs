@@ -6,6 +6,7 @@ extern crate self as malai;
 
 use clap as _;
 use clap_verbosity_flag as _;
+use fastn_net as _;
 use tracing_subscriber as _;
 
 mod browse;
@@ -17,6 +18,7 @@ mod http_proxy;
 mod http_proxy_remote;
 mod keygen;
 mod run;
+mod ssh;
 mod tcp_bridge;
 
 pub use browse::browse;

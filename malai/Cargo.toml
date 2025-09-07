@@ -17,7 +17,11 @@ ui = ["tauri", "tauri-plugin-opener", "tauri-build"]
 clap-verbosity-flag.workspace = true
 clap.workspace = true
 colored.workspace = true
+dirs.workspace = true
 eyre.workspace = true
+fastn-p2p.workspace = true
+fastn-net.workspace = true  
+fastn-id52.workspace = true
 futures-util.workspace = true
 http-body-util.workspace = true
 hyper-util.workspace = true
@@ -32,9 +36,13 @@ tauri = { workspace = true, optional = true }
 tauri-plugin-opener = { workspace = true, optional = true }
 tokio.workspace = true
 tokio-util.workspace = true
+toml.workspace = true
 tracing-subscriber.workspace = true
 tracing.workspace = true
 webbrowser.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [build-dependencies]
 tauri-build = { workspace = true, optional = true }
