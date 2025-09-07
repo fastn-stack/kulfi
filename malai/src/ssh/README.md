@@ -22,43 +22,51 @@ The SSH functionality enables:
 
 Machines can belong to multiple clusters simultaneously, each with their own id52 keypair.
 
-## Node Types
+## Machine Types
 
-### Servers
-- Run `malai ssh server` to accept incoming connections
-- Can execute remote commands from authorized cluster members
+All cluster members are "machines" with different capabilities based on configuration:
+
+### Cluster Manager Machine
+- Manages cluster configuration and member coordination
+- Automatically created by `malai ssh create-cluster`
+- Can manually edit `cluster-config.toml`
+- Distributes config updates to all cluster machines
+
+### Server Machines  
+- Accept incoming SSH connections and execute commands
 - Can expose HTTP services with access control
-- Must be reachable by other cluster members
+- Defined in config as `[machine.web01]` with `accept_ssh = true`
+- Must be reachable by other cluster machines
 
-### Devices
-- Client-only nodes that cannot accept incoming connections
-- Can initiate SSH connections to servers in the cluster
+### Client-Only Machines
+- Can initiate SSH connections to server machines
+- Cannot accept incoming connections (`accept_ssh = false` or not specified)
 - Suitable for laptops, mobile devices, or firewalled machines
 
 ## Addressing and Aliases
 
-### Node Addressing
-Each node has multiple addressing options:
+### Machine Addressing
+Each machine has multiple addressing options:
 
-- **Domain-based**: `node-alias.cluster-domain.com` (when domain is available)
-- **ID-based**: `node-alias.cluster-id52` (always works)
-- **Full ID**: `node-id52.cluster-id52` (direct addressing)
+- **Domain-based**: `machine-alias.cluster-domain.com` (when domain is available)
+- **ID-based**: `machine-alias.cluster-id52` (always works)
+- **Full ID**: `machine-id52.cluster-id52` (direct addressing)
 
 ### Service Addressing
-HTTP services on nodes can be addressed as:
+HTTP services on machines can be addressed as:
 
-- **Domain-based**: `service-alias.node-alias.cluster-domain.com`
-- **ID-based**: `service-alias.node-alias.cluster-id52`
-- **Full ID**: `service-alias.node-id52.cluster-id52`
+- **Domain-based**: `service-alias.machine-alias.cluster-domain.com`
+- **ID-based**: `service-alias.machine-alias.cluster-id52`
+- **Full ID**: `service-alias.machine-id52.cluster-id52`
 
-Example: A Django admin service on server `web01` in cluster `company.com` could be reached at `admin.web01.company.com`.
+Example: A Django admin service on machine `web01` in cluster `company.com` could be reached at `admin.web01.company.com`.
 
 ## HTTP Service Proxying
 
-Servers can expose HTTP services through the malai network:
+Machines can expose HTTP services through the malai network:
 
 - **Service Registration**: Each HTTP service gets a unique alias
-- **Access Control**: Configure which cluster members can access each service
+- **Access Control**: Configure which cluster machines can access each service
 - **Transparent Proxying**: Services appear as if running locally to authorized clients
 - **Port Flexibility**: No need to manage port conflicts across the cluster
 
@@ -69,58 +77,67 @@ Servers can expose HTTP services through the malai network:
 [cluster-manager]
 id52 = "cluster-manager-id52-here"
 
-# Key management (choose one)
-use-keyring = true              # Default: use system keyring
-private-key-file = "path/to/key"  # Alternative: key file
-private-key = "base64-key"        # Alternative: inline key
-
-# Server definitions
-[server.web01]
+# Machine definitions
+[machine.web01]
 id52 = "web01-id52-here"
-allow-from = "device1-id52,device2-id52"  # Full SSH access
+accept_ssh = true                     # This machine accepts SSH connections
+allow_from = "laptop-id52,admin-id52" # Full SSH access from these machines
 
 # Command-specific access control
-[server.web01.ls]
-allow-from = "readonly-device-id52"  # Can only run 'ls'
+[machine.web01.command.ls]
+allow_from = "readonly-id52"          # Only this machine can run 'ls'
 
 # HTTP service exposure
-[server.web01.service.admin]
-http = 8080
-allow-from = "admin-device-id52,manager-device-id52"
+[machine.web01.service.admin]
+port = 8080
+allow_from = "admin-id52,manager-id52"
 
-[server.web01.service.api]
-http = 3000
-allow-from = "*"  # Public access within cluster
+[machine.web01.service.api]  
+port = 3000
+allow_from = "*"                      # All cluster machines can access
 
-# Device definitions (client-only nodes)
-[device.laptop]
+# Client-only machine (no accept_ssh = true)
+[machine.laptop]
 id52 = "laptop-id52-here"
 
 # Groups for easier management
 [group.web-servers]
 members = "web01,web02,web03"
 
-[group.admins]
+[group.admins] 
 members = "laptop,admin-desktop"
 ```
+
+**Config Management Rules:**
+- **Cluster Manager Machine**: Admin manually edits `$MALAI_HOME/ssh/cluster-config.toml`
+  - Use any editor: vim, nano, cp, etc.
+  - Agent watches for changes and auto-distributes to all cluster machines
+- **All Other Machines**: 
+  - Receive config from cluster manager via P2P sync
+  - Agent automatically overwrites `$MALAI_HOME/ssh/cluster-config.toml`
+  - **NEVER manually edit** - changes will be lost on next sync
+  - Config is read-only for end users on non-cluster-manager machines
 
 ## Configuration Management
 
 ### Automatic Sync
 The cluster manager automatically distributes configuration updates:
 
-1. **Change Detection**: Monitors config file hash changes
-2. **Selective Distribution**: Each node receives only relevant configuration
-3. **Security Filtering**: Private keys and sensitive data are never shared
-4. **Incremental Updates**: Only changed configurations are synchronized
+1. **Change Detection**: Monitors `cluster-config.toml` file hash changes
+2. **Full Distribution**: All machines receive the complete cluster configuration
+3. **Auto-Overwrite**: Machines automatically overwrite their local config file
+4. **Role Detection**: Each machine's agent reads config to determine its role
 
-### Node-Specific Configs
-Each node receives tailored configuration containing:
+### Machine Role Detection
+Each machine's agent automatically detects its role by:
 
-- **Servers**: Services they expose and who can access them
-- **Devices**: Servers they can connect to and available services
-- **Access Rules**: Permissions for commands and services
-- **Cluster Metadata**: Node aliases, group memberships 
+1. **Reading** local `cluster-config.toml` 
+2. **Matching** local identity ID52 against config sections
+3. **Determining role**:
+   - If ID52 matches `[cluster-manager].id52` → cluster manager
+   - If ID52 matches `[machine.X]` with `accept_ssh = true` → SSH server
+   - If ID52 matches `[machine.X]` without `accept_ssh` → client-only
+4. **Starting services** automatically based on detected role 
 
 ## Usage
 
@@ -160,15 +177,9 @@ malai ssh create-cluster [--alias company-cluster]
 # Outputs: "Cluster created with ID: <cluster-manager-id52>"
 # Creates: $MALAI_HOME/ssh/cluster-config.toml with this machine as cluster manager
 
-# Create a machine identity (for joining clusters)
-malai ssh create-machine
-# Outputs: "Machine created with ID: <machine-id52>"
-# Cluster admin manually adds this ID52 to cluster config with alias and permissions
-# Updated config is automatically synced to all cluster members
-
 # List cluster information  
 malai ssh cluster-info
-# Shows: role (cluster-manager/server/client), cluster ID, machine alias
+# Shows: role (cluster-manager/machine), cluster ID, machine alias from config
 ```
 
 ### Client Commands
@@ -186,17 +197,22 @@ malai ssh --cluster company.com web01 "uptime"
 ### Agent Commands
 ```bash
 # Start agent in background (handles all SSH functionality automatically)
+# Requires MALAI_HOME to be set or uses default location
 malai ssh agent
 
 # Get environment setup commands for shell integration
 malai ssh agent -e
 
 # Agent automatically:
+# - Uses MALAI_HOME for all data (config, identity, socket, lockfile)
 # - Detects role from local identity vs cluster config
 # - Starts cluster manager, server, or client-only mode as appropriate
 # - Handles HTTP proxy and configuration sync
 # - Manages connections and permissions
+# - Uses system log directories for logging (never writes to MALAI_HOME/logs)
 ```
+
+**Important:** Agent requires `MALAI_HOME` environment variable or uses platform default.
 
 ## SSH Agent
 
@@ -301,18 +317,23 @@ eval $(malai ssh agent -e)  # Agent auto-detects role and starts appropriate ser
 ```
 $MALAI_HOME/
 ├── ssh/
-│   ├── cluster-config.toml      # Main cluster configuration (default location)
-│   ├── clusters/
-│   │   ├── company-cluster/
-│   │   │   ├── keypair.key      # This node's key for this cluster
-│   │   │   ├── known-hosts      # Verified peer keys
-│   │   │   └── logs/
-│   │   └── test-cluster/
-│   │       └── ...
-│   └── agent.sock
+│   ├── cluster-config.toml      # Cluster configuration
+│   │                           # • Cluster manager: manually edited by admin
+│   │                           # • Other machines: auto-synced from cluster manager
+│   ├── agent.sock              # Agent communication socket
+│   └── agent.lock              # Lockfile to prevent multiple agents
 └── keys/
-    └── identity.key             # Default identity for this MALAI_HOME instance
+    └── identity.key            # This machine's identity
+
+# Logs stored in standard system log directories:
+# - Linux/macOS: ~/.local/state/malai/ssh/logs/
+# - Windows: %LOCALAPPDATA%/malai/ssh/logs/
 ```
+
+**Agent Lockfile:**
+- `$MALAI_HOME/ssh/agent.lock` prevents multiple agents with same MALAI_HOME
+- If lockfile exists and process is running, new agent instances exit gracefully
+- Enables safe testing with multiple MALAI_HOME directories
 
 ## Multi-Cluster Agent
 
@@ -348,41 +369,42 @@ malai ssh create-cluster --alias test-cluster
 eval $(malai ssh agent -e)  # Start agent (automatically runs as cluster manager)
 ```
 
-**3. Create SSH Server Machine (Terminal 2):**
+**3. Create Server Machine (Terminal 2):**
 ```bash
 export MALAI_HOME=/tmp/malai-test/server1
-malai ssh create-machine
-# Outputs: "Machine created with ID: def456..."
+malai keygen  # Generate server identity
+# Outputs: "Identity created with ID52: def456..."
 ```
 
 **4. Update Cluster Config (Terminal 1 - Cluster Manager):**
 ```bash
 # Edit $MALAI_HOME/ssh/cluster-config.toml to add:
-# [server.web01]
+# [machine.web01]
 # id52 = "def456..."  # The ID from step 3
+# accept_ssh = true
 # allow_from = "*"
 # 
-# Config automatically syncs to all cluster members
+# Config automatically syncs to Terminal 2's machine
 ```
 
-**5. Server Starts Automatically (Terminal 2):**
+**5. Start Server Agent (Terminal 2):**
 ```bash
-# Agent detects updated config and starts SSH server functionality
-# No manual command needed - agent handles everything!
+eval $(malai ssh agent -e)  # Agent receives config and auto-detects SSH server role
 ```
 
-**6. Create Client Device (Terminal 3):**
+**6. Create Client Machine (Terminal 3):**
 ```bash
-export MALAI_HOME=/tmp/malai-test/device1
-malai ssh create-machine  
-# Outputs: "Machine created with ID: ghi789..."
+export MALAI_HOME=/tmp/malai-test/client1
+malai keygen  # Generate client identity
+# Outputs: "Identity created with ID52: ghi789..."
 ```
 
 **7. Update Cluster Config for Client (Terminal 1):**
 ```bash
 # Edit cluster config to add:
-# [device.laptop]  
+# [machine.laptop]
 # id52 = "ghi789..."  # The ID from step 6
+# (no accept_ssh = client-only by default)
 ```
 
 **8. Test SSH (Terminal 3):**
@@ -478,33 +500,35 @@ malai ssh create-cluster --alias company-cluster
 eval $(malai ssh agent -e)  # Start agent in background
 ```
 
-**2. Add Server Machines:**
+**2. Add Machines to Cluster:**
 ```bash
-# On each server machine:
-malai ssh create-machine
-# Outputs: "Machine created with ID: <server-id52>"
+# On each machine that should join the cluster:
+malai keygen  # Generate identity for this machine
+# Copy the ID52 from output
 
-# Cluster admin adds to config:
-# [server.web01]
-# id52 = "<server-id52>"
+# Cluster admin manually adds to cluster manager's config:
+# Edit $MALAI_HOME/ssh/cluster-config.toml:
+# [machine.web01] 
+# id52 = "<machine-id52>"
+# accept_ssh = true        # If this should accept SSH connections
 # allow_from = "*"
+#
 # Config automatically syncs to all machines
+# Each machine's agent auto-detects its role and starts appropriate services
 ```
 
-**3. Add Client Devices:**
+**3. Start Agents on All Machines:**
 ```bash
-# On each client device:
-malai ssh create-machine  
-# Outputs: "Machine created with ID: <device-id52>"
-
-# Cluster admin adds to config:
-# [device.laptop]
-# id52 = "<device-id52>"
+# On each machine (add to ~/.bashrc for automatic startup):
+eval $(malai ssh agent -e)
+# Agent automatically:
+# - Receives config from cluster manager
+# - Detects its role (cluster-manager/SSH server/client-only)
+# - Starts appropriate services
 ```
 
-**4. Use SSH (on any machine with agent running):**
+**4. Use SSH:**
 ```bash
-eval $(malai ssh agent -e)  # Add to ~/.bashrc for automatic setup
 malai ssh web01.company-cluster "uptime"
 curl admin.web01.company-cluster/status
 ```
