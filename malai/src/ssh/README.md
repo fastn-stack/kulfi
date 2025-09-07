@@ -153,13 +153,22 @@ DATADIR[malai]/ssh/clusters/<cluster-alias>/
 
 ## Command Reference
 
-### Server Commands
+### Cluster Management Commands
 ```bash
-# Start SSH server (accepts connections)
-malai ssh server
+# Create a new cluster (generates cluster manager identity)
+malai ssh create-cluster [--alias company-cluster]
+# Outputs: "Cluster created with ID: <cluster-manager-id52>"
+# Creates: $MALAI_HOME/ssh/cluster-config.toml with this machine as cluster manager
 
-# Start SSH server with specific config
-malai ssh server --config /path/to/cluster-config.toml
+# Create a machine identity (for joining clusters)
+malai ssh create-machine
+# Outputs: "Machine created with ID: <machine-id52>"
+# Cluster admin manually adds this ID52 to cluster config with alias and permissions
+# Updated config is automatically synced to all cluster members
+
+# List cluster information  
+malai ssh cluster-info
+# Shows: role (cluster-manager/server/client), cluster ID, machine alias
 ```
 
 ### Client Commands
@@ -176,17 +185,17 @@ malai ssh --cluster company.com web01 "uptime"
 
 ### Agent Commands
 ```bash
-# Start agent in background
+# Start agent in background (handles all SSH functionality automatically)
 malai ssh agent
 
-# Get environment setup commands
+# Get environment setup commands for shell integration
 malai ssh agent -e
 
-# Start with lockdown mode
-malai ssh agent --lockdown
-
-# Start without HTTP proxy
-malai ssh agent --http=false
+# Agent automatically:
+# - Detects role from local identity vs cluster config
+# - Starts cluster manager, server, or client-only mode as appropriate
+# - Handles HTTP proxy and configuration sync
+# - Manages connections and permissions
 ```
 
 ## SSH Agent
@@ -272,6 +281,39 @@ eval $(malai ssh agent -e)
 - `MALAI_LOCKDOWN_MODE`: Enable/disable lockdown mode (default: true)
 - `HTTP_PROXY`: Local HTTP proxy for transparent service access (default: enabled)
 
+## Environment Variables
+
+### MALAI_HOME
+The `MALAI_HOME` environment variable controls where malai stores its configuration and data files. This is crucial for running multiple clusters and testing scenarios.
+
+**Default Locations:**
+- Linux/macOS: `~/.local/share/malai`
+- Windows: `%APPDATA%/malai`
+
+**Override with MALAI_HOME:**
+```bash
+export MALAI_HOME=/path/to/custom/malai/data
+# Create cluster or machine, then agent handles everything automatically
+eval $(malai ssh agent -e)  # Agent auto-detects role and starts appropriate services
+```
+
+**Directory Structure:**
+```
+$MALAI_HOME/
+├── ssh/
+│   ├── cluster-config.toml      # Main cluster configuration (default location)
+│   ├── clusters/
+│   │   ├── company-cluster/
+│   │   │   ├── keypair.key      # This node's key for this cluster
+│   │   │   ├── known-hosts      # Verified peer keys
+│   │   │   └── logs/
+│   │   └── test-cluster/
+│   │       └── ...
+│   └── agent.sock
+└── keys/
+    └── identity.key             # Default identity for this MALAI_HOME instance
+```
+
 ## Multi-Cluster Agent
 
 A single agent manages all clusters:
@@ -287,37 +329,231 @@ A single agent manages all clusters:
 - **Dynamic Updates**: New clusters are automatically detected and integrated
 - **Conflict Resolution**: Service name conflicts resolved by cluster precedence
 
+## Multi-Instance Testing
+
+The `MALAI_HOME` environment variable enables comprehensive testing of multi-cluster, multi-server scenarios on a single machine by creating isolated environments.
+
+### Single Machine Multi-Cluster Setup
+
+**1. Create Test Directories:**
+```bash
+mkdir -p /tmp/malai-test/{cluster1,cluster2,server1,server2,device1,device2}
+```
+
+**2. Create Cluster (Terminal 1):**
+```bash
+export MALAI_HOME=/tmp/malai-test/cluster1
+malai ssh create-cluster --alias test-cluster
+# Outputs: "Cluster created with ID: abc123..."
+eval $(malai ssh agent -e)  # Start agent (automatically runs as cluster manager)
+```
+
+**3. Create SSH Server Machine (Terminal 2):**
+```bash
+export MALAI_HOME=/tmp/malai-test/server1
+malai ssh create-machine
+# Outputs: "Machine created with ID: def456..."
+```
+
+**4. Update Cluster Config (Terminal 1 - Cluster Manager):**
+```bash
+# Edit $MALAI_HOME/ssh/cluster-config.toml to add:
+# [server.web01]
+# id52 = "def456..."  # The ID from step 3
+# allow_from = "*"
+# 
+# Config automatically syncs to all cluster members
+```
+
+**5. Server Starts Automatically (Terminal 2):**
+```bash
+# Agent detects updated config and starts SSH server functionality
+# No manual command needed - agent handles everything!
+```
+
+**6. Create Client Device (Terminal 3):**
+```bash
+export MALAI_HOME=/tmp/malai-test/device1
+malai ssh create-machine  
+# Outputs: "Machine created with ID: ghi789..."
+```
+
+**7. Update Cluster Config for Client (Terminal 1):**
+```bash
+# Edit cluster config to add:
+# [device.laptop]  
+# id52 = "ghi789..."  # The ID from step 6
+```
+
+**8. Test SSH (Terminal 3):**
+```bash
+eval $(malai ssh agent -e)  # Start agent (automatically runs as client)
+malai ssh web01.test-cluster "echo 'Hello from remote server!'"
+```
+
+**5. Test HTTP Service Access:**
+```bash
+# In server terminal, start a local HTTP service
+python3 -m http.server 8080 &
+
+# In client terminal
+curl admin.web01.cluster.local:8080/
+```
+
+### Multi-Cluster Testing
+
+Test cross-cluster scenarios by setting up multiple independent clusters:
+
+**Company Cluster:**
+```bash
+export MALAI_HOME=/tmp/malai-test/company-cluster
+malai ssh create-cluster --alias company-cluster
+eval $(malai ssh agent -e)  # Runs as cluster manager automatically
+```
+
+**Test Cluster:**
+```bash
+export MALAI_HOME=/tmp/malai-test/test-cluster
+malai ssh create-cluster --alias test-cluster
+eval $(malai ssh agent -e)  # Runs as different cluster manager
+```
+
+**Client with Access to Both:**
+```bash
+export MALAI_HOME=/tmp/malai-test/multi-client
+eval $(malai ssh agent -e)
+malai ssh web01.company.com "uptime"
+malai ssh test-server.test.local "ps aux"
+```
+
+### Test Scenarios
+
+**1. Permission Testing:**
+```bash
+# Test command restrictions
+malai ssh restricted-server.cluster.local "ls"  # Should work
+malai ssh restricted-server.cluster.local "rm file"  # Should fail
+```
+
+**2. Service Access Testing:**
+```bash
+# Test HTTP service permissions
+curl api.server1.cluster.local/public    # Should work
+curl admin.server1.cluster.local/secret  # Should fail without permission
+```
+
+**3. Agent Functionality Testing:**
+```bash
+# Test agent environment setup
+eval $(malai ssh agent -e --lockdown --http)
+echo $MALAI_SSH_AGENT
+echo $HTTP_PROXY
+echo $MALAI_LOCKDOWN_MODE
+```
+
+**4. Configuration Sync Testing:**
+```bash
+# Modify cluster config and verify sync
+# Edit cluster-config.toml
+# Observe logs in all connected nodes for config updates
+```
+
+### Cleanup
+```bash
+# Kill all background processes
+pkill -f "malai ssh"
+
+# Clean up test directories
+rm -rf /tmp/malai-test/
+```
+
 ## Getting Started
 
-### 1. Generate Identity
+### Production Setup
+
+**1. Create Cluster (on cluster manager machine):**
 ```bash
-# Generate keypair for this device
-malai keygen
+malai ssh create-cluster --alias company-cluster
+# Outputs: "Cluster created with ID: <cluster-manager-id52>"
+eval $(malai ssh agent -e)  # Start agent in background
 ```
 
-### 2. Set up Cluster Manager
-Create a cluster configuration file and start the cluster manager:
+**2. Add Server Machines:**
 ```bash
-# Edit cluster-config.toml with your cluster setup
-malai ssh server --config cluster-config.toml
+# On each server machine:
+malai ssh create-machine
+# Outputs: "Machine created with ID: <server-id52>"
+
+# Cluster admin adds to config:
+# [server.web01]
+# id52 = "<server-id52>"
+# allow_from = "*"
+# Config automatically syncs to all machines
 ```
 
-### 3. Join Devices
-On client devices:
+**3. Add Client Devices:**
 ```bash
-# Generate device identity
-malai keygen
+# On each client device:
+malai ssh create-machine  
+# Outputs: "Machine created with ID: <device-id52>"
 
-# Connect to cluster (cluster manager distributes config)
-malai ssh cluster-manager.company.com
+# Cluster admin adds to config:
+# [device.laptop]
+# id52 = "<device-id52>"
 ```
 
-### 4. Start Agent (Recommended)
+**4. Use SSH (on any machine with agent running):**
 ```bash
-# Set up environment with agent
+eval $(malai ssh agent -e)  # Add to ~/.bashrc for automatic setup
+malai ssh web01.company-cluster "uptime"
+curl admin.web01.company-cluster/status
+```
+
+### Development/Testing Setup
+
+For development and testing, use `MALAI_HOME` to create isolated environments:
+
+**1. Create Test Environment:**
+```bash
+export MALAI_HOME=/tmp/malai-dev
+mkdir -p $MALAI_HOME
+```
+
+**2. Generate Test Identities:**
+```bash
+# Each component gets its own identity
+malai keygen  # Creates identity in $MALAI_HOME
+```
+
+**3. Test Multi-Node Setup:**
+```bash
+# Terminal 1 - Create Cluster
+export MALAI_HOME=/tmp/malai-cluster-manager
+malai ssh create-cluster --alias test-cluster
+# Note the cluster ID output: "Cluster created with ID: abc123..."
+eval $(malai ssh agent -e)  # Auto-runs as cluster manager
+
+# Terminal 2 - Create Server Machine
+export MALAI_HOME=/tmp/malai-server1
+malai ssh create-machine
+# Note the machine ID output: "Machine created with ID: def456..."
+
+# Terminal 1 - Add Server to Cluster Config
+# Edit cluster config to add:
+# [server.web01]
+# id52 = "def456..."
+# allow_from = "*"
+# Config automatically syncs to Terminal 2
+
+# Terminal 2 - Server Starts Automatically  
+eval $(malai ssh agent -e)  # Agent detects role and starts SSH server
+
+# Terminal 3 - Create and Add Client
+export MALAI_HOME=/tmp/malai-client1
+malai ssh create-machine
+# Add this ID to cluster config as [device.laptop]
 eval $(malai ssh agent -e)
-
-# Now you can use SSH and HTTP services transparently
-malai ssh web01.company.com "uptime"
-curl admin.web01.company.com/status
+malai ssh web01.test-cluster "echo 'Multi-node test successful!'"
 ```
+
+This approach allows you to test complex multi-cluster scenarios, permission systems, and service configurations entirely on a single development machine.
