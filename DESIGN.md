@@ -977,7 +977,14 @@ Self-daemonizing process that provides all infrastructure services:
 - **Survives shell close**: Process detaches from terminal, continues running
 - **Auto-restart friendly**: Add to `.bashrc` or `.zshrc` for automatic startup
 - **Foreground mode**: `malai daemon --foreground` for systemd/supervisor integration
-- **Process management**: Lockfile prevents multiple daemons, shows running status
+- **Single instance**: **MUST use exclusive file locking** to prevent multiple daemon instances
+- **Graceful shutdown**: Ctrl+C triggers graceful shutdown with service cleanup
+
+#### **Process Management (REQUIRED):**
+- **Exclusive file locking**: `$MALAI_HOME/malai.lock` with `try_lock()` - fail if another daemon running
+- **Lock lifetime**: Hold file lock for entire daemon lifetime, automatically released on process exit
+- **Graceful shutdown**: Use fastn-p2p graceful shutdown pattern for clean service termination
+- **Service cleanup**: Allow current requests to complete before shutdown (configurable timeout)
 
 #### **Daemon Responsibilities:**
 1. **Initial scan**: Load all cluster configs and machine configs from MALAI_HOME
@@ -985,6 +992,27 @@ Self-daemonizing process that provides all infrastructure services:
 3. **CLI communication**: Provides Unix socket for CLI commands (connection pooling)
 4. **Config management**: Responds to `malai rescan` for atomic config reloading
 5. **Service orchestration**: Coordinates all P2P services in single process
+
+#### **Graceful Shutdown Implementation:**
+```rust
+// Follow fastn-rig pattern:
+let lock_file = std::fs::OpenOptions::new()
+    .create(true)
+    .write(true)
+    .open(&lock_path)?;
+
+// Acquire exclusive lock
+lock_file.try_lock().map_err(|_| "Another daemon running")?;
+let _lock_guard = lock_file; // Hold lock for daemon lifetime
+
+// Start all services using fastn-p2p::spawn()
+fastn_p2p::spawn(async move { /* cluster manager */ });
+fastn_p2p::spawn(async move { /* SSH daemon */ });
+fastn_p2p::spawn(async move { /* service proxy */ });
+
+// Wait for graceful shutdown (handles Ctrl+C)
+fastn_p2p::globals::graceful().shutdown().await?;
+```
 
 ### **Service Integration in Single Process:**
 - **HTTP server**: Listen on port 80, route by `subdomain.localhost` to remote services
