@@ -22,6 +22,38 @@ The SSH functionality enables:
 
 Machines can belong to multiple clusters simultaneously, each with their own id52 keypair.
 
+## Cluster Identification and Aliases
+
+### **Cluster Contact Methods:**
+When joining a cluster, you need to contact the cluster manager. Two methods:
+
+1. **Direct ID52**: Use cluster manager's full ID52 (always works)
+   ```bash
+   malai ssh machine init abc123def456ghi789jkl012mno345pqr678stu901vwx234 ft
+   ```
+
+2. **Domain Name**: Use domain with DNS TXT record (if configured)
+   ```bash
+   malai ssh machine init fifthtry.com ft
+   # DNS lookup: TXT record for fifthtry.com contains cluster manager ID52
+   ```
+
+### **Local Cluster Aliases:**
+Every cluster gets a local alias chosen by you for convenient access:
+
+- **Short aliases**: `ft` instead of `fifthtry.com` 
+- **Personal naming**: Use whatever makes sense to you
+- **Command simplification**: `malai ssh web01.ft top` vs `malai ssh web01.fifthtry.com top`
+- **Folder names**: Aliases become directory names in `$MALAI_HOME/ssh/clusters/`
+
+### **DNS Integration (Optional):**
+For domains with DNS access:
+```bash
+# Set TXT record: fifthtry.com TXT "malai-ssh=abc123def456..."
+# Then machines can join via domain:
+malai ssh machine init fifthtry.com ft  # Resolves to cluster manager ID52
+```
+
 ## SSH System Architecture
 
 The malai SSH system consists of three distinct services that can run independently:
@@ -351,14 +383,16 @@ malai ssh web01.cluster-id52 systemctl status nginx
 ### Initialization Commands
 ```bash
 # Initialize a new cluster (generates cluster manager identity)
-malai ssh cluster init <cluster-name>
+malai ssh cluster init <cluster-alias>
 # Example: malai ssh cluster init company
 # Creates: $MALAI_HOME/ssh/clusters/company/ with cluster manager config
 
-# Initialize machine for SSH cluster (contacts cluster manager)  
-malai ssh machine init <cluster-name-or-manager-id52>
-# Example: malai ssh machine init company
-# Creates: $MALAI_HOME/ssh/clusters/company/ with machine config and registration
+# Join existing cluster as machine (contacts cluster manager)
+malai ssh machine init <cluster-id52-or-domain> <local-alias>
+# Examples:
+malai ssh machine init abc123def456ghi789... company     # Using cluster manager ID52
+malai ssh machine init fifthtry.com ft                  # Using domain (if DNS configured)
+# Creates: $MALAI_HOME/ssh/clusters/ft/ with machine config and registration
 ```
 
 ### Unified Service Management
@@ -517,23 +551,36 @@ eval $(malai ssh agent -e)  # Agent auto-detects role and starts appropriate ser
 $MALAI_HOME/
 ├── ssh/
 │   ├── clusters/
-│   │   ├── company/                 # Cluster alias as directory name
+│   │   ├── company/                 # Local alias for cluster (chosen by user)
 │   │   │   ├── cluster-config.toml  # Full cluster config (if cluster manager)
 │   │   │   ├── machine-config.toml  # Machine-specific config (if regular machine)
-│   │   │   ├── cluster-info.toml    # Cluster manager ID52, role, registration info
+│   │   │   ├── cluster-info.toml    # Cluster details and registration
 │   │   │   └── identity.key         # This machine's identity for this cluster
-│   │   ├── personal/                # Another cluster
-│   │   │   └── ...
-│   │   └── fastn-cloud/             # Third cluster
+│   │   ├── ft/                      # Local alias for fifthtry.com cluster
+│   │   │   ├── cluster-info.toml    # Contains: cluster_id52="abc123...", domain="fifthtry.com"
+│   │   │   ├── machine-config.toml  # Received from cluster manager
+│   │   │   └── identity.key         # Machine identity for fifthtry.com cluster
+│   │   └── personal/                # Personal cluster alias
 │   │       └── ...
 │   ├── agent.sock                   # Single agent manages all clusters
 │   └── agent.lock                   # Single agent lockfile
 └── keys/
     └── default-identity.key         # Default identity for new clusters
 
-# Logs stored in standard system log directories:
-# - Linux/macOS: ~/.local/state/malai/ssh/logs/company/
-# - Windows: %LOCALAPPDATA%/malai/ssh/logs/company/
+# Logs stored in standard system log directories per cluster:
+# - ~/.local/state/malai/ssh/logs/company/
+# - ~/.local/state/malai/ssh/logs/ft/
+# - ~/.local/state/malai/ssh/logs/personal/
+```
+
+**cluster-info.toml Example:**
+```toml
+# Cluster registration information
+cluster_alias = "ft"                               # Local alias
+cluster_id52 = "abc123def456ghi789..."            # Cluster manager ID52
+domain = "fifthtry.com"                           # Original domain (if used)
+role = "machine"                                   # cluster-manager, machine, or client-only
+machine_alias = "dev-laptop-001"                  # This machine's alias in cluster
 ```
 
 **Multi-Cluster Benefits:**
@@ -812,7 +859,7 @@ malai ssh start &  # Starts SSH daemon + client agent
 ```bash
 # Direct SSH commands (natural syntax):
 malai ssh home-server.personal htop
-malai ssh home-server.personal docker ps
+malai ssh home-server.personal docker ps  
 malai ssh home-server.personal sudo systemctl restart nginx
 
 # HTTP services:
@@ -824,32 +871,32 @@ curl admin.home-server.personal/api
 **Setup:**
 ```bash
 # On fastn-ops machine (cluster manager):
-malai ssh cluster init fastn-cloud
-# Edit $MALAI_HOME/ssh/clusters/fastn-cloud/cluster-config.toml
+malai ssh cluster init ft
+# Edit $MALAI_HOME/ssh/clusters/ft/cluster-config.toml
 malai ssh start  # Starts cluster manager
 
 # On each fastn server:
-malai ssh machine init fastn-cloud  # Contacts cluster, registers
+malai ssh machine init fifthtry.com ft  # Join via domain, use short alias
 # fastn-ops adds machine to cluster config
 malai ssh start  # Starts SSH daemon
 
 # On developer laptops:
-malai ssh machine init fastn-cloud  # Join as client-only machines
+malai ssh machine init <cluster-manager-id52> ft  # Join via ID52, short alias
 malai ssh start  # Starts client agent for connection pooling
 ```
 
 **Daily operations:**
 ```bash
-# Server management:
-malai ssh web01.fastn-cloud systemctl status nginx
-malai ssh db01.fastn-cloud restart-postgres  # Command alias
+# Server management (using short alias):
+malai ssh web01.ft systemctl status nginx
+malai ssh db01.ft restart-postgres  # Command alias
 
 # Monitoring:
-malai ssh web01.fastn-cloud tail -f /var/log/nginx/access.log
+malai ssh web01.ft tail -f /var/log/nginx/access.log
 
-# HTTP services:
-curl api.web01.fastn-cloud/health
-curl grafana.monitoring.fastn-cloud/dashboard
+# HTTP services (using short alias):
+curl api.web01.ft/health
+curl grafana.monitoring.ft/dashboard
 ```
 
 ### Example 3: Multi-Cluster Power User
@@ -857,9 +904,9 @@ curl grafana.monitoring.fastn-cloud/dashboard
 **Setup (same machine in multiple clusters):**
 ```bash
 # Initialize participation in multiple clusters:
-malai ssh cluster init personal        # Create personal cluster (cluster manager)
-malai ssh machine init company        # Join company cluster (machine) 
-malai ssh machine init fastn-cloud    # Join fastn cluster (machine)
+malai ssh cluster init personal                           # Create personal cluster (cluster manager)
+malai ssh machine init company.example.com company       # Join company cluster (via domain)
+malai ssh machine init abc123def456ghi789... ft          # Join fifthtry cluster (via ID52, alias "ft")
 
 # Single unified start:
 malai ssh start  # Automatically starts:
@@ -870,15 +917,15 @@ malai ssh start  # Automatically starts:
 
 **Multi-cluster daily usage:**
 ```bash
-# Access different clusters seamlessly:
+# Access different clusters seamlessly using local aliases:
 malai ssh home-server.personal htop
 malai ssh web01.company systemctl status nginx  
-malai ssh db01.fastn-cloud pg_stat_activity
+malai ssh db01.ft pg_stat_activity              # ft = local alias for fifthtry.com
 
 # Cross-cluster HTTP services:
 curl admin.home-server.personal/dashboard
 curl api.web01.company/metrics
-curl grafana.fastn-cloud/alerts
+curl grafana.ft/alerts                          # Short alias for complex domain
 ```
 
 ### User Experience Summary
