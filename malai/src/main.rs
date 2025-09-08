@@ -137,6 +137,15 @@ async fn main() -> eyre::Result<()> {
             malai::show_cluster_info().await?;
             return Ok(());
         }
+        Some(Command::Rescan { check }) => {
+            if check {
+                println!("🔍 Checking configuration validity...");
+                todo!("Implement config validation check");
+            } else {
+                println!("🔄 Rescanning and applying configuration changes...");
+                todo!("Implement atomic config rescan");
+            }
+        }
         Some(Command::Service { service_command }) => {
             match service_command {
                 ServiceCommand::Add { service_type, name, target } => {
@@ -383,6 +392,11 @@ pub enum Command {
     },
     #[clap(about = "Show cluster information for this machine")]
     Info,
+    #[clap(about = "Reload configuration changes")]
+    Rescan {
+        #[arg(long, help = "Check config validity without applying changes")]
+        check: bool,
+    },
     #[clap(about = "Service management commands")]
     Service {
         #[command(subcommand)]
