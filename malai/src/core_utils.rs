@@ -30,7 +30,7 @@ pub async fn init_cluster(cluster_name: String) -> Result<()> {
     println!("🏗️  Creating SSH cluster...");
     
     let malai_home = get_malai_home();
-    let ssh_dir = malai_home.join("ssh");
+    let ssh_dir = malai_home;
     
     // Ensure SSH directory exists
     std::fs::create_dir_all(&ssh_dir)?;
@@ -110,7 +110,7 @@ pub async fn show_cluster_info() -> Result<()> {
     println!("📋 Cluster Information:");
     
     let malai_home = get_malai_home();
-    let config_path = malai_home.join("ssh").join("cluster-config.toml");
+    let config_path = malai_home.join("cluster-config.toml");
     
     if !config_path.exists() {
         println!("❌ No cluster configuration found at: {}", config_path.display());
@@ -201,7 +201,7 @@ pub async fn init_machine_for_cluster_with_alias(cluster_manager: String, cluste
     match contact_cluster_manager(&cluster_manager, &machine_id52, &malai_home).await {
         Ok(cluster_manager_id52) => {
             // Create cluster-specific directory
-            let cluster_dir = malai_home.join("ssh").join("clusters").join(&cluster_alias);
+            let cluster_dir = malai_home.join("clusters").join(&cluster_alias);
             std::fs::create_dir_all(&cluster_dir)?;
             
             // Save cluster info
@@ -288,7 +288,7 @@ pub async fn start_unified_malai(environment: bool) -> Result<()> {
         // Print environment variables for shell integration
         let malai_home = get_malai_home();
         println!("MALAI_HOME={}", malai_home.display());
-        println!("MALAI_AGENT_SOCK={}", malai_home.join("ssh").join("agent.sock").display());
+        println!("MALAI_AGENT_SOCK={}", malai_home.join("agent.sock").display());
         return Ok(());
     }
     
@@ -307,7 +307,7 @@ pub async fn start_unified_malai(environment: bool) -> Result<()> {
 async fn scan_and_report_configs(malai_home: &PathBuf) -> Result<()> {
     println!("🔍 Scanning for configurations...");
     
-    let clusters_dir = malai_home.join("ssh").join("clusters");
+    let clusters_dir = malai_home.join("clusters");
     
     if !clusters_dir.exists() {
         println!("❌ No clusters directory found: {}", clusters_dir.display());
@@ -338,45 +338,53 @@ async fn scan_and_report_configs(malai_home: &PathBuf) -> Result<()> {
                 let state_path = cluster_dir.join("state.json");
                 
                 if config_path.exists() {
-                    println!("   👑 cluster-config.toml found → Cluster Manager");
+                    println!("   👑 cluster-config.toml found → CLUSTER MANAGER");
                     if let Ok(content) = std::fs::read_to_string(&config_path) {
                         let hash = calculate_config_hash(&content);
                         println!("   📄 Config hash: {}", hash);
+                        
+                        // Count machines in config
+                        let machine_count = content.lines()
+                            .filter(|line| line.trim().starts_with("[machine.") && !line.trim().starts_with('#'))
+                            .count();
+                        println!("   📊 Machines in cluster: {}", machine_count);
+                    }
+                    
+                    // Check if we have state.json
+                    if state_path.exists() {
+                        println!("   📊 state.json found → Ready for config distribution");
+                    } else {
+                        println!("   🆕 Will create state.json for config tracking");
                     }
                 } else {
                     println!("   ❌ No cluster-config.toml");
                 }
                 
                 if machine_config_path.exists() {
-                    println!("   🖥️  machine-config.toml found → SSH Daemon");
+                    println!("   🖥️  machine-config.toml found → SSH DAEMON");
+                    // TODO: Parse machine config to check SSH permissions
+                } else if cluster_info_path.exists() {
+                    println!("   📋 cluster-info.toml found → Machine registered, waiting for config");
                 } else {
-                    println!("   ❌ No machine-config.toml");
+                    println!("   💻 CLIENT-ONLY (no machine role in cluster)");
                 }
                 
-                if cluster_info_path.exists() {
-                    println!("   📋 cluster-info.toml found → Cluster Registration");
-                    if let Ok(content) = std::fs::read_to_string(&cluster_info_path) {
-                        println!("   📄 Registration info:");
-                        for line in content.lines().take(3) {
-                            if !line.starts_with('#') && !line.trim().is_empty() {
-                                println!("      {}", line.trim());
-                            }
-                        }
-                    }
-                } else {
-                    println!("   ❌ No cluster-info.toml");
-                }
-                
+                // Show identity and registration details
                 if identity_path.exists() {
                     println!("   🔑 identity.key found");
                 } else {
                     println!("   ❌ No identity.key");
                 }
                 
-                if state_path.exists() {
-                    println!("   📊 state.json found");
-                } else {
-                    println!("   ❌ No state.json");
+                if cluster_info_path.exists() && !machine_config_path.exists() {
+                    // Show registration details for machines waiting for config
+                    if let Ok(content) = std::fs::read_to_string(&cluster_info_path) {
+                        for line in content.lines().take(3) {
+                            if !line.starts_with('#') && !line.trim().is_empty() {
+                                println!("      📝 {}", line.trim());
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -397,7 +405,7 @@ pub async fn start_ssh_cluster(environment: bool) -> Result<()> {
     if environment {
         // Print environment variables for shell integration
         let malai_home = get_malai_home();
-        let cluster_sock = malai_home.join("ssh").join("cluster.sock");
+        let cluster_sock = malai_home.join("cluster.sock");
         println!("MALAI_SSH_CLUSTER={}", cluster_sock.display());
         return Ok(());
     }
@@ -406,7 +414,7 @@ pub async fn start_ssh_cluster(environment: bool) -> Result<()> {
     let malai_home = get_malai_home();
     
     // Check that this is actually a cluster manager
-    let config_path = malai_home.join("ssh").join("cluster-config.toml");
+    let config_path = malai_home.join("cluster-config.toml");
     if !config_path.exists() {
         println!("❌ No cluster config found");
         println!("💡 Initialize cluster first: malai ssh cluster init");
@@ -450,7 +458,7 @@ pub async fn execute_ssh_command(machine_address: &str, command: &str, args: Vec
     }
     
     // Check if we have cluster config
-    let config_path = malai_home.join("ssh").join("cluster-config.toml");
+    let config_path = malai_home.join("cluster-config.toml");
     if !config_path.exists() {
         println!("❌ No cluster configuration found");
         println!("💡 Options:");
@@ -517,7 +525,7 @@ fn parse_machine_address(address: &str) -> Result<String> {
 
 /// Check permissions and resolve command aliases
 async fn resolve_command_permissions(malai_home: &PathBuf, target_machine: &str, command: &str) -> Result<Option<String>> {
-    let config_path = malai_home.join("ssh").join("cluster-config.toml");
+    let config_path = malai_home.join("cluster-config.toml");
     let config_content = std::fs::read_to_string(&config_path)?;
     
     // Get local identity
@@ -677,7 +685,7 @@ async fn execute_command_via_p2p(
     let local_secret = fastn_id52::SecretKey::from_str(secret_key_hex.trim())?;
     
     // Get target machine's ID52 from config
-    let config_path = malai_home.join("ssh").join("cluster-config.toml");
+    let config_path = malai_home.join("cluster-config.toml");
     let config_content = std::fs::read_to_string(&config_path)?;
     
     let target_id52 = find_machine_id52(&config_content, target_machine)?;
@@ -812,7 +820,7 @@ pub async fn start_ssh_agent(environment: bool, lockdown: bool, http: bool) -> R
     
     if environment {
         // Print environment variables for shell integration
-        let agent_sock = malai_home.join("ssh").join("agent.sock");
+        let agent_sock = malai_home.join("agent.sock");
         
         println!("MALAI_SSH_AGENT={}", agent_sock.display());
         
@@ -831,7 +839,7 @@ pub async fn start_ssh_agent(environment: bool, lockdown: bool, http: bool) -> R
     println!("📁 Using MALAI_HOME: {}", malai_home.display());
     
     // Check for existing agent (lockfile protection)
-    let lockfile = malai_home.join("ssh").join("agent.lock");
+    let lockfile = malai_home.join("agent.lock");
     if lockfile.exists() {
         println!("🔒 Agent lockfile exists, checking if agent is running...");
         
@@ -910,7 +918,7 @@ pub async fn start_ssh_agent(environment: bool, lockdown: bool, http: bool) -> R
 
 /// Detect machine role from cluster config and local identity
 async fn detect_machine_role(malai_home: &PathBuf) -> Result<MachineRole> {
-    let config_path = malai_home.join("ssh").join("cluster-config.toml");
+    let config_path = malai_home.join("cluster-config.toml");
     
     if !config_path.exists() {
         return Ok(MachineRole::Unknown);
@@ -968,7 +976,7 @@ async fn detect_machine_role(malai_home: &PathBuf) -> Result<MachineRole> {
 /// Detect roles across all clusters in MALAI_HOME
 async fn detect_all_cluster_roles(malai_home: &PathBuf) -> Result<Vec<(String, MachineRole)>> {
     let mut roles = Vec::new();
-    let clusters_dir = malai_home.join("ssh").join("clusters");
+    let clusters_dir = malai_home.join("clusters");
     
     if !clusters_dir.exists() {
         return Ok(roles);
@@ -1054,7 +1062,7 @@ struct MachineState {
 
 /// Detect machine role for specific cluster
 async fn detect_machine_role_for_cluster(malai_home: &PathBuf, cluster_alias: &str) -> Result<MachineRole> {
-    let cluster_dir = malai_home.join("ssh").join("clusters").join(cluster_alias);
+    let cluster_dir = malai_home.join("clusters").join(cluster_alias);
     let machine_config_path = cluster_dir.join("machine-config.toml");
     
     if !machine_config_path.exists() {
@@ -1151,7 +1159,7 @@ async fn start_config_listener_for_cluster(cluster_dir: PathBuf) -> Result<()> {
 async fn start_service_proxy_agent(malai_home: PathBuf) -> Result<()> {
     println!("🌐 Service Proxy Agent starting for all clusters");
     
-    let services_path = malai_home.join("ssh").join("services.toml");
+    let services_path = malai_home.join("services.toml");
     
     // TODO: Parse services.toml configuration
     // TODO: Start TCP port listeners for configured services
@@ -1178,7 +1186,7 @@ enum MachineRole {
 /// Start cluster manager specific services
 async fn start_cluster_manager_services(malai_home: &PathBuf) -> Result<()> {
     println!("🔧 Starting cluster manager services...");
-    println!("   📂 Config monitoring: {}/ssh/cluster-config.toml", malai_home.display());
+    println!("   📂 Config monitoring: {}/malai/cluster-config.toml", malai_home.display());
     println!("   🌐 P2P coordination: cluster member management");
     println!("   📤 Config distribution: syncing to all cluster machines");
     
@@ -1192,7 +1200,7 @@ async fn start_cluster_manager_services(malai_home: &PathBuf) -> Result<()> {
 async fn run_config_distribution(malai_home: PathBuf) -> Result<()> {
     println!("📡 Starting config distribution service");
     
-    let config_path = malai_home.join("ssh").join("cluster-config.toml");
+    let config_path = malai_home.join("cluster-config.toml");
     let mut last_config_hash = String::new();
     
     loop {
@@ -1310,7 +1318,7 @@ async fn start_ssh_server_services(malai_home: &PathBuf, machine_name: &str) -> 
     println!("🔧 Starting SSH server services for machine '{}'...", machine_name);
     
     // Check that we have proper config from cluster manager
-    let config_path = malai_home.join("ssh").join("cluster-config.toml");
+    let config_path = malai_home.join("cluster-config.toml");
     if !config_path.exists() {
         panic!("FATAL: SSH server cannot start without cluster config from cluster manager");
     }

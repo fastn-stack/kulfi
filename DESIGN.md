@@ -44,10 +44,10 @@ When joining a cluster, you need to contact the cluster manager. Two methods:
 Every cluster gets a local alias chosen during `machine init`:
 - **Short aliases**: `ft` instead of `fifthtry.com` 
 - **Personal naming**: Use whatever makes sense to you
-- **Folder names**: Aliases become directory names in `$MALAI_HOME/ssh/clusters/`
+- **Folder names**: Aliases become directory names in `$MALAI_HOME/clusters/`
 
 #### **2. Global Machine Aliases (cross-cluster)**  
-Edit `$MALAI_HOME/ssh/aliases.toml` for ultra-short machine access:
+Edit `$MALAI_HOME/aliases.toml` for ultra-short machine access:
 - **Super short**: `malai web top` instead of `malai web01.ft top`
 - **Cross-cluster**: Mix machines from different clusters with unified names
 - **Role-based**: `prod-web`, `staging-web`, `dev-web` for different environments
@@ -113,7 +113,7 @@ malai runs as a **single unified process** that provides all functionality:
 ```
 CLI Command: malai web01.company ps aux
     ↓
-1. CLI connects to $MALAI_HOME/ssh/malai.sock
+1. CLI connects to $MALAI_HOME/malai.sock
 2. CLI sends: {"type": "ssh_exec", "machine": "web01.company", "command": "ps", "args": ["aux"]}
 3. malai start receives, validates permissions, forwards via existing P2P connection
 4. malai start sends response: {"stdout": "...", "stderr": "...", "exit_code": 0}
@@ -579,12 +579,12 @@ malai shell web01.cluster
 3. **Permission check**: Verify client in `allow_from` for that specific command/alias
 
 **Config Management Rules:**
-- **Cluster Manager Machine**: Admin manually edits `$MALAI_HOME/ssh/cluster-config.toml`
+- **Cluster Manager Machine**: Admin manually edits `$MALAI_HOME/cluster-config.toml`
   - Use any editor: vim, nano, cp, etc.
   - Agent watches for changes and auto-distributes to all cluster machines
 - **All Other Machines**: 
   - Receive config from cluster manager via P2P sync
-  - Agent automatically overwrites `$MALAI_HOME/ssh/cluster-config.toml`
+  - Agent automatically overwrites `$MALAI_HOME/cluster-config.toml`
   - **NEVER manually edit** - changes will be lost on next sync
   - Config is read-only for end users on non-cluster-manager machines
 
@@ -642,21 +642,21 @@ malai web01.cluster-id52 systemctl status nginx
 # Initialize a new cluster (generates cluster manager identity)
 malai cluster init <cluster-alias>
 # Example: malai cluster init company
-# Creates: $MALAI_HOME/ssh/clusters/company/ with cluster manager config
+# Creates: $MALAI_HOME/clusters/company/ with cluster manager config
 
 # Join existing cluster as machine (contacts cluster manager)
 malai machine init <cluster-id52-or-domain> <local-alias>
 # Examples:
 malai machine init abc123def456ghi789... company     # Using cluster manager ID52
 malai machine init fifthtry.com ft                  # Using domain (if DNS configured)
-# Creates: $MALAI_HOME/ssh/clusters/ft/ with machine config and registration
+# Creates: $MALAI_HOME/clusters/ft/ with machine config and registration
 ```
 
 ### Unified Service Management
 ```bash
 # Start all SSH services (auto-detects roles across all clusters)
 malai start
-# Scans $MALAI_HOME/ssh/clusters/ and starts:
+# Scans $MALAI_HOME/clusters/ and starts:
 # - Cluster manager for clusters where this machine is manager
 # - SSH daemon for clusters where this machine accepts SSH
 # - Client agent for connection pooling across all clusters
@@ -728,7 +728,7 @@ The SSH agent provides persistent connection management and improved performance
 ### Agent Communication
 - **Discovery**: Agent socket path via `MALAI_SSH_AGENT` environment variable
 - **Fallback**: Direct connections when agent is unavailable
-- **Logging**: All logs stored in `LOGDIR[malai]/ssh/` (stdout/stderr reserved for command output)
+- **Logging**: All logs stored in `LOGDIR[malai]/malai/` (stdout/stderr reserved for command output)
 
 ## Security Modes
 
@@ -813,7 +813,7 @@ eval $(malai start -e)  # Agent auto-detects role and starts appropriate service
 **Multi-Cluster Directory Structure:**
 ```
 $MALAI_HOME/
-├── ssh/
+├── malai/
 │   ├── clusters/
 │   │   ├── company/                 # Local alias for cluster
 │   │   │   ├── cluster-config.toml  # Full cluster config (if cluster manager)
@@ -834,9 +834,9 @@ $MALAI_HOME/
     └── default-identity.key         # Default identity for new clusters
 
 # Logs stored in standard system log directories per cluster:
-# - ~/.local/state/malai/ssh/logs/company/
-# - ~/.local/state/malai/ssh/logs/ft/
-# - ~/.local/state/malai/ssh/logs/personal/
+# - ~/.local/state/malai/malai/logs/company/
+# - ~/.local/state/malai/malai/logs/ft/
+# - ~/.local/state/malai/malai/logs/personal/
 ```
 
 **cluster-info.toml Example:**
@@ -947,9 +947,9 @@ http://grafana.localhost             # Direct browser access to remote Grafana
 
 ### **Multi-Cluster State:**
 Each cluster directory has its own state.json:
-- `$MALAI_HOME/ssh/clusters/company/state.json` 
-- `$MALAI_HOME/ssh/clusters/ft/state.json`
-- `$MALAI_HOME/ssh/clusters/personal/state.json`
+- `$MALAI_HOME/clusters/company/state.json` 
+- `$MALAI_HOME/clusters/ft/state.json`
+- `$MALAI_HOME/clusters/personal/state.json`
 
 ### **Unified malai start Architecture:**
 Single process handles everything:
@@ -978,7 +978,7 @@ A single agent manages all clusters:
 - **Resource Efficiency**: Minimal overhead regardless of cluster count
 
 ### Service Discovery
-- **Automatic Scanning**: Agent discovers all clusters in `DATADIR[malai]/ssh/clusters/`
+- **Automatic Scanning**: Agent discovers all clusters in `DATADIR[malai]/malai/clusters/`
 - **Dynamic Updates**: New clusters are automatically detected and integrated
 - **Conflict Resolution**: Service name conflicts resolved by cluster precedence
 
@@ -1010,7 +1010,7 @@ malai init  # Generate machine identity (NO config yet)
 
 **4. Update Cluster Config (Terminal 1 - Cluster Manager):**
 ```bash
-# Edit $MALAI_HOME/ssh/cluster-config.toml to add:
+# Edit $MALAI_HOME/cluster-config.toml to add:
 # [machine.web01]
 # id52 = "def456..."  # The ID from step 3
 # accept_ssh = true
@@ -1139,7 +1139,7 @@ malai init  # Generate identity for this machine
 # Outputs: "Machine created with ID: <machine-id52>"
 
 # Cluster admin manually adds to cluster manager's config:
-# Edit $MALAI_HOME/ssh/cluster-config.toml:
+# Edit $MALAI_HOME/cluster-config.toml:
 # [machine.web01] 
 # id52 = "<machine-id52>"
 # accept_ssh = true        # If this should accept SSH connections
@@ -1222,7 +1222,7 @@ This approach allows you to test complex multi-cluster scenarios, permission sys
 ```bash
 # On my laptop (cluster manager):
 malai cluster init personal
-# Edit $MALAI_HOME/ssh/clusters/personal/cluster-config.toml to add machines
+# Edit $MALAI_HOME/clusters/personal/cluster-config.toml to add machines
 malai start &  # Starts cluster manager + client agent
 
 # On home server:
@@ -1250,7 +1250,7 @@ curl admin.home-server.personal/api
 ```bash
 # On fastn-ops machine (cluster manager):
 malai cluster init ft
-# Edit $MALAI_HOME/ssh/clusters/ft/cluster-config.toml
+# Edit $MALAI_HOME/clusters/ft/cluster-config.toml
 malai start  # Starts cluster manager
 
 # On each fastn server:
@@ -1397,7 +1397,7 @@ export MALAI_HOME=$TEST_DIR/manager
 echo "[machine.web01]
 id52 = \"$SERVER_ID\"
 accept_ssh = true
-allow_from = \"*\"" >> $MALAI_HOME/ssh/cluster-config.toml
+allow_from = \"*\"" >> $MALAI_HOME/cluster-config.toml
 
 # 4. Start agents
 export MALAI_HOME=$TEST_DIR/manager && malai start &
@@ -1412,7 +1412,7 @@ CLIENT_ID=$(malai identity create | grep "ID52" | cut -d: -f2)
 # Add client to config
 export MALAI_HOME=$TEST_DIR/manager  
 echo "[machine.client1]
-id52 = \"$CLIENT_ID\"" >> $MALAI_HOME/ssh/cluster-config.toml
+id52 = \"$CLIENT_ID\"" >> $MALAI_HOME/cluster-config.toml
 
 # Wait for sync and test
 export MALAI_HOME=$TEST_DIR/client1
@@ -1681,13 +1681,13 @@ malai identity delete name           # Remove identity
 ```
 
 ### **Module Organization Decision:**
-- Keep `malai/src/ssh/` module name (avoid massive reorganization)
+- Keep `malai/src/malai/` module name (avoid massive reorganization)
 - Promote SSH functions to top-level malai API  
 - Update CLI command structure to reflect core status
 - Maintain backwards compatibility with existing commands
 
 ### **Documentation Strategy:**
-- Current `ssh/README.md` contains complete design (preserve all content)
+- Current `malai/README.md` contains complete design (preserve all content)
 - Main README.md should become user-focused overview  
 - Consider moving design to malai.sh website for public access
 - DESIGN.md for technical contributors
