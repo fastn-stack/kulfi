@@ -193,7 +193,8 @@ async fn main() -> eyre::Result<()> {
                 if args.len() >= 2 {
                     let command = &args[1];
                     let cmd_args: Vec<String> = args[2..].iter().map(|s| s.to_string()).collect();
-                    malai::execute_ssh_command(machine, command, cmd_args).await?;
+                    println!("🧪 SSH execution: {} {} {:?}", machine, command, cmd_args);
+                    todo!("Implement SSH execution via daemon socket");
                 } else {
                     // Interactive shell
                     println!("Starting shell on machine '{}'", machine);
