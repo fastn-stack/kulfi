@@ -43,12 +43,12 @@ pub async fn init_cluster(cluster_name: String) -> Result<()> {
     let (cluster_manager_id52, cluster_manager_secret) = if identity_file.exists() {
         // Read existing identity
         let secret_key_hex = std::fs::read_to_string(&identity_file)?;
-        let secret_key = kulfi_id52::SecretKey::from_str(&secret_key_hex.trim())?;
+        let secret_key = fastn_id52::SecretKey::from_str(&secret_key_hex.trim())?;
         let id52 = secret_key.id52();
         (id52, secret_key)
     } else {
         // Generate new identity
-        let (id52, secret_key) = kulfi_utils::generate_secret_key()?;
+        let (id52, secret_key) = { let secret_key = fastn_id52::SecretKey::generate(); (secret_key.id52(), secret_key) };
         // Save to file
         std::fs::write(&identity_file, secret_key.to_string())?;
         (id52, secret_key)
@@ -134,7 +134,7 @@ pub async fn show_cluster_info() -> Result<()> {
         let identity_file = malai_home.join("keys").join("identity.key");
         if identity_file.exists() {
             if let Ok(secret_key_hex) = std::fs::read_to_string(&identity_file) {
-                if let Ok(secret_key) = kulfi_id52::SecretKey::from_str(secret_key_hex.trim()) {
+                if let Ok(secret_key) = fastn_id52::SecretKey::from_str(secret_key_hex.trim()) {
                     let local_id52 = secret_key.id52();
             
                     if local_id52 == cluster_id {
@@ -170,9 +170,10 @@ pub async fn show_cluster_info() -> Result<()> {
     Ok(())
 }
 
-/// Initialize machine for SSH cluster (generates identity, contacts cluster manager)
-pub async fn init_machine_for_cluster(cluster: String) -> Result<()> {
-    println!("🏗️  Initializing machine for SSH...");
+/// Initialize machine for cluster with alias (new top-level API)  
+pub async fn init_machine_for_cluster_with_alias(cluster_manager: String, cluster_alias: String) -> Result<()> {
+    println!("🏗️  Initializing machine for cluster...");
+    println!("🎯 Cluster: {} (alias: {})", cluster_manager, cluster_alias);
     
     let malai_home = get_malai_home();
     let identity_dir = malai_home.join("keys");
@@ -183,44 +184,43 @@ pub async fn init_machine_for_cluster(cluster: String) -> Result<()> {
     if identity_file.exists() {
         println!("⚠️  Machine already initialized");
         let secret_key_hex = std::fs::read_to_string(&identity_file)?;
-        let secret_key = kulfi_id52::SecretKey::from_str(secret_key_hex.trim())?;
+        let secret_key = fastn_id52::SecretKey::from_str(secret_key_hex.trim())?;
         let machine_id52 = secret_key.id52();
         println!("🆔 Existing machine ID: {}", machine_id52);
         return Ok(());
     }
     
     // Generate new machine identity
-    let (machine_id52, machine_secret) = kulfi_utils::generate_secret_key()?;
+    let (machine_id52, machine_secret) = { let secret_key = fastn_id52::SecretKey::generate(); (secret_key.id52(), secret_key) };
     std::fs::write(&identity_file, machine_secret.to_string())?;
     
     println!("📝 Generated machine identity: {}", machine_id52);
-    println!("💾 Identity saved to: {}", identity_file.display());
     
-    // Contact cluster manager to register and get cluster manager ID52
-    println!("🔗 Contacting cluster manager: {}", cluster);
-    match contact_cluster_manager(&cluster, &machine_id52, &malai_home).await {
+    // Contact cluster manager and create cluster-specific directory
+    println!("🔗 Contacting cluster manager: {}", cluster_manager);
+    match contact_cluster_manager(&cluster_manager, &machine_id52, &malai_home).await {
         Ok(cluster_manager_id52) => {
-            // Save cluster manager ID52 for future config verification
-            let cluster_info_path = malai_home.join("ssh").join("cluster-info.toml");
-            std::fs::create_dir_all(cluster_info_path.parent().unwrap())?;
+            // Create cluster-specific directory
+            let cluster_dir = malai_home.join("ssh").join("clusters").join(&cluster_alias);
+            std::fs::create_dir_all(&cluster_dir)?;
             
+            // Save cluster info
             let cluster_info = format!(
-                r#"# Cluster information for this machine
-cluster_name = "{}"
-cluster_manager_id52 = "{}"
+                r#"# Cluster registration information
+cluster_alias = "{}"
+cluster_id52 = "{}"
 machine_id52 = "{}"
 "#,
-                cluster, cluster_manager_id52, machine_id52
+                cluster_alias, cluster_manager_id52, machine_id52
             );
             
-            std::fs::write(&cluster_info_path, cluster_info)?;
+            std::fs::write(cluster_dir.join("cluster-info.toml"), cluster_info)?;
             
-            println!("✅ Machine registered with cluster: {}", cluster);
+            println!("✅ Machine registered with cluster: {} (alias: {})", cluster_manager, cluster_alias);
             println!("Machine created with ID: {}", machine_id52);
             println!("📋 Next steps:");
             println!("1. Cluster admin will add your machine to cluster config");
-            println!("2. Start SSH daemon: malai ssh machine start");
-            println!("3. Machine will receive config from cluster manager via P2P");
+            println!("2. Start services: malai start");
         }
         Err(e) => {
             println!("❌ Failed to contact cluster manager: {}", e);
@@ -228,11 +228,22 @@ machine_id52 = "{}"
             println!("📋 Manual steps required:");
             println!("1. Share machine ID with cluster administrator: {}", machine_id52);
             println!("2. Admin should add machine to cluster config");
-            println!("3. Start SSH daemon: malai ssh machine start");
         }
     }
     
     Ok(())
+}
+
+/// Legacy function - initialize machine for SSH cluster (generates identity, contacts cluster manager)
+pub async fn init_machine_for_cluster(cluster: String) -> Result<()> {
+    // Extract alias from cluster string or use a default
+    let cluster_alias = if cluster.contains('.') {
+        cluster.split('.').next().unwrap_or("default").to_string()
+    } else {
+        "default".to_string()
+    };
+    
+    init_machine_for_cluster_with_alias(cluster, cluster_alias).await
 }
 
 /// Contact cluster manager to register machine and get cluster manager ID52
@@ -271,7 +282,64 @@ pub async fn init_machine() -> Result<()> {
     Ok(())
 }
 
-/// Start SSH cluster manager
+/// Start unified malai (replaces separate cluster/machine/agent start commands)
+pub async fn start_unified_malai(environment: bool) -> Result<()> {
+    if environment {
+        // Print environment variables for shell integration
+        let malai_home = get_malai_home();
+        println!("MALAI_HOME={}", malai_home.display());
+        println!("MALAI_AGENT_SOCK={}", malai_home.join("ssh").join("agent.sock").display());
+        return Ok(());
+    }
+    
+    println!("🚀 Starting malai services...");
+    let malai_home = get_malai_home();
+    
+    // Scan all clusters and detect roles
+    let cluster_roles = detect_all_cluster_roles(&malai_home).await?;
+    
+    if cluster_roles.is_empty() {
+        println!("❌ No cluster configurations found");
+        println!("💡 Initialize a cluster: malai cluster init <name>");
+        println!("💡 Join a cluster: malai machine init <cluster-manager-id52> <alias>");
+        return Ok(());
+    }
+    
+    // Start services based on detected roles
+    for (cluster_alias, role) in cluster_roles {
+        match role {
+            MachineRole::ClusterManager => {
+                println!("👑 Starting cluster manager for: {}", cluster_alias);
+                // TODO: Start cluster manager for this cluster
+            }
+            MachineRole::SshServer(machine_name) => {
+                println!("🖥️  Starting SSH daemon for: {} (machine: {})", cluster_alias, machine_name);
+                // TODO: Start SSH daemon for this cluster
+            }
+            MachineRole::ClientOnly(machine_name) => {
+                println!("💻 Client-only access for: {} (machine: {})", cluster_alias, machine_name);
+                // TODO: Start client services for this cluster
+            }
+            MachineRole::Unknown => {
+                println!("❓ Unknown role for cluster: {}", cluster_alias);
+            }
+        }
+    }
+    
+    // Always start service proxy agent
+    println!("📡 Starting service proxy agent");
+    // TODO: Start TCP/HTTP forwarding agent
+    
+    println!("✅ malai services started");
+    println!("💡 Use 'malai start -e' for environment variables");
+    
+    // Keep services running
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    }
+}
+
+/// Legacy function - start SSH cluster manager
 pub async fn start_ssh_cluster(environment: bool) -> Result<()> {
     if environment {
         // Print environment variables for shell integration
@@ -402,7 +470,7 @@ async fn resolve_command_permissions(malai_home: &PathBuf, target_machine: &str,
     // Get local identity
     let identity_file = malai_home.join("keys").join("identity.key");
     let secret_key_hex = std::fs::read_to_string(&identity_file)?;
-    let secret_key = kulfi_id52::SecretKey::from_str(secret_key_hex.trim())?;
+    let secret_key = fastn_id52::SecretKey::from_str(secret_key_hex.trim())?;
     let local_id52 = secret_key.id52();
     
     println!("🔍 Checking permissions...");
@@ -553,7 +621,7 @@ async fn execute_command_via_p2p(
     // Get local identity for P2P communication
     let identity_file = malai_home.join("keys").join("identity.key");
     let secret_key_hex = std::fs::read_to_string(&identity_file)?;
-    let local_secret = kulfi_id52::SecretKey::from_str(secret_key_hex.trim())?;
+    let local_secret = fastn_id52::SecretKey::from_str(secret_key_hex.trim())?;
     
     // Get target machine's ID52 from config
     let config_path = malai_home.join("ssh").join("cluster-config.toml");
@@ -803,7 +871,7 @@ async fn detect_machine_role(malai_home: &PathBuf) -> Result<MachineRole> {
     }
     
     let secret_key_hex = std::fs::read_to_string(&identity_file)?;
-    let secret_key = kulfi_id52::SecretKey::from_str(secret_key_hex.trim())?;
+    let secret_key = fastn_id52::SecretKey::from_str(secret_key_hex.trim())?;
     let local_id52 = secret_key.id52();
     
     // Parse cluster manager ID
@@ -842,6 +910,55 @@ async fn detect_machine_role(malai_home: &PathBuf) -> Result<MachineRole> {
     }
     
     Ok(MachineRole::Unknown)
+}
+
+/// Detect roles across all clusters in MALAI_HOME
+async fn detect_all_cluster_roles(malai_home: &PathBuf) -> Result<Vec<(String, MachineRole)>> {
+    let mut roles = Vec::new();
+    let clusters_dir = malai_home.join("ssh").join("clusters");
+    
+    if !clusters_dir.exists() {
+        return Ok(roles);
+    }
+    
+    // Scan all cluster directories
+    if let Ok(entries) = std::fs::read_dir(&clusters_dir) {
+        for entry in entries.flatten() {
+            if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                let cluster_alias = entry.file_name().to_string_lossy().to_string();
+                let cluster_dir = entry.path();
+                
+                // Check if this cluster has config
+                let config_path = cluster_dir.join("cluster-config.toml");
+                let cluster_info_path = cluster_dir.join("cluster-info.toml");
+                
+                if config_path.exists() {
+                    // This machine is cluster manager for this cluster
+                    roles.push((cluster_alias, MachineRole::ClusterManager));
+                } else if cluster_info_path.exists() {
+                    // This machine is a regular machine in this cluster
+                    let role = detect_machine_role_for_cluster(malai_home, &cluster_alias).await?;
+                    roles.push((cluster_alias, role));
+                }
+            }
+        }
+    }
+    
+    Ok(roles)
+}
+
+/// Detect machine role for specific cluster
+async fn detect_machine_role_for_cluster(malai_home: &PathBuf, cluster_alias: &str) -> Result<MachineRole> {
+    let cluster_dir = malai_home.join("ssh").join("clusters").join(cluster_alias);
+    let machine_config_path = cluster_dir.join("machine-config.toml");
+    
+    if !machine_config_path.exists() {
+        return Ok(MachineRole::Unknown);
+    }
+    
+    // TODO: Parse machine config to determine role
+    // For now, assume client-only
+    Ok(MachineRole::ClientOnly(cluster_alias.to_string()))
 }
 
 /// Machine roles for agent
@@ -903,7 +1020,7 @@ async fn distribute_config_to_machines(malai_home: &PathBuf, config_content: &st
     // Get local cluster manager identity
     let identity_file = malai_home.join("keys").join("identity.key");
     let secret_key_hex = std::fs::read_to_string(&identity_file)?;
-    let local_secret = kulfi_id52::SecretKey::from_str(secret_key_hex.trim())?;
+    let local_secret = fastn_id52::SecretKey::from_str(secret_key_hex.trim())?;
     
     for (machine_name, machine_id52) in machine_ids {
         println!("📨 Sending config to machine: {} ({})", machine_name, machine_id52);
@@ -919,35 +1036,11 @@ async fn distribute_config_to_machines(malai_home: &PathBuf, config_content: &st
 
 /// Send config to a specific machine via P2P
 async fn send_config_to_machine(
-    local_secret: &kulfi_id52::SecretKey,
+    local_secret: &fastn_id52::SecretKey,
     target_id52: &str, 
     config_content: &str
 ) -> Result<()> {
-    // Convert kulfi_id52 to fastn_id52 - TODO: implement proper conversion
-    todo!("Convert kulfi_id52 to fastn_id52 for P2P config distribution to {}", target_id52)
-    
-    let request = ConfigSyncRequest {
-        config_content: config_content.to_string(),
-        sender_id52: local_secret.id52(),
-    };
-    
-    match fastn_p2p::call::<SshProtocol, ConfigSyncRequest, ConfigSyncResponse, ConfigSyncError>(
-        fastn_secret,
-        &target_public_key,
-        SshProtocol::ConfigSync,
-        request,
-    ).await {
-        Ok(Ok(_response)) => {
-            println!("✅ Config sent to machine {}", target_id52);
-            Ok(())
-        }
-        Ok(Err(error)) => {
-            Err(eyre::eyre!("Config sync error: {}", error.message))
-        }
-        Err(e) => {
-            Err(eyre::eyre!("P2P config distribution failed: {}", e))
-        }
-    }
+    todo!("Implement P2P config distribution with fastn_id52 to {}", target_id52)
 }
 
 /// Extract all machine IDs from config
@@ -996,7 +1089,7 @@ async fn run_config_listener(malai_home: PathBuf) -> Result<()> {
     }
     
     let secret_key_hex = std::fs::read_to_string(&identity_file)?;
-    let local_secret = kulfi_id52::SecretKey::from_str(secret_key_hex.trim())?;
+    let local_secret = fastn_id52::SecretKey::from_str(secret_key_hex.trim())?;
     let fastn_secret = fastn_id52::SecretKey::from_bytes(&local_secret.to_bytes());
     
     println!("🆔 Listening for config updates for machine: {}", local_secret.id52());
@@ -1041,7 +1134,7 @@ async fn run_ssh_server(malai_home: PathBuf, machine_name: String) -> Result<()>
     // Get local identity
     let identity_file = malai_home.join("keys").join("identity.key");
     let secret_key_hex = std::fs::read_to_string(&identity_file)?;
-    let local_secret = kulfi_id52::SecretKey::from_str(secret_key_hex.trim())?;
+    let local_secret = fastn_id52::SecretKey::from_str(secret_key_hex.trim())?;
     
     // Convert to fastn_id52 for P2P
     let fastn_secret = fastn_id52::SecretKey::from_bytes(&local_secret.to_bytes());

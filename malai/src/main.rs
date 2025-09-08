@@ -113,75 +113,87 @@ async fn main() -> eyre::Result<()> {
             malai::keygen(file);
             return Ok(());
         }
-        Some(Command::Ssh { ssh_command }) => {
-            match ssh_command {
-                SshCommand::Cluster { cluster_command } => {
-                    match cluster_command {
-                        ClusterCommand::Init { cluster_name } => {
-                            malai::init_cluster(cluster_name.clone()).await?;
-                            return Ok(());
-                        }
-                        ClusterCommand::Start { environment } => {
-                            malai::start_ssh_cluster(environment).await?;
-                            return Ok(());
-                        }
-                    }
-                }
-                SshCommand::Agent { agent_command } => {
-                    match agent_command {
-                        AgentCommand::Init { cluster } => {
-                            malai::init_machine_for_cluster(cluster.clone()).await?;
-                            return Ok(());
-                        }
-                        AgentCommand::Start { environment, lockdown, http } => {
-                            malai::start_ssh_agent(environment, lockdown, http).await?;
-                            return Ok(());
-                        }
-                    }
-                }
-                SshCommand::ClusterInfo => {
-                    malai::show_cluster_info().await?;
-                    return Ok(());
-                }
-                SshCommand::Execute { machine, command, args } => {
-                    malai::execute_ssh_command(&machine, &command, args).await?;
-                    return Ok(());
-                }
-                SshCommand::External(args) => {
-                    // Handle "malai ssh <machine> <command>" syntax  
-                    if args.len() >= 1 {
-                        let machine = &args[0];
-                        if args.len() >= 2 {
-                            // Command with args: malai ssh web01 "echo hello"
-                            let full_command = args[1..].join(" ");
-                            // Split command from args
-                            let command_parts: Vec<&str> = full_command.split_whitespace().collect();
-                            if !command_parts.is_empty() {
-                                let command = command_parts[0];
-                                let cmd_args: Vec<String> = command_parts[1..].iter().map(|s| s.to_string()).collect();
-                                malai::execute_ssh_command(machine, command, cmd_args).await?;
-                            }
-                        } else {
-                            // Just machine, start interactive shell
-                            println!("Starting shell on machine '{}'", machine);
-                            println!("❌ SSH shell not yet implemented");
-                        }
-                    } else {
-                        println!("❌ Usage: malai ssh <machine> [command] [args...]");
-                    }
-                    return Ok(());
-                }
-                SshCommand::Shell { machine } => {
-                    println!("Starting shell on machine '{}'", machine);
-                    println!("❌ SSH shell not yet implemented");
-                    return Ok(());
-                }
-                SshCommand::Curl { url, curl_args: _ } => {
-                    println!("Curl to '{}'", url);
-                    println!("❌ SSH curl not yet implemented");
+        Some(Command::Cluster { cluster_command }) => {
+            match cluster_command {
+                ClusterCommand::Init { cluster_name } => {
+                    malai::init_cluster(cluster_name.clone()).await?;
                     return Ok(());
                 }
             }
+        }
+        Some(Command::Machine { machine_command }) => {
+            match machine_command {
+                MachineCommand::Init { cluster_manager, cluster_alias } => {
+                    malai::init_machine_for_cluster_with_alias(cluster_manager.clone(), cluster_alias.clone()).await?;
+                    return Ok(());
+                }
+            }
+        }
+        Some(Command::Start { environment }) => {
+            malai::start_unified_malai(environment).await?;
+            return Ok(());
+        }
+        Some(Command::Info) => {
+            malai::show_cluster_info().await?;
+            return Ok(());
+        }
+        Some(Command::Service { service_command }) => {
+            match service_command {
+                ServiceCommand::Add { service_type, name, target } => {
+                    println!("Adding {} service: {} → {}", service_type, name, target);
+                    todo!("Implement service add command");
+                }
+                ServiceCommand::Remove { name } => {
+                    println!("Removing service: {}", name);
+                    todo!("Implement service remove command");
+                }
+                ServiceCommand::List => {
+                    println!("Listing services...");
+                    todo!("Implement service list command");
+                }
+            }
+        }
+        Some(Command::Identity { identity_command }) => {
+            match identity_command {
+                IdentityCommand::Create { name } => {
+                    println!("Creating identity: {:?}", name);
+                    todo!("Implement identity create command (replaces keygen)");
+                }
+                IdentityCommand::List => {
+                    println!("Listing identities...");
+                    todo!("Implement identity list command");
+                }
+                IdentityCommand::Export { name } => {
+                    println!("Exporting identity: {}", name);
+                    todo!("Implement identity export command");
+                }
+                IdentityCommand::Import { file } => {
+                    println!("Importing identity from: {}", file);
+                    todo!("Implement identity import command");
+                }
+                IdentityCommand::Delete { name } => {
+                    println!("Deleting identity: {}", name);
+                    todo!("Implement identity delete command");
+                }
+            }
+        }
+        Some(Command::External(args)) => {
+            // Handle direct SSH syntax: malai <machine> <command>
+            if args.len() >= 1 {
+                let machine = &args[0];
+                if args.len() >= 2 {
+                    let command = &args[1];
+                    let cmd_args: Vec<String> = args[2..].iter().map(|s| s.to_string()).collect();
+                    malai::execute_ssh_command(machine, command, cmd_args).await?;
+                } else {
+                    // Interactive shell
+                    println!("Starting shell on machine '{}'", machine);
+                    todo!("Implement interactive shell");
+                }
+            } else {
+                println!("❌ Usage: malai <machine> [command] [args...]");
+            }
+            return Ok(());
         }
         #[cfg(feature = "ui")]
         None => {
