@@ -118,9 +118,9 @@ impl Client {
     }
 
     /// Load cluster configuration
-    pub fn load_cluster_config(&self, cluster_id: &str) -> Result<crate::ssh::config::Config> {
+    pub fn load_cluster_config(&self, cluster_id: &str) -> Result<crate::core::config::Config> {
         let config_path = self.get_cluster_dir(cluster_id).join("cluster-config.toml");
-        crate::ssh::config::Config::load_from_file(config_path.to_str().unwrap())
+        crate::core::config::Config::load_from_file(config_path.to_str().unwrap())
     }
 
     /// Get available machines in a cluster
