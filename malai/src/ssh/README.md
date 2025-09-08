@@ -22,26 +22,40 @@ The SSH functionality enables:
 
 Machines can belong to multiple clusters simultaneously, each with their own id52 keypair.
 
-## Machine Types
+## SSH System Architecture
 
-All cluster members are "machines" with different capabilities based on configuration:
+The malai SSH system consists of three distinct services that can run independently:
 
-### Cluster Manager Machine
-- Manages cluster configuration and member coordination
-- Automatically created by `malai ssh create-cluster`
-- Can manually edit `cluster-config.toml`
-- Distributes config updates to all cluster machines
+### 1. Cluster Manager (`malai ssh cluster start`)
+- **Purpose**: Configuration management and cluster coordination
+- **Runs on**: The machine that initialized the cluster
+- **Functions**:
+  - Monitors `cluster-config.toml` for admin changes
+  - Distributes config updates to all cluster machines via P2P
+  - Coordinates cluster membership and permissions
+- **Required**: One per cluster (on the init-cluster machine)
 
-### Server Machines  
-- Accept incoming SSH connections and execute commands
-- Can expose HTTP services with access control
-- Defined in config as `[machine.web01]` with `accept_ssh = true`
-- Must be reachable by other cluster machines
+### 2. SSH Server Daemon (`malai ssh machine start`)  
+- **Purpose**: Accept and execute incoming SSH commands
+- **Runs on**: Machines that should accept SSH connections
+- **Functions**:
+  - Listens for P2P SSH requests from other cluster machines
+  - Executes authorized commands with proper user context
+  - Enforces permissions based on received cluster config
+- **Required**: On any machine that should accept SSH (servers, etc.)
 
-### Client-Only Machines
-- Can initiate SSH connections to server machines
-- Cannot accept incoming connections (`accept_ssh = false` or not specified)
-- Suitable for laptops, mobile devices, or firewalled machines
+### 3. Client Agent (`malai ssh agent start`)
+- **Purpose**: Connection pooling and HTTP proxy for SSH clients
+- **Runs on**: Machines that frequently initiate SSH commands (optional)
+- **Functions**:
+  - Connection reuse: faster SSH commands via pooled connections
+  - HTTP proxy: transparent access to remote HTTP services
+  - Performance optimization for heavy SSH usage
+- **Optional**: SSH commands work without agent (slower, fresh connections)
+
+### Service Interaction
+- **Without agent**: `malai ssh web01 cmd` → creates fresh P2P connection → slower
+- **With agent**: `malai ssh web01 cmd` → uses agent's pooled connection → faster
 
 ## Addressing and Aliases
 
@@ -336,22 +350,46 @@ DATADIR[malai]/ssh/clusters/<cluster-alias>/
 
 ## Command Reference
 
-### Cluster Management Commands
+### Cluster Manager Commands
 ```bash
 # Initialize a new cluster (generates cluster manager identity)
-malai ssh init-cluster [--alias company-cluster]
+malai ssh cluster init [--alias company-cluster]
 # Outputs: "Cluster created with ID: <cluster-manager-id52>"
 # Creates: $MALAI_HOME/ssh/cluster-config.toml with this machine as cluster manager
 
+# Start cluster manager (config distribution and coordination)
+malai ssh cluster start
+# Monitors cluster-config.toml for changes, distributes to all machines via P2P
+# Environment: malai ssh cluster start -e (for systemd/shell integration)
+```
+
+### Machine Commands  
+```bash
 # Initialize machine for SSH (generates identity only, NO config)
-malai ssh init
+malai ssh machine init
 # Outputs: "Machine created with ID: <machine-id52>"
 # Creates: $MALAI_HOME/keys/identity.key (identity only)
 # Machine will receive config from cluster manager via P2P sync
 
-# List cluster information  
+# Start SSH server daemon (accepts incoming SSH connections)
+malai ssh machine start
+# Listens for P2P SSH requests, executes authorized commands
+# Requires config from cluster manager first (will panic without it)
+# Environment: malai ssh machine start -e
+```
+
+### Client Agent Commands
+```bash
+# Start SSH client agent (connection pooling and HTTP proxy)
+malai ssh agent start
+# Optional client-side agent for connection reuse and HTTP proxy
+# If running: malai ssh commands use pooled connections (faster)
+# If not running: malai ssh creates fresh connections (slower but works)
+# Environment: malai ssh agent start -e
+
+# Show cluster/machine information
 malai ssh cluster-info
-# Shows: role (cluster-manager/machine/unknown), cluster ID, machine alias from config
+# Shows: role (cluster-manager/machine/unknown), cluster ID, machine alias
 ```
 
 ### Client Commands
@@ -753,6 +791,81 @@ malai ssh web01.test-cluster "echo 'Multi-node test successful!'"
 ```
 
 This approach allows you to test complex multi-cluster scenarios, permission systems, and service configurations entirely on a single development machine.
+
+## Real-World Usage Examples
+
+### Example 1: Personal Infrastructure Cluster
+
+**Setup (one-time):**
+```bash
+# On my laptop (cluster manager):
+malai ssh cluster init personal.local
+# Edit config to add machines with permissions
+malai ssh cluster start &  # Run in background
+
+# On home server:
+malai ssh machine init personal.local  # Contacts cluster, registers machine
+# Laptop admin adds machine to cluster config as [machine.home-server]
+malai ssh machine start &  # SSH daemon
+
+# On my laptop (for fast SSH):
+malai ssh agent start &  # Optional: connection pooling
+```
+
+**Daily usage:**
+```bash
+# Direct SSH commands (natural syntax):
+malai ssh home-server htop
+malai ssh home-server "docker ps"
+malai ssh home-server "sudo systemctl restart nginx"
+
+# HTTP services:
+curl admin.home-server.personal/api
+```
+
+### Example 2: Fastn Cloud Cluster
+
+**Setup:**
+```bash
+# On fastn-ops machine (cluster manager):
+malai ssh cluster init fastn.example.com
+# Edit config: add machines with roles (web01, db01, etc.)
+malai ssh cluster start
+
+# On each fastn server:
+malai ssh machine init fastn.example.com  # Contacts cluster, registers
+# fastn-ops adds to cluster config with appropriate permissions
+malai ssh machine start  # Starts SSH daemon
+
+# On developer laptops (optional performance):
+malai ssh agent start  # Connection pooling for frequent SSH
+```
+
+**Daily operations:**
+```bash
+# Server management:
+malai ssh web01.fastn-cloud "systemctl status nginx"
+malai ssh db01.fastn-cloud restart-postgres  # Command alias
+
+# Monitoring:
+malai ssh web01.fastn-cloud "tail -f /var/log/nginx/access.log"
+
+# HTTP services:
+curl api.web01.fastn-cloud/health
+curl grafana.monitoring.fastn-cloud/dashboard
+```
+
+### User Experience Summary
+
+**Onboarding a new machine** (3 commands):
+1. `malai ssh machine init` → get machine ID
+2. Admin adds ID to cluster config
+3. `malai ssh machine start` → machine joins cluster
+
+**Daily SSH usage** (seamless):
+- `malai ssh machine command` works immediately
+- Optional agent for performance optimization
+- Natural SSH-like syntax
 
 ## End-to-End Testing Strategy
 

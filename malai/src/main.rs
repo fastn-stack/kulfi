@@ -115,17 +115,29 @@ async fn main() -> eyre::Result<()> {
         }
         Some(Command::Ssh { ssh_command }) => {
             match ssh_command {
-                SshCommand::InitCluster { alias } => {
-                    malai::create_cluster(alias.clone()).await?;
-                    return Ok(());
+                SshCommand::Cluster { cluster_command } => {
+                    match cluster_command {
+                        ClusterCommand::Init { cluster_name } => {
+                            malai::init_cluster(cluster_name.clone()).await?;
+                            return Ok(());
+                        }
+                        ClusterCommand::Start { environment } => {
+                            malai::start_ssh_cluster(environment).await?;
+                            return Ok(());
+                        }
+                    }
                 }
-                SshCommand::Init => {
-                    malai::init_machine().await?;
-                    return Ok(());
-                }
-                SshCommand::Agent { environment, lockdown, http } => {
-                    malai::start_ssh_agent(environment, lockdown, http).await?;
-                    return Ok(());
+                SshCommand::Agent { agent_command } => {
+                    match agent_command {
+                        AgentCommand::Init { cluster } => {
+                            malai::init_machine_for_cluster(cluster.clone()).await?;
+                            return Ok(());
+                        }
+                        AgentCommand::Start { environment, lockdown, http } => {
+                            malai::start_ssh_agent(environment, lockdown, http).await?;
+                            return Ok(());
+                        }
+                    }
                 }
                 SshCommand::ClusterInfo => {
                     malai::show_cluster_info().await?;
@@ -346,25 +358,15 @@ pub enum Command {
 
 #[derive(clap::Subcommand, Debug)]
 pub enum SshCommand {
-    #[clap(about = "Initialize a new cluster (generates cluster manager identity)")]
-    InitCluster {
-        #[arg(long, help = "Optional cluster alias")]
-        alias: Option<String>,
+    #[clap(about = "Cluster manager commands")]
+    Cluster {
+        #[command(subcommand)]
+        cluster_command: ClusterCommand,
     },
-    #[clap(about = "Initialize machine for SSH (generates identity)")]
-    Init,
-    #[clap(about = "Start SSH agent for connection management and HTTP proxy")]
+    #[clap(about = "Machine agent commands")]
     Agent {
-        #[arg(
-            long,
-            short = 'e',
-            help = "Print environment variables for shell integration"
-        )]
-        environment: bool,
-        #[arg(long, help = "Enable lockdown mode (keys only accessible to agent)")]
-        lockdown: bool,
-        #[arg(long, help = "Enable HTTP proxy functionality", default_value = "true")]
-        http: bool,
+        #[command(subcommand)]
+        agent_command: AgentCommand,
     },
     #[clap(about = "Show cluster information for this machine")]
     ClusterInfo,
@@ -390,5 +392,45 @@ pub enum SshCommand {
         url: String,
         #[arg(help = "Additional curl arguments")]
         curl_args: Vec<String>,
+    },
+}
+
+#[derive(clap::Subcommand, Debug)]
+pub enum ClusterCommand {
+    #[clap(about = "Initialize a new cluster (generates cluster manager identity)")]
+    Init {
+        #[arg(help = "Cluster name (domain-like: company.example.com or personal.local)")]
+        cluster_name: String,
+    },
+    #[clap(about = "Start cluster manager (config distribution and coordination)")]
+    Start {
+        #[arg(
+            long,
+            short = 'e',
+            help = "Print environment variables for shell integration"
+        )]
+        environment: bool,
+    },
+}
+
+#[derive(clap::Subcommand, Debug)]
+pub enum AgentCommand {
+    #[clap(about = "Initialize machine for SSH (generates identity)")]
+    Init {
+        #[arg(help = "Cluster to join (domain name or cluster-manager-id52)")]
+        cluster: String,
+    },
+    #[clap(about = "Start machine agent (connection management and HTTP proxy)")]
+    Start {
+        #[arg(
+            long,
+            short = 'e',
+            help = "Print environment variables for shell integration"
+        )]
+        environment: bool,
+        #[arg(long, help = "Enable lockdown mode (keys only accessible to agent)")]
+        lockdown: bool,
+        #[arg(long, help = "Enable HTTP proxy functionality", default_value = "true")]
+        http: bool,
     },
 }
