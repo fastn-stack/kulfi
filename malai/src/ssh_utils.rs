@@ -156,6 +156,42 @@ pub async fn show_cluster_info() -> Result<()> {
     Ok(())
 }
 
+/// Initialize machine for SSH (generates identity, NO config file)
+pub async fn init_machine() -> Result<()> {
+    println!("🏗️  Initializing machine for SSH...");
+    
+    let malai_home = get_malai_home();
+    let identity_dir = malai_home.join("keys");
+    std::fs::create_dir_all(&identity_dir)?;
+    
+    let identity_file = identity_dir.join("identity.key");
+    
+    if identity_file.exists() {
+        println!("⚠️  Machine already initialized");
+        let secret_key_hex = std::fs::read_to_string(&identity_file)?;
+        let secret_key = kulfi_id52::SecretKey::from_str(secret_key_hex.trim())?;
+        let machine_id52 = secret_key.id52();
+        println!("🆔 Existing machine ID: {}", machine_id52);
+        return Ok(());
+    }
+    
+    // Generate new machine identity
+    let (machine_id52, machine_secret) = kulfi_utils::generate_secret_key()?;
+    std::fs::write(&identity_file, machine_secret.to_string())?;
+    
+    println!("📝 Generated machine identity: {}", machine_id52);
+    println!("💾 Identity saved to: {}", identity_file.display());
+    println!("Machine created with ID: {}", machine_id52);
+    println!("");
+    println!("📋 Next steps:");
+    println!("1. Share this machine ID with your cluster administrator");
+    println!("2. Admin should add this machine to cluster config");
+    println!("3. Start agent: malai ssh agent");
+    println!("4. Agent will receive config from cluster manager via P2P");
+    
+    Ok(())
+}
+
 /// Start SSH agent with role detection
 pub async fn start_ssh_agent(environment: bool, lockdown: bool, http: bool) -> Result<()> {
     let malai_home = get_malai_home();
@@ -223,7 +259,15 @@ pub async fn start_ssh_agent(environment: bool, lockdown: bool, http: bool) -> R
         }
         MachineRole::Unknown => {
             println!("❓ Role: Unknown - no cluster config found or identity not in config");
-            println!("💡 Create a cluster with 'malai ssh create-cluster' or join an existing one");
+            println!("💡 Options:");
+            println!("   - Create a cluster: malai ssh init-cluster");
+            println!("   - Initialize machine: malai ssh init");
+            println!("   - Wait for config from cluster manager (if machine already added to cluster)");
+            
+            // For machines without config, start minimal client services
+            println!("🔧 Starting minimal client services (waiting for config...)");
+            // TODO: Start P2P listener to receive config from cluster manager
+            
             return Ok(());
         }
     }
