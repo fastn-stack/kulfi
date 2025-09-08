@@ -313,24 +313,46 @@ async fn resolve_command_permissions(malai_home: &PathBuf, target_machine: &str,
         }
     }
     
-    // Check general machine access
-    let machine_section = format!("[machine.{}]", target_machine);
-    println!("🔍 Looking for section: {}", machine_section);
-    if let Some(machine_section_start) = config_content.find(&machine_section) {
-        println!("✅ Found machine section at position {}", machine_section_start);
-        let remaining = &config_content[machine_section_start..];
-        let machine_section = remaining.split("[").next().unwrap_or("");
+    // Check general machine access - find REAL (uncommented) machine section
+    let machine_section_pattern = format!("[machine.{}]", target_machine);
+    println!("🔍 Looking for section: {}", machine_section_pattern);
+    
+    // Find all occurrences and check which one is not commented
+    let mut start_pos = 0;
+    while let Some(found_pos) = config_content[start_pos..].find(&machine_section_pattern) {
+        let absolute_pos = start_pos + found_pos;
         
-        if let Some(allow_line) = machine_section.lines().find(|l| l.trim().starts_with("allow_from")) {
-            let allowed = allow_line.split('=').nth(1).unwrap_or("").trim().trim_matches('"');
-            if check_access_permission(&config_content, &local_id52, allowed) {
-                println!("✅ General machine access granted");
-                return Ok(Some(command.to_string())); // Use command as-is
+        // Check if this line is commented out
+        let line_start = config_content[..absolute_pos].rfind('\n').map(|pos| pos + 1).unwrap_or(0);
+        let line = &config_content[line_start..absolute_pos + machine_section_pattern.len()];
+        
+        if !line.trim_start().starts_with('#') {
+            println!("✅ Found uncommented machine section at position {}", absolute_pos);
+            
+            let remaining = &config_content[absolute_pos..];
+            // Find the end of this section (next [ or end of file)
+            let section_end = remaining.find("\n[").unwrap_or(remaining.len());
+            let machine_section = &remaining[..section_end];
+            println!("🔍 Machine section content:\n{}", machine_section);
+            
+            if let Some(allow_line) = machine_section.lines().find(|l| l.trim().starts_with("allow_from") && !l.trim().starts_with('#')) {
+                println!("✅ Found allow_from line: {}", allow_line.trim());
+                let allowed = allow_line.split('=').nth(1).unwrap_or("").trim().trim_matches('"');
+                if check_access_permission(&config_content, &local_id52, allowed) {
+                    println!("✅ General machine access granted");
+                    return Ok(Some(command.to_string())); // Use command as-is
+                } else {
+                    println!("❌ General machine access denied");
+                    return Ok(None);
+                }
             } else {
-                println!("❌ General machine access denied");
-                return Ok(None);
+                println!("🔍 No allow_from line found in uncommented machine section");
+                println!("🔍 Section lines: {:?}", machine_section.lines().collect::<Vec<_>>());
             }
+            break;
         }
+        
+        start_pos = absolute_pos + 1; // Continue searching after this match
     }
     
     println!("❌ Target machine '{}' not found in cluster config", target_machine);

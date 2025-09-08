@@ -80,19 +80,23 @@ id52 = "cluster-manager-id52-here"
 # Machine definitions
 [machine.web01]
 id52 = "web01-id52-here"
-accept_ssh = true                     # This machine accepts SSH connections
-allow_from = "admins,devs"           # Groups and/or individual IDs
+allow_from = "admins,devs"           # Who can run commands on this machine
+allow_shell = "admins"               # Who can start interactive shells (default: same as allow_from)
+username = "webservice"              # Run commands as this user (default: same as agent user)
 
 # Command-specific access control
 [machine.web01.command.sudo]
 allow_from = "admins"                # Only admin group can run sudo
+username = "root"                    # Run as root user
 
 [machine.web01.command.restart-nginx]
 allow_from = "admins,on-call-devs"   # Custom command with alias
 command = "sudo systemctl restart nginx"  # Actual command to execute
+username = "nginx"                   # Run as nginx user
 
 [machine.web01.command.top]
 allow_from = "devs"                  # Simple command (uses command name as-is)
+# username not specified = inherits from machine.username or agent user
 
 # HTTP service exposure  
 [machine.web01.http.admin]
@@ -125,7 +129,51 @@ members = "web01,web02,web03"               # Machine aliases
 members = "admins,devs,web-servers"         # Group hierarchies
 ```
 
-## Access Control and Groups
+## Access Control System
+
+### **Access Control Levels:**
+SSH access is controlled at multiple levels for fine-grained security:
+
+1. **Command Execution**: `allow_from` - Who can run specific commands
+2. **Interactive Shell**: `allow_shell` - Who can start full shell sessions (defaults to same as allow_from if not specified)  
+3. **Machine Inclusion**: Any machine in config accepts SSH connections (no accept_ssh flag needed)
+4. **Username Control**: `username` field specifies execution user (hierarchical inheritance)
+
+### **User Execution Context:**
+Commands can run as different users based on a hierarchy of username settings:
+
+**Username Resolution Order:**
+1. **Command-level**: `[machine.X.command.Y] username = "specific-user"`
+2. **Machine-level**: `[machine.X] username = "machine-user"`  
+3. **Agent default**: Same user that runs `malai ssh agent`
+
+**Examples:**
+- `malai ssh web01 restart-nginx` → runs as `nginx` user (command-level override)
+- `malai ssh web01 top` → runs as `webservice` user (machine-level default)  
+- `malai ssh database restart-db` → runs as `postgres` user (command-level override)
+
+**Security Benefits:**
+- **Privilege separation**: Different commands can run as appropriate service users
+- **Least privilege**: Commands only get the permissions they need
+- **Service account usage**: Integrate with existing system user management
+
+```toml
+[machine.production-db]
+id52 = "db-machine-id52"
+allow_from = "admins,devops"        # Can run commands
+allow_shell = "senior-admins"       # Only senior admins get shell access  
+username = "postgres"               # All commands run as postgres user
+
+[machine.web01]
+id52 = "web01-id52"  
+allow_from = "*"                    # Everyone can run commands
+# allow_shell defaults to same as allow_from ("*")
+# username not specified = runs as same user as agent
+
+[machine.restricted]
+id52 = "restricted-id52"
+# No allow_from = no SSH access to this machine
+```
 
 ### **allow_from Field Syntax:**
 The `allow_from` field supports flexible access control with individual IDs, groups, and wildcards:
@@ -182,23 +230,37 @@ secure = true                        # HTTPS endpoint
 [machine.database.command.restart-db]
 allow_from = "senior-admins"         # Only senior admins can run this
 command = "sudo systemctl restart postgresql"  # Actual command executed
+username = "postgres"                # Run as postgres user
 
 [machine.web01.command.deploy]
 allow_from = "devs,ci-cd-id52"
 command = "/opt/deploy/deploy.sh production"  # Custom deployment script
+username = "deploy"                  # Run as deploy user (safer than root)
+
+[machine.web01.command.logs]
+allow_from = "devs,support"
+command = "tail -f /var/log/nginx/access.log"
+# username not specified = inherits from machine.username
 ```
 
 ## Command System
 
 ### **Command Execution Syntax:**
 ```bash
-# Direct commands (if allowed by machine.allow_from)
-malai ssh web01.cluster "top"
-malai ssh web01.cluster "ps aux"
+# Direct commands (natural SSH-like syntax)
+malai ssh web01.cluster top
+malai ssh web01.cluster ps aux
 
 # Command aliases (defined in config)
-malai ssh web01.cluster "restart-nginx"  # Executes: sudo systemctl restart nginx
-malai ssh database.cluster "restart-db"  # Executes: sudo systemctl restart postgresql
+malai ssh web01.cluster restart-nginx   # Executes: sudo systemctl restart nginx  
+malai ssh database.cluster restart-db   # Executes: sudo systemctl restart postgresql
+
+# Interactive shell (requires allow_shell permission)
+malai ssh web01.cluster                 # Starts interactive shell session
+
+# Alternative explicit syntax also supported
+malai ssh exec web01.cluster "top"
+malai ssh shell web01.cluster
 ```
 
 ### **Command Configuration:**
