@@ -16,6 +16,7 @@ ui = ["tauri", "tauri-plugin-opener", "tauri-build"]
 [dependencies]
 clap-verbosity-flag.workspace = true
 clap.workspace = true
+chrono.workspace = true
 colored.workspace = true
 dirs.workspace = true
 eyre.workspace = true
