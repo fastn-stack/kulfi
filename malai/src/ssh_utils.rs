@@ -67,11 +67,24 @@ id52 = "{}"
 use_keyring = true
 
 # Add machines to this cluster by editing this file
-# Example:
+# Examples:
+
+# Basic machine (accepts SSH)
 # [machine.web01]
 # id52 = "machine-id52-here"
 # accept_ssh = true
 # allow_from = "*"
+
+# With command aliases
+# [machine.web01.command.restart-nginx]
+# allow_from = "admins"
+# command = "sudo systemctl restart nginx"
+
+# With HTTP services  
+# [machine.web01.http.admin]
+# port = 8080
+# allow_from = "admins"
+# secure = false
 "#,
         alias.as_ref().map(|a| format!(" --alias {}", a)).unwrap_or_default(),
         cluster_manager_id52,

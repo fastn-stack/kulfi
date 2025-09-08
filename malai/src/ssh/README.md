@@ -81,32 +81,136 @@ id52 = "cluster-manager-id52-here"
 [machine.web01]
 id52 = "web01-id52-here"
 accept_ssh = true                     # This machine accepts SSH connections
-allow_from = "laptop-id52,admin-id52" # Full SSH access from these machines
+allow_from = "admins,devs"           # Groups and/or individual IDs
 
 # Command-specific access control
-[machine.web01.command.ls]
-allow_from = "readonly-id52"          # Only this machine can run 'ls'
+[machine.web01.command.sudo]
+allow_from = "admins"                # Only admin group can run sudo
 
-# HTTP service exposure
-[machine.web01.service.admin]
+[machine.web01.command.restart-nginx]
+allow_from = "admins,on-call-devs"   # Custom command with alias
+command = "sudo systemctl restart nginx"  # Actual command to execute
+
+[machine.web01.command.top]
+allow_from = "devs"                  # Simple command (uses command name as-is)
+
+# HTTP service exposure  
+[machine.web01.http.admin]
 port = 8080
-allow_from = "admin-id52,manager-id52"
+allow_from = "admins,web01-id52"     # Groups + individual IDs
+secure = false                       # Optional: true for HTTPS (default: false)
 
-[machine.web01.service.api]  
+[machine.web01.http.api]  
 port = 3000
-allow_from = "*"                      # All cluster machines can access
+allow_from = "*"                     # All cluster machines can access
 
 # Client-only machine (no accept_ssh = true)
 [machine.laptop]
 id52 = "laptop-id52-here"
 
-# Groups for easier management
-[group.web-servers]
-members = "web01,web02,web03"
+# Hierarchical Group System
+[group.admins]
+members = "laptop-id52,admin-desktop-id52"
 
-[group.admins] 
-members = "laptop,admin-desktop"
+[group.devs]  
+members = "dev1-id52,dev2-id52,junior-devs"  # Can include other groups
+
+[group.junior-devs]
+members = "intern1-id52,intern2-id52"
+
+[group.web-servers]
+members = "web01,web02,web03"               # Machine aliases
+
+[group.all-staff]
+members = "admins,devs,web-servers"         # Group hierarchies
 ```
+
+## Access Control and Groups
+
+### **allow_from Field Syntax:**
+The `allow_from` field supports flexible access control with individual IDs, groups, and wildcards:
+
+- **Individual machine IDs**: `"machine1-id52,machine2-id52"`  
+- **Group names**: `"admins,devs"`
+- **Mixed syntax**: `"admins,machine1-id52,contractors"`
+- **Wildcard**: `"*"` (all cluster machines)
+
+### **Hierarchical Group System:**
+Groups can contain both individual machine IDs and other groups, enabling flexible organizational structures:
+
+```toml
+# Leaf groups (contain only machine IDs)
+[group.senior-devs]
+members = "alice-id52,bob-id52"
+
+[group.junior-devs] 
+members = "charlie-id52,diana-id52"
+
+# Parent groups (contain other groups)
+[group.all-devs]
+members = "senior-devs,junior-devs"
+
+# Department groups (mix of individuals and groups)
+[group.engineering]
+members = "all-devs,lead-architect-id52"
+
+# Company-wide groups
+[group.everyone]
+members = "engineering,marketing,sales"
+```
+
+### **Group Resolution:**
+When processing `allow_from`, the system recursively expands groups:
+1. **Direct IDs**: `machine1-id52` → match immediately
+2. **Group expansion**: `admins` → expand to all members recursively
+3. **Nested groups**: `all-staff` → `admins,devs` → individual IDs
+4. **Wildcard**: `*` → all machines in cluster
+
+### **Access Control Examples:**
+```toml
+# SSH access for admin tasks
+[machine.production-server]
+allow_from = "admins,on-call-devs"
+
+# HTTP service access with mixed permissions  
+[machine.web01.http.internal-api]
+port = 5000
+allow_from = "backend-services,monitoring-id52"
+secure = true                        # HTTPS endpoint
+
+# Command aliases and restrictions
+[machine.database.command.restart-db]
+allow_from = "senior-admins"         # Only senior admins can run this
+command = "sudo systemctl restart postgresql"  # Actual command executed
+
+[machine.web01.command.deploy]
+allow_from = "devs,ci-cd-id52"
+command = "/opt/deploy/deploy.sh production"  # Custom deployment script
+```
+
+## Command System
+
+### **Command Execution Syntax:**
+```bash
+# Direct commands (if allowed by machine.allow_from)
+malai ssh web01.cluster "top"
+malai ssh web01.cluster "ps aux"
+
+# Command aliases (defined in config)
+malai ssh web01.cluster "restart-nginx"  # Executes: sudo systemctl restart nginx
+malai ssh database.cluster "restart-db"  # Executes: sudo systemctl restart postgresql
+```
+
+### **Command Configuration:**
+- **Simple commands**: Use command name as-is (e.g., `top`, `ps`, `ls`)
+- **Command aliases**: Map friendly name to actual command
+- **Security benefit**: Hide complex commands behind simple aliases
+- **Access control**: Each command/alias has separate `allow_from` permissions
+
+### **Command vs Alias Resolution:**
+1. **Check alias first**: If `[machine.X.command.CMD]` exists → use `command = "..."` 
+2. **Fallback to direct**: If no alias → execute `CMD` directly
+3. **Permission check**: Verify client in `allow_from` for that specific command/alias
 
 **Config Management Rules:**
 - **Cluster Manager Machine**: Admin manually edits `$MALAI_HOME/ssh/cluster-config.toml`
@@ -435,14 +539,14 @@ Test cross-cluster scenarios by setting up multiple independent clusters:
 **Company Cluster:**
 ```bash
 export MALAI_HOME=/tmp/malai-test/company-cluster
-malai ssh create-cluster --alias company-cluster
+malai ssh init-cluster --alias company-cluster
 eval $(malai ssh agent -e)  # Runs as cluster manager automatically
 ```
 
 **Test Cluster:**
 ```bash
 export MALAI_HOME=/tmp/malai-test/test-cluster
-malai ssh create-cluster --alias test-cluster
+malai ssh init-cluster --alias test-cluster
 eval $(malai ssh agent -e)  # Runs as different cluster manager
 ```
 
