@@ -59,9 +59,10 @@ mysql -h localhost:3306  # Direct database access via forwarding
 - **No certificate authorities**: Direct public key verification
 
 ### 🌐 **Multi-Cluster Management**  
-- **Multiple clusters**: Personal, work, client clusters from single machine
+- **Multiple clusters**: Personal, work, client clusters from single device
+- **Mobile cluster manager**: Manage infrastructure from iPhone/Android malai app
 - **Role flexibility**: Cluster manager of one, machine in others
-- **Unified access**: Single agent handles all clusters
+- **Offline tolerance**: Servers operate independently when cluster manager offline
 - **Local aliases**: `malai web top` instead of `malai web01.fifthtry.com top`
 
 ### 📡 **Identity-Aware Service Mesh**
@@ -103,20 +104,20 @@ open http://grafana.company.localhost    # Grafana dashboard
 open http://logs.company.localhost       # Log analysis tools
 ```
 
-### Multi-Cloud Setup
+### Mobile Infrastructure Management
 ```bash
-# Connect to multiple clouds:
-malai machine init aws.mycompany.com aws
-malai machine init gcp.mycompany.com gcp  
-malai machine init personal.mylab.com lab
+# Initialize from mobile device (iPhone/Android malai app):
+malai cluster init company
+# Edit cluster config in mobile app UI
+malai start  # Distribute config to all servers
 
-# Single agent handles all:
-malai start &
+# Daily infrastructure management from mobile:
+malai web01.company systemctl status nginx
+malai db01.company backup-database
+open http://grafana.company.localhost  # Mobile browser → server monitoring
 
-# Cross-cloud access:
-malai web01.aws systemctl status nginx
-malai db01.gcp pg_stat_activity
-malai home.lab htop
+# Servers continue operating when mobile cluster manager goes offline
+# Configuration changes sync when mobile comes back online
 ```
 
 ## Installation
