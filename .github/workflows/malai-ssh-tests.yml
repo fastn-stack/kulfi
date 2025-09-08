@@ -62,11 +62,11 @@ jobs:
           cargo clippy -p malai-cli-test-utils --all-targets -- -D warnings
           cargo clippy -p malai --all-targets -- -D warnings
 
-      - name: Build malai binary
+      - name: Build malai binary  
         run: |
-          echo "🔨 Building malai binary for SSH testing..."
+          # Only building 'malai' - core infrastructure platform
+          # ⚠️ When adding binaries: update malai-cli-test-utils/src/lib.rs
           cargo build --bin malai
-          echo "✅ Malai binary built successfully"
 
       - name: Build test utilities
         run: |

@@ -1,12 +1,15 @@
 //! Comprehensive malai CLI testing utilities
 //!
-//! This crate makes testing malai commands pleasant by handling all the drudgery:
+//! This crate provides testing infrastructure for malai commands with:
 //! - Automatic binary discovery with build support  
 //! - Process lifecycle with RAII cleanup
 //! - MALAI_HOME isolation for multi-instance testing
-//! - SSH cluster setup and management
+//! - Cluster setup and management
 //! - Identity generation and management
 //! - Fluent API for readable test scenarios
+//!
+//! ## Tested Binaries: malai
+//! ⚠️ When adding binaries: update simple.rs + .github/workflows/malai-ssh-tests.yml
 
 use std::time::Duration;
 
