@@ -15,10 +15,10 @@ async fn test_create_cluster_command() {
     
     println!("🏗️  Creating cluster with MALAI_HOME: {}", manager_home.display());
     
-    // Test the create-cluster command
+    // Test the init-cluster command
     let result = MalaiCommand::new()
         .malai_home(&manager_home)
-        .ssh_create_cluster(Some("test-cluster"))
+        .ssh_init_cluster(Some("test-cluster"))
         .await;
     
     match result {
@@ -69,7 +69,7 @@ async fn test_create_cluster_without_alias() {
     // Test without alias
     let result = MalaiCommand::new()
         .malai_home(&manager_home)
-        .ssh_create_cluster(None)  // No alias
+        .ssh_init_cluster(None)  // No alias
         .await;
         
     match result {

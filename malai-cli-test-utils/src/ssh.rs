@@ -14,7 +14,7 @@ impl SshTestHelper {
         // 1. Create cluster manager
         let _manager = env.create_machine("cluster-manager").await?;
         let cluster_output = env.malai_cmd("cluster-manager")?
-            .ssh_create_cluster(Some(cluster_alias))
+            .ssh_init_cluster(Some(cluster_alias))
             .await?
             .expect_success()?;
         
