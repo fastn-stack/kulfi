@@ -11,6 +11,7 @@ use fastn_id52 as _;
 use fastn_net as _;
 use fastn_p2p as _;
 use kulfi_id52 as _;
+use libc as _;
 use toml as _;
 use tracing_subscriber as _;
 

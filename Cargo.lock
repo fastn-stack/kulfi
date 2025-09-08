@@ -3324,6 +3324,7 @@ dependencies = [
  "iroh",
  "kulfi-id52",
  "kulfi-utils",
+ "libc",
  "malai-cli-test-utils",
  "mime_guess",
  "percent-encoding",
