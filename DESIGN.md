@@ -811,33 +811,50 @@ export MALAI_HOME=/path/to/custom/malai/data
 eval $(malai daemon -e)  # Agent auto-detects role and starts appropriate services
 ```
 
-**Multi-Cluster Directory Structure:**
+**Complete MALAI_HOME Structure:**
 ```
 $MALAI_HOME/
-├── malai/
-│   ├── clusters/
-│   │   ├── company/                 # Local alias for cluster
-│   │   │   ├── cluster-config.toml  # Full cluster config (if cluster manager)
-│   │   │   ├── machine-config.toml  # Machine-specific config (if regular machine)
-│   │   │   ├── cluster-info.toml    # Cluster details and registration
-│   │   │   ├── identity.key         # This machine's identity for this cluster
-│   │   │   └── state.json          # Config distribution state (cluster manager only)
-│   │   ├── ft/                      # Local alias for fifthtry.com cluster  
-│   │   │   ├── cluster-info.toml    # Contains cluster_id52, domain, role
-│   │   │   ├── machine-config.toml  # Received from cluster manager
-│   │   │   └── identity.key         # Machine identity for this cluster
-│   │   └── personal/                # Personal cluster alias
-│   │       └── ...
+├── clusters/
+│   ├── company/                     # Local alias for cluster
+│   │   ├── cluster-config.toml      # Full cluster config (if cluster manager)
+│   │   ├── machine-config.toml      # Machine-specific config (if regular machine)
+│   │   ├── cluster-info.toml        # Cluster details and registration
+│   │   ├── identity.key             # This machine's identity for this cluster
+│   │   └── state.json              # Config distribution state (cluster manager only)
+│   ├── ft/                          # Local alias for fifthtry.com cluster  
+│   │   ├── cluster-info.toml        # Contains cluster_id52, domain, role
+│   │   ├── machine-config.toml      # Received from cluster manager
+│   │   └── identity.key             # Machine identity for this cluster
+│   └── personal/                    # Personal cluster alias
+│       ├── cluster-config.toml      # If cluster manager
+│       ├── identity.key             # Machine identity
+│       └── state.json              # If cluster manager
 ├── services.toml                    # Local services: aliases + port forwarding
-├── malai.sock                       # CLI communication socket (malai commands → malai daemon)
-├── malai.lock                       # Process lockfile
+├── malai.sock                       # CLI communication socket
+├── malai.lock                       # Process lockfile (PID + timestamp)
+├── malai.log                        # Single unified log file (all clusters)
 └── keys/
     └── default-identity.key         # Default identity for new clusters
+```
 
-# Logs stored in standard system log directories per cluster:
-# - ~/.local/state/malai/logs/company/
-# - ~/.local/state/malai/logs/ft/
-# - ~/.local/state/malai/logs/personal/
+**Cluster Directory Files:**
+- `cluster-config.toml`: Full cluster config (only on cluster manager machines)
+- `machine-config.toml`: Machine-specific config received from cluster manager
+- `cluster-info.toml`: Registration info (cluster_id52, domain, role, machine_alias)
+- `identity.key`: This machine's private key for this specific cluster
+- `state.json`: Config distribution tracking (only on cluster manager machines)
+
+**Logging Strategy:**
+- **Single log file**: `$MALAI_HOME/malai.log` for all clusters and services
+- **Structured logging**: Include cluster_alias and service_type in log entries
+- **Log rotation**: Standard log rotation via system tools or internal rotation
+- **Debug levels**: Different verbosity for development vs production
+
+**Log Entry Format:**
+```
+2025-01-15T10:30:45Z [INFO] [company] [cluster-manager] Config distributed to 3 machines
+2025-01-15T10:30:46Z [INFO] [ft] [ssh-daemon] Executed command 'ps aux' for client abc123...
+2025-01-15T10:30:47Z [INFO] [service-proxy] [http] Routed admin.company.localhost to web01.company
 ```
 
 **cluster-info.toml Example:**
