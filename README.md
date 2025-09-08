@@ -14,7 +14,7 @@ malai provides secure remote access to your machines and services using peer-to-
 # On your laptop (cluster manager):
 malai cluster init personal
 # Outputs: "Cluster created with ID: abc123def456ghi789..."
-malai daemon &
+malai daemon  # Auto-daemonizes
 
 # On your home server (copy the cluster manager ID52 from above):  
 malai machine init abc123def456ghi789... personal  # Cluster manager ID52 + local alias
@@ -25,7 +25,7 @@ malai machine init abc123def456ghi789... personal  # Cluster manager ID52 + loca
 # Add: [machine.home-server] id52 = "xyz789abc123def456..." allow_from = "*"
 
 # On home server, start services:
-malai daemon &
+malai daemon  # Auto-daemonizes
 
 # Now enjoy natural remote access from laptop:
 malai home-server.personal htop
@@ -38,11 +38,11 @@ open http://admin.personal.localhost  # Direct browser access to admin service i
 ```bash
 # On ops machine (cluster manager):
 malai cluster init company
-malai daemon &
+malai daemon  # Auto-daemonizes
 
 # On each server:
 malai machine init company.example.com corp  # Join via domain
-malai daemon &
+malai daemon  # Auto-daemonizes
 
 # Developers get instant access:
 malai web01.corp systemctl status nginx
@@ -92,7 +92,7 @@ A single `malai daemon` command auto-detects roles and starts appropriate servic
 ### DevOps Engineer
 ```bash
 # Morning routine:
-malai daemon &  # Starts all services for all clusters
+malai daemon  # Auto-daemonizes  # Starts all services for all clusters
 
 # Server management:
 malai web ps aux                    # Check web server processes
@@ -118,6 +118,29 @@ open http://grafana.company.localhost  # Mobile browser → server monitoring
 
 # Servers continue operating when mobile cluster manager goes offline
 # Configuration changes sync when mobile comes back online
+```
+
+## Daemon Usage
+
+### Personal Setup
+```bash
+# Add to ~/.bashrc or ~/.zshrc for automatic startup:
+malai daemon  # Auto-starts on shell login, runs in background
+
+# Or start manually when needed:
+malai d  # Short alias, daemonizes automatically
+```
+
+### Server/Production Setup  
+```bash
+# systemd service (foreground mode):
+malai daemon --foreground
+
+# Docker/supervisor (foreground mode):  
+malai daemon --foreground
+
+# Manual daemon:
+malai daemon  # Detaches from terminal, survives shell close
 ```
 
 ## Installation

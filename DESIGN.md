@@ -953,14 +953,21 @@ Each cluster directory has its own state.json:
 - `$MALAI_HOME/clusters/personal/state.json`
 
 ### **malai daemon Architecture:**
-Single persistent process that provides all infrastructure services:
+Self-daemonizing process that provides all infrastructure services:
 
+#### **Daemon Behavior:**
+- **Default**: `malai daemon` or `malai d` → automatically daemonizes and runs in background
+- **Survives shell close**: Process detaches from terminal, continues running
+- **Auto-restart friendly**: Add to `.bashrc` or `.zshrc` for automatic startup
+- **Foreground mode**: `malai daemon --foreground` for systemd/supervisor integration
+- **Process management**: Lockfile prevents multiple daemons, shows running status
+
+#### **Daemon Responsibilities:**
 1. **Initial scan**: Load all cluster configs and machine configs from MALAI_HOME
 2. **Multi-role operation**: Runs cluster managers + SSH daemon + service proxy as needed
-3. **Explicit rescanning**: Use `malai rescan` to reload configs (no file system watchers)  
-4. **Atomic config updates**: Validate new configs before replacing running config
-5. **CLI communication**: Provides Unix socket for CLI commands (connection pooling)
-6. **Process management**: Single daemon with lockfile, starts with `malai daemon` or `malai d`
+3. **CLI communication**: Provides Unix socket for CLI commands (connection pooling)
+4. **Config management**: Responds to `malai rescan` for atomic config reloading
+5. **Service orchestration**: Coordinates all P2P services in single process
 
 ### **Service Integration in Single Process:**
 - **HTTP server**: Listen on port 80, route by `subdomain.localhost` to remote services
