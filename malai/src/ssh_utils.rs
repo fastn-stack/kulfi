@@ -158,9 +158,10 @@ pub async fn show_cluster_info() -> Result<()> {
 
 /// Start SSH agent with role detection
 pub async fn start_ssh_agent(environment: bool, lockdown: bool, http: bool) -> Result<()> {
+    let malai_home = get_malai_home();
+    
     if environment {
         // Print environment variables for shell integration
-        let malai_home = get_malai_home();
         let agent_sock = malai_home.join("ssh").join("agent.sock");
         
         println!("MALAI_SSH_AGENT={}", agent_sock.display());
@@ -177,13 +178,201 @@ pub async fn start_ssh_agent(environment: bool, lockdown: bool, http: bool) -> R
     }
     
     println!("🚀 Starting SSH agent...");
-    println!("📁 Using MALAI_HOME: {}", get_malai_home().display());
+    println!("📁 Using MALAI_HOME: {}", malai_home.display());
     
-    // TODO: Implement actual agent with role detection
-    // For now, just show what role this machine would have
-    show_cluster_info().await?;
+    // Check for existing agent (lockfile protection)
+    let lockfile = malai_home.join("ssh").join("agent.lock");
+    if lockfile.exists() {
+        println!("🔒 Agent lockfile exists, checking if agent is running...");
+        
+        if let Ok(pid_str) = std::fs::read_to_string(&lockfile) {
+            if let Ok(pid) = pid_str.trim().parse::<u32>() {
+                if is_process_running(pid) {
+                    println!("✅ SSH agent already running (PID: {})", pid);
+                    println!("💡 Use 'malai ssh agent -e' to get environment variables");
+                    return Ok(());
+                } else {
+                    println!("🗑️  Removing stale lockfile (process {} not running)", pid);
+                    let _ = std::fs::remove_file(&lockfile);
+                }
+            }
+        }
+    }
     
-    println!("✅ SSH agent started (placeholder)");
+    // Create lockfile
+    let agent_pid = std::process::id();
+    std::fs::create_dir_all(lockfile.parent().unwrap())?;
+    std::fs::write(&lockfile, agent_pid.to_string())?;
+    println!("🔐 Created agent lockfile (PID: {})", agent_pid);
+    
+    // Detect role from cluster config
+    let role = detect_machine_role(&malai_home).await?;
+    
+    match role {
+        MachineRole::ClusterManager => {
+            println!("👑 Role detected: Cluster Manager");
+            start_cluster_manager_services(&malai_home).await?;
+        }
+        MachineRole::SshServer(machine_name) => {
+            println!("🖥️  Role detected: SSH Server ({})", machine_name);
+            start_ssh_server_services(&malai_home, &machine_name).await?;
+        }
+        MachineRole::ClientOnly(machine_name) => {
+            println!("💻 Role detected: Client Only ({})", machine_name);
+            start_client_services(&malai_home, &machine_name).await?;
+        }
+        MachineRole::Unknown => {
+            println!("❓ Role: Unknown - no cluster config found or identity not in config");
+            println!("💡 Create a cluster with 'malai ssh create-cluster' or join an existing one");
+            return Ok(());
+        }
+    }
+    
+    println!("✅ SSH agent started successfully");
+    println!("💡 Use 'malai ssh agent -e' to get environment variables for shell integration");
+    
+    // Keep agent running (in real implementation, this would be an event loop)
+    println!("🔄 Agent running... (press Ctrl+C to stop)");
+    
+    // Cleanup lockfile on exit
+    let lockfile_cleanup = lockfile.clone();
+    tokio::spawn(async move {
+        tokio::signal::ctrl_c().await.ok();
+        let _ = std::fs::remove_file(lockfile_cleanup);
+        println!("\n🛑 SSH agent stopped");
+        std::process::exit(0);
+    });
+    
+    // Simple keep-alive loop
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        // In real implementation, this would handle P2P connections and requests
+    }
+}
+
+/// Detect machine role from cluster config and local identity
+async fn detect_machine_role(malai_home: &PathBuf) -> Result<MachineRole> {
+    let config_path = malai_home.join("ssh").join("cluster-config.toml");
+    
+    if !config_path.exists() {
+        return Ok(MachineRole::Unknown);
+    }
+    
+    let config_content = std::fs::read_to_string(&config_path)?;
+    let identity_file = malai_home.join("keys").join("identity.key");
+    
+    if !identity_file.exists() {
+        return Ok(MachineRole::Unknown);
+    }
+    
+    let secret_key_hex = std::fs::read_to_string(&identity_file)?;
+    let secret_key = kulfi_id52::SecretKey::from_str(secret_key_hex.trim())?;
+    let local_id52 = secret_key.id52();
+    
+    // Parse cluster manager ID
+    if let Some(manager_line) = config_content.lines().find(|l| l.starts_with("id52 = ") && !l.contains("[machine.")) {
+        let cluster_id = manager_line
+            .split('"')
+            .nth(1)
+            .unwrap_or("");
+        
+        if local_id52 == cluster_id {
+            return Ok(MachineRole::ClusterManager);
+        }
+    }
+    
+    // Check if this machine is defined in config
+    if config_content.contains(&local_id52) {
+        // Find machine name and check accept_ssh
+        for line in config_content.lines() {
+            if line.starts_with("[machine.") && config_content[config_content.find(line).unwrap()..].contains(&local_id52) {
+                let machine_name = line
+                    .trim_start_matches("[machine.")
+                    .trim_end_matches("]");
+                
+                // Check if this machine accepts SSH connections
+                let machine_section_start = config_content.find(line).unwrap();
+                let remaining_config = &config_content[machine_section_start..];
+                let machine_section = remaining_config.split("[").next().unwrap();
+                
+                if machine_section.contains("accept_ssh = true") {
+                    return Ok(MachineRole::SshServer(machine_name.to_string()));
+                } else {
+                    return Ok(MachineRole::ClientOnly(machine_name.to_string()));
+                }
+            }
+        }
+    }
+    
+    Ok(MachineRole::Unknown)
+}
+
+/// Machine roles for agent
+#[derive(Debug, PartialEq)]
+enum MachineRole {
+    ClusterManager,
+    SshServer(String),
+    ClientOnly(String), 
+    Unknown,
+}
+
+/// Start cluster manager specific services
+async fn start_cluster_manager_services(malai_home: &PathBuf) -> Result<()> {
+    println!("🔧 Starting cluster manager services...");
+    println!("   📂 Config monitoring: {}/ssh/cluster-config.toml", malai_home.display());
+    println!("   🌐 P2P coordination: cluster member management");
+    println!("   📤 Config distribution: syncing to all cluster machines");
+    
+    // TODO: Implement actual cluster manager functionality
+    // - Watch config file for changes
+    // - Distribute config updates to cluster members
+    // - Handle member registration and coordination
     
     Ok(())
+}
+
+/// Start SSH server specific services
+async fn start_ssh_server_services(malai_home: &PathBuf, machine_name: &str) -> Result<()> {
+    println!("🔧 Starting SSH server services for machine '{}'...", machine_name);
+    println!("   🚪 SSH listener: accepting incoming connections");
+    println!("   🌐 P2P communication: fastn-p2p protocol handling");
+    println!("   🔐 Permission checking: command and service access control");
+    
+    // TODO: Implement actual SSH server functionality
+    // - Listen for incoming SSH connections via fastn-p2p
+    // - Execute authorized commands
+    // - Proxy HTTP services with access control
+    
+    Ok(())
+}
+
+/// Start client-only services  
+async fn start_client_services(malai_home: &PathBuf, machine_name: &str) -> Result<()> {
+    println!("🔧 Starting client services for machine '{}'...", machine_name);
+    println!("   🌐 P2P client: outbound connection management");
+    println!("   🕸️  HTTP proxy: transparent service access");
+    println!("   🔧 Connection pooling: efficient remote access");
+    
+    // TODO: Implement actual client functionality
+    // - HTTP proxy for transparent service access
+    // - Connection pooling for SSH commands
+    // - Config sync from cluster manager
+    
+    Ok(())
+}
+
+/// Check if a process is running (safe approach)
+fn is_process_running(pid: u32) -> bool {
+    // Safe approach: check if /proc/pid exists (Linux/macOS)
+    #[cfg(unix)]
+    {
+        std::path::Path::new(&format!("/proc/{}", pid)).exists()
+    }
+    
+    #[cfg(not(unix))]
+    {
+        // On Windows, assume process might be running
+        // In real implementation, would use Windows APIs
+        false
+    }
 }

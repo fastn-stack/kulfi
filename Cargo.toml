@@ -52,6 +52,7 @@ keyring = { version = "3", features = [
     "linux-native",
     "vendored",
 ] }
+libc = "0.2"
 kulfi-utils = { path = "kulfi-utils" }
 kulfi-id52 = { path = "kulfi-id52" }
 fastn-p2p = { path = "/Users/amitu/Projects/fastn-me/v0.5/fastn-p2p" }

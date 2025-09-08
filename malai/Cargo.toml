@@ -29,6 +29,7 @@ hyper.workspace = true
 iroh.workspace = true
 kulfi-utils.workspace = true
 kulfi-id52.workspace = true
+libc.workspace = true
 mime_guess.workspace = true
 percent-encoding.workspace = true
 serde.workspace = true
