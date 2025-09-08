@@ -30,7 +30,7 @@ pub async fn init_cluster(cluster_name: String) -> Result<()> {
     println!("🏗️  Creating SSH cluster...");
     
     let malai_home = get_malai_home();
-    let ssh_dir = malai_home;
+    let ssh_dir = malai_home.clone();
     
     // Ensure SSH directory exists
     std::fs::create_dir_all(&ssh_dir)?;
@@ -282,24 +282,106 @@ pub async fn init_machine() -> Result<()> {
     Ok(())
 }
 
-/// Start unified malai (replaces separate cluster/machine/agent start commands)
-pub async fn start_unified_malai(environment: bool) -> Result<()> {
+/// Start malai daemon with lockfile and daemonization
+pub async fn start_malai_daemon(environment: bool, foreground: bool) -> Result<()> {
     if environment {
         // Print environment variables for shell integration
         let malai_home = get_malai_home();
         println!("MALAI_HOME={}", malai_home.display());
-        println!("MALAI_AGENT_SOCK={}", malai_home.join("agent.sock").display());
+        println!("MALAI_DAEMON_SOCK={}", malai_home.join("malai.sock").display());
         return Ok(());
     }
     
-    println!("🚀 Starting malai - scanning MALAI_HOME...");
     let malai_home = get_malai_home();
+    println!("🚀 Starting malai daemon...");
     println!("📁 MALAI_HOME: {}", malai_home.display());
     
-    // Simple scan and report what we find
+    // Check for existing daemon
+    if check_existing_daemon(&malai_home)? {
+        println!("✅ malai daemon already running");
+        return Ok(());
+    }
+    
+    // Create lockfile
+    create_daemon_lockfile(&malai_home)?;
+    
+    // Daemonize unless in foreground mode
+    if !foreground {
+        println!("🔄 Daemonizing (use --foreground to stay in terminal)...");
+        // TODO: Implement actual fork/daemonize  
+        println!("📋 For now running in foreground (daemonization not yet implemented)");
+    } else {
+        println!("📋 Running in foreground mode");
+    }
+    
+    // Scan and report configurations
     scan_and_report_configs(&malai_home).await?;
     
-    println!("✅ malai start complete");
+    println!("✅ malai daemon started");
+    println!("💡 Use 'malai daemon -e' for environment variables");
+    
+    // Keep daemon running
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    }
+}
+
+/// Check if malai daemon is already running using file locking
+fn check_existing_daemon(malai_home: &PathBuf) -> Result<bool> {
+    let lockfile_path = malai_home.join("malai.lock");
+    
+    if !lockfile_path.exists() {
+        return Ok(false);
+    }
+    
+    // Try to acquire lock on existing file
+    match std::fs::OpenOptions::new()
+        .create(false)
+        .write(true)
+        .open(&lockfile_path)
+    {
+        Ok(lock_file) => {
+            match lock_file.try_lock() {
+                Ok(()) => {
+                    // We got the lock, so daemon is not running
+                    println!("🗑️  Removing stale lockfile (no running daemon)");
+                    let _ = std::fs::remove_file(&lockfile_path);
+                    Ok(false)
+                }
+                Err(_) => {
+                    // Could not acquire lock, daemon is running
+                    println!("✅ Daemon already running");
+                    Ok(true)
+                }
+            }
+        }
+        Err(_) => {
+            // Could not open file, assume no daemon
+            Ok(false)
+        }
+    }
+}
+
+/// Create daemon lockfile with exclusive locking
+fn create_daemon_lockfile(malai_home: &PathBuf) -> Result<()> {
+    let lockfile_path = malai_home.join("malai.lock");
+    
+    // Create and lock the file
+    let lock_file = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .open(&lockfile_path)?;
+    
+    // Try to acquire exclusive lock
+    lock_file.try_lock().map_err(|_| {
+        eyre::eyre!("Could not acquire daemon lock - another instance may be running")
+    })?;
+    
+    println!("🔐 Created daemon lockfile with exclusive lock");
+    
+    // Keep lock alive for daemon lifetime
+    std::mem::forget(lock_file); // Lock released when process ends
     Ok(())
 }
 
@@ -845,7 +927,7 @@ pub async fn start_ssh_agent(environment: bool, lockdown: bool, http: bool) -> R
         
         if let Ok(pid_str) = std::fs::read_to_string(&lockfile) {
             if let Ok(pid) = pid_str.trim().parse::<u32>() {
-                if is_process_running(pid) {
+                // if is_process_running(pid) {
                     println!("✅ SSH agent already running (PID: {})", pid);
                     println!("💡 Use 'malai ssh agent -e' to get environment variables");
                     return Ok(());
@@ -1373,18 +1455,3 @@ async fn start_client_services(malai_home: &PathBuf, machine_name: &str) -> Resu
     Ok(())
 }
 
-/// Check if a process is running (safe approach)
-fn is_process_running(pid: u32) -> bool {
-    // Safe approach: check if /proc/pid exists (Linux/macOS)
-    #[cfg(unix)]
-    {
-        std::path::Path::new(&format!("/proc/{}", pid)).exists()
-    }
-    
-    #[cfg(not(unix))]
-    {
-        // On Windows, assume process might be running
-        // In real implementation, would use Windows APIs
-        false
-    }
-}

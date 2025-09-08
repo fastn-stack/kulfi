@@ -9,6 +9,7 @@ use clap as _;
 use clap_verbosity_flag as _;
 use dirs as _;
 use fastn_id52 as _;
+use file_guard as _;
 use fastn_net as _;
 use fastn_p2p as _;
 use kulfi_id52 as _;
@@ -46,7 +47,7 @@ pub use run::run;
 pub use core_utils::{
     create_cluster, execute_ssh_command, init_cluster, init_machine_for_cluster, 
     init_machine_for_cluster_with_alias, show_cluster_info, start_ssh_agent, 
-    start_ssh_cluster, start_unified_malai
+    start_malai_daemon, start_ssh_cluster
 };
 pub use tcp_bridge::tcp_bridge;
 

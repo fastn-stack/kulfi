@@ -20,6 +20,7 @@ chrono.workspace = true
 colored.workspace = true
 dirs.workspace = true
 eyre.workspace = true
+file-guard.workspace = true
 fastn-p2p.workspace = true
 fastn-net.workspace = true  
 fastn-id52.workspace = true

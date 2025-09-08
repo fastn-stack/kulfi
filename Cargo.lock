@@ -3320,6 +3320,7 @@ dependencies = [
  "fastn-id52",
  "fastn-net",
  "fastn-p2p",
+ "file-guard",
  "futures-util",
  "http-body-util",
  "hyper",
