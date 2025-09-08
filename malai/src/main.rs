@@ -131,9 +131,32 @@ async fn main() -> eyre::Result<()> {
                     malai::show_cluster_info().await?;
                     return Ok(());
                 }
-                SshCommand::Execute { machine, command, args: _ } => {
-                    println!("Executing '{}' on machine '{}'", command, machine);
-                    println!("❌ SSH command execution not yet implemented");
+                SshCommand::Execute { machine, command, args } => {
+                    malai::execute_ssh_command(&machine, &command, args).await?;
+                    return Ok(());
+                }
+                SshCommand::External(args) => {
+                    // Handle "malai ssh <machine> <command>" syntax  
+                    if args.len() >= 1 {
+                        let machine = &args[0];
+                        if args.len() >= 2 {
+                            // Command with args: malai ssh web01 "echo hello"
+                            let full_command = args[1..].join(" ");
+                            // Split command from args
+                            let command_parts: Vec<&str> = full_command.split_whitespace().collect();
+                            if !command_parts.is_empty() {
+                                let command = command_parts[0];
+                                let cmd_args: Vec<String> = command_parts[1..].iter().map(|s| s.to_string()).collect();
+                                malai::execute_ssh_command(machine, command, cmd_args).await?;
+                            }
+                        } else {
+                            // Just machine, start interactive shell
+                            println!("Starting shell on machine '{}'", machine);
+                            println!("❌ SSH shell not yet implemented");
+                        }
+                    } else {
+                        println!("❌ Usage: malai ssh <machine> [command] [args...]");
+                    }
                     return Ok(());
                 }
                 SshCommand::Shell { machine } => {
@@ -354,6 +377,8 @@ pub enum SshCommand {
         #[arg(help = "Command arguments")]
         args: Vec<String>,
     },
+    #[clap(external_subcommand)]
+    External(Vec<String>),
     #[clap(about = "Start interactive shell session on remote machine")]
     Shell {
         #[arg(help = "Machine address (e.g., web01.company.com, web01.cluster-id52)")]
