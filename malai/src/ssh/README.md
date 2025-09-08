@@ -89,20 +89,21 @@ The malai SSH system consists of three distinct services that can run independen
 - **Required**: On any machine that should accept SSH (servers, etc.)
 
 ### 3. Client Agent (`malai ssh start` - client role)
-- **Purpose**: Local TCP/HTTP proxy for transparent service access
+- **Purpose**: Local service access via TCP forwarding and HTTP subdomain routing
 - **Runs on**: Any machine that needs to access remote services
 - **Functions**:
-  - **TCP forwarding**: Listen on local ports, forward to remote services via P2P
-  - **HTTP proxy**: Transparent HTTP access with automatic client ID52 header injection
+  - **TCP forwarding**: Listen on specific ports, forward to remote services via P2P
+  - **HTTP subdomain routing**: Listen on port 80/8080, route by subdomain to remote services
   - **SSH connection pooling**: Reuse P2P connections for faster SSH commands
-  - **Multi-protocol support**: Forward any TCP/HTTP traffic to cluster services
-- **Configuration**: `$MALAI_HOME/ssh/services.toml` defines port mappings and aliases
+  - **Automatic identity injection**: HTTP requests get client ID52 headers
+- **Configuration**: `$MALAI_HOME/ssh/services.toml` defines mappings and subdomain routing
 
 ### Service Interaction
 - **SSH without agent**: `malai ssh web01 cmd` → creates fresh P2P connection → slower
 - **SSH with agent**: `malai ssh web01 cmd` → uses agent's pooled connection → faster
-- **TCP/HTTP services**: **REQUIRE agent** for port forwarding (agent listens on local ports)
-- **Service access**: `mysql -h localhost:3306` → agent forwards to remote via P2P
+- **TCP services**: **REQUIRE agent** for port forwarding (agent listens on specific ports)
+- **HTTP services**: **REQUIRE agent** for subdomain routing (agent listens on port 80/8080)
+- **Service access**: Applications connect to localhost, agent routes to remote services via P2P
 
 ## Addressing and Aliases
 
@@ -496,8 +497,8 @@ malai ssh info
 
 # Local service management
 malai ssh service add ssh web web01.ft                    # Add SSH alias  
-malai ssh service add tcp mysql localhost:3306 mysql.db01.ft:3306  # Add TCP forwarding
-malai ssh service add http admin localhost:8080 admin.web01.ft      # Add HTTP forwarding
+malai ssh service add tcp mysql 3306 mysql.db01.ft:3306   # Add TCP forwarding
+malai ssh service add http admin admin.web01.ft           # Add HTTP subdomain route
 malai ssh service remove mysql                            # Remove service
 malai ssh service list                                    # List all configured services
 ```
@@ -691,11 +692,18 @@ mysql = { local_port = 3306, remote = "mysql.db01.ft:3306" }
 redis = { local_port = 6379, remote = "redis.cache01.ft:6379" }
 postgres = { local_port = 5432, remote = "postgres.db01.company:5432" }
 
-# HTTP port forwarding (with automatic header injection)
+# HTTP subdomain routing (agent listens on port 80/8080, routes by Host header)
 [http]
-admin = { local_port = 8080, remote = "admin.web01.ft", inject_headers = true }
-api = { local_port = 3000, remote = "api.web01.ft", inject_headers = true }
-public-api = { local_port = 3001, remote = "public.web01.ft", inject_headers = false }
+# Agent listens on localhost:80 and routes based on subdomain
+port = 80                                    # Agent HTTP port (80 or 8080)
+routes = {
+    "admin" = "admin.web01.ft",              # admin.localhost → admin.web01.ft
+    "api" = "api.web01.ft",                  # api.localhost → api.web01.ft  
+    "db-admin" = "admin.db01.company",       # db-admin.localhost → admin.db01.company
+    "grafana" = "grafana.monitoring.ft",     # grafana.localhost → grafana.monitoring.ft
+}
+inject_headers = true                        # Default: add client ID52 headers
+public_routes = ["api"]                      # These routes don't get identity headers
 ```
 
 **Usage after agent starts:**
@@ -704,22 +712,28 @@ public-api = { local_port = 3001, remote = "public.web01.ft", inject_headers = f
 malai ssh web systemctl status nginx
 
 # Direct TCP connections:
-mysql -h localhost:3306              # → forwarded to mysql.db01.ft:3306
-redis-cli -p 6379                    # → forwarded to redis.cache01.ft:6379
-psql -h localhost -p 5432            # → forwarded to postgres.db01.company:5432
+mysql -h localhost:3306              # → mysql.db01.ft:3306 via P2P
+redis-cli -p 6379                    # → redis.cache01.ft:6379 via P2P
+psql -h localhost -p 5432            # → postgres.db01.company:5432 via P2P
 
-# HTTP with identity headers:
-curl http://localhost:8080/users     # → admin.web01.ft (gets client ID52 header)
-curl http://localhost:3000/api       # → api.web01.ft (gets client ID52 header)
+# HTTP via subdomain routing (browser-friendly):
+curl http://admin.localhost/users    # → admin.web01.ft (gets client ID52 header)
+curl http://api.localhost/metrics    # → api.web01.ft (gets client ID52 header)
+curl http://grafana.localhost/dash   # → grafana.monitoring.ft (gets client ID52 header)
+
+# Browser access (works in any browser):
+http://admin.localhost               # Direct browser access to remote admin interface
+http://grafana.localhost             # Direct browser access to remote Grafana
 ```
 
-**Agent TCP/HTTP Forwarding:**
-- **Local port binding**: Agent listens on configured local ports (3306, 6379, 8080, etc.)
-- **P2P forwarding**: Incoming connections forwarded to remote services via encrypted P2P
-- **Port conflict detection**: Agent refuses to start if configured ports are already in use
+**Agent Service Forwarding:**
+- **TCP port binding**: Agent listens on configured local ports (3306, 6379, etc.)
+- **HTTP subdomain routing**: Agent listens on port 80, routes by `Host: subdomain.localhost` header
+- **P2P forwarding**: All connections forwarded to remote services via encrypted P2P
+- **Browser compatibility**: `http://admin.localhost` works directly in any browser
+- **Identity injection**: HTTP requests automatically get client ID52 headers
 - **Service discovery**: Automatic connection routing based on services.toml configuration
 - **Multi-cluster access**: Single agent can forward to services across all clusters
-- **Protocol transparency**: Applications connect to localhost as if services were local
 
 **Multi-Cluster Benefits:**
 - **Single agent**: Manages all SSH connections and service forwarding across clusters
@@ -1065,28 +1079,34 @@ malai ssh home-server.personal htop
 malai ssh web01.company systemctl status nginx  
 malai ssh db01.ft pg_stat_activity
 
-# Cross-cluster services via local port forwarding:
-curl http://localhost:8080/dashboard   # → admin.home-server.personal (with client ID52 header)
-curl http://localhost:3000/metrics     # → api.web01.company (with client ID52 header)
-mysql -h localhost:3306                # → mysql.db01.ft:3306 (TCP forwarding)
-redis-cli -p 6379                     # → redis.cache01.ft:6379 (TCP forwarding)
+# Cross-cluster services via agent forwarding:
+curl http://admin.localhost/dashboard  # → admin.home-server.personal (+ client ID52 header)
+curl http://api.localhost/metrics      # → api.web01.company (+ client ID52 header)
+mysql -h localhost:3306               # → mysql.db01.ft:3306 (TCP forwarding)
+redis-cli -p 6379                    # → redis.cache01.ft:6379 (TCP forwarding)
+
+# Browser access (no configuration needed):
+open http://grafana.localhost         # Direct access to remote Grafana dashboard
+open http://admin.localhost          # Direct access to remote admin interface
 ```
 
 ### Example 4: Power User Alias Setup
 
-**After joining multiple clusters, set up personal aliases:**
+**After joining multiple clusters, set up personal services:**
 ```bash
-# Set up ultra-short aliases for daily use:
-malai ssh alias add web web01.ft                  # fifthtry production web
-malai ssh alias add web-stg web01-staging.company # company staging web  
-malai ssh alias add db db01.ft                    # fifthtry database
-malai ssh alias add home home-server.personal     # personal home server
+# Set up SSH aliases and service forwarding:
+malai ssh service add ssh web web01.ft
+malai ssh service add ssh db db01.ft
+malai ssh service add tcp mysql 3306 mysql.db01.ft:3306
+malai ssh service add http admin admin.web01.ft
+malai ssh service add http grafana grafana.monitoring.ft
 
-# Now ultra-convenient daily commands:
-malai ssh web systemctl status nginx              # Instead of: malai ssh web01.ft systemctl status nginx
-malai ssh db backup                               # Instead of: malai ssh db01.ft backup  
-malai ssh home htop                               # Instead of: malai ssh home-server.personal htop
-malai ssh web-stg deploy staging                  # Instead of: malai ssh web01-staging.company deploy staging
+# Now ultra-convenient access:
+malai ssh web systemctl status nginx    # SSH via alias
+malai ssh db backup                     # SSH via alias
+mysql -h localhost:3306                 # Direct MySQL access
+open http://admin.localhost             # Browser access to admin interface
+open http://grafana.localhost           # Browser access to monitoring
 ```
 
 **Workflow benefits:**
@@ -1383,3 +1403,122 @@ While fastn-p2p handles transport security, malai SSH must implement:
 - **Perfect forward secrecy**: Each session uses fresh cryptographic material
 
 The foundation is cryptographically stronger than OpenSSH - we just need application-level input validation.
+
+## Strategic Design Insight: malai SSH IS Complete malai
+
+### **Design Revelation:**
+What we've built as "malai ssh" actually fulfills the complete malai vision:
+
+**malai 0.3 planned features:**
+- Multiple services in single process ✅
+- User-controlled configuration ✅  
+- Identity management ✅
+- Service orchestration ✅
+
+**Our "malai ssh" provides all this PLUS:**
+- Secure remote access (SSH functionality)
+- Multi-cluster enterprise capabilities
+- Identity-aware service mesh
+- Cryptographic security model
+- Natural command syntax
+
+### **Command Structure Evolution:**
+**Current nested structure:**
+```bash
+malai ssh cluster init company
+malai ssh machine init company corp
+malai ssh start  
+malai ssh web01.company ps aux
+```
+
+**Should become top-level:**
+```bash
+malai cluster init company          # Promote to top-level
+malai machine init company corp     # Promote to top-level  
+malai start                         # Replaces both 'malai run' and 'malai ssh start'
+malai web01.company ps aux          # Direct SSH execution (no 'ssh' prefix)
+
+# Keep legacy single-service mode:
+malai http 8080 --public            # Backwards compatibility
+malai tcp 3306 --public             # Backwards compatibility
+```
+
+### **Identity Management Integration:**
+Replace `malai keygen` with richer identity system from 0.3 plan:
+```bash
+malai identity create [name]         # Replace keygen  
+malai identity list                  # List all identities
+malai identity export name           # Export identity for sharing
+malai identity import file           # Import identity
+malai identity delete name           # Remove identity
+```
+
+### **Module Organization Decision:**
+- Keep `malai/src/ssh/` module name (avoid massive reorganization)
+- Promote SSH functions to top-level malai API  
+- Update CLI command structure to reflect core status
+- Maintain backwards compatibility with existing commands
+
+### **Documentation Strategy:**
+- Current `ssh/README.md` contains complete design (preserve all content)
+- Main README.md should become user-focused overview  
+- Consider moving design to malai.sh website for public access
+- DESIGN.md for technical contributors
+
+This positioning makes malai much more compelling - it's not just another tool, but a complete secure infrastructure platform.
+
+## Latest Design Insights Captured
+
+### **HTTP Subdomain Routing Architecture:**
+Agent listens on port 80/8080 and routes HTTP requests by subdomain:
+- `http://admin.localhost` → `admin.web01.ft` (automatic routing)
+- `http://grafana.localhost` → `grafana.monitoring.ft`  
+- Browser-native access without proxy configuration
+- Automatic client ID52 header injection for app-level ACL
+
+### **Unified services.toml Configuration:**
+```toml
+# SSH aliases for convenient access
+[ssh]
+web = "web01.ft"
+db = "db01.ft"
+
+# TCP port forwarding  
+[tcp]
+mysql = { local_port = 3306, remote = "mysql.db01.ft:3306" }
+redis = { local_port = 6379, remote = "redis.cache01.ft:6379" }
+
+# HTTP subdomain routing
+[http]
+port = 80
+routes = {
+    "admin" = "admin.web01.ft",
+    "api" = "api.web01.ft", 
+    "grafana" = "grafana.monitoring.ft"
+}
+inject_headers = true  # Default for HTTP
+public_routes = ["api"]  # No identity headers
+```
+
+### **Multi-Cluster Power User Workflow:**
+1. **Cluster manager**: `malai cluster init personal` (manage personal cluster)
+2. **Join company**: `malai machine init company.example.com corp` (work cluster)  
+3. **Join fifthtry**: `malai machine init abc123...xyz789 ft` (client cluster)
+4. **Unified start**: `malai start` (starts cluster manager + SSH daemons + agent)
+5. **Cross-cluster access**: `malai web01.ft systemctl status nginx`
+
+### **Revolutionary Capabilities:**
+- **Identity-aware service mesh**: HTTP services receive client identity automatically
+- **Protocol-agnostic**: TCP for databases, HTTP for web services  
+- **Browser integration**: Direct browser access to remote services
+- **Multi-cluster**: Single agent handles services across all clusters
+- **Zero-configuration security**: Closed network model prevents attacks
+- **Enterprise-grade**: Multi-tenant with hierarchical access control
+
+### **Implementation Priority:**
+1. **Restructure CLI**: Promote SSH commands to top-level
+2. **Update identity management**: Replace keygen with identity commands
+3. **Implement P2P protocols**: Config distribution and service forwarding
+4. **Complete service mesh**: TCP + HTTP forwarding with identity injection
+
+The design is now complete and captures the full vision of malai as a secure infrastructure platform.
