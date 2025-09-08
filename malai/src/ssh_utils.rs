@@ -205,6 +205,197 @@ pub async fn init_machine() -> Result<()> {
     Ok(())
 }
 
+/// Execute SSH command on remote machine
+pub async fn execute_ssh_command(machine_address: &str, command: &str, args: Vec<String>) -> Result<()> {
+    println!("🧪 Executing SSH command...");
+    println!("📍 Target: {}", machine_address);
+    println!("💻 Command: {} {:?}", command, args);
+    
+    let malai_home = get_malai_home();
+    
+    // Check if we have local identity
+    let identity_file = malai_home.join("keys").join("identity.key");
+    if !identity_file.exists() {
+        println!("❌ No machine identity found");
+        println!("💡 Run 'malai ssh init' to initialize this machine");
+        return Ok(());
+    }
+    
+    // Check if we have cluster config
+    let config_path = malai_home.join("ssh").join("cluster-config.toml");
+    if !config_path.exists() {
+        println!("❌ No cluster configuration found");
+        println!("💡 Options:");
+        println!("   - Initialize cluster: malai ssh init-cluster");
+        println!("   - Wait for config from cluster manager");
+        return Ok(());
+    }
+    
+    // Parse target machine from address
+    let target_machine = parse_machine_address(machine_address)?;
+    println!("🎯 Parsed target: {}", target_machine);
+    
+    // Check permissions and resolve command
+    let resolved_command = resolve_command_permissions(&malai_home, &target_machine, command).await?;
+    
+    match resolved_command {
+        Some(actual_command) => {
+            println!("✅ Permission granted");
+            println!("🔧 Resolved command: {}", actual_command);
+            
+            // TODO: Execute via P2P communication
+            // For now, show what would be executed
+            println!("📡 Would execute via P2P: '{}'", actual_command);
+            println!("🎯 Target machine: {}", target_machine);
+            
+            // Simulate successful execution for now
+            println!("✅ SSH command executed successfully (simulated)");
+        }
+        None => {
+            println!("❌ Permission denied");
+            println!("💡 Contact cluster administrator to add access permissions");
+        }
+    }
+    
+    Ok(())
+}
+
+/// Parse machine address (web01.cluster-name, web01.cluster-id52, etc.)
+fn parse_machine_address(address: &str) -> Result<String> {
+    if let Some(machine_part) = address.split('.').next() {
+        Ok(machine_part.to_string())
+    } else {
+        Ok(address.to_string())
+    }
+}
+
+/// Check permissions and resolve command aliases
+async fn resolve_command_permissions(malai_home: &PathBuf, target_machine: &str, command: &str) -> Result<Option<String>> {
+    let config_path = malai_home.join("ssh").join("cluster-config.toml");
+    let config_content = std::fs::read_to_string(&config_path)?;
+    
+    // Get local identity
+    let identity_file = malai_home.join("keys").join("identity.key");
+    let secret_key_hex = std::fs::read_to_string(&identity_file)?;
+    let secret_key = kulfi_id52::SecretKey::from_str(secret_key_hex.trim())?;
+    let local_id52 = secret_key.id52();
+    
+    println!("🔍 Checking permissions...");
+    println!("   Client ID: {}", local_id52);
+    println!("   Target machine: {}", target_machine);
+    println!("   Command: {}", command);
+    
+    // Look for command alias first
+    let command_alias_section = format!("[machine.{}.command.{}]", target_machine, command);
+    if let Some(alias_section_start) = config_content.find(&command_alias_section) {
+        println!("🔍 Found command alias section: {}", command_alias_section);
+        
+        // Extract the alias section content
+        let remaining = &config_content[alias_section_start..];
+        let alias_section = remaining.split("[").next().unwrap_or("");
+        
+        // Check allow_from for this specific command
+        if let Some(allow_line) = alias_section.lines().find(|l| l.trim().starts_with("allow_from")) {
+            let allowed = allow_line.split('=').nth(1).unwrap_or("").trim().trim_matches('"');
+            if check_access_permission(&config_content, &local_id52, allowed) {
+                // Get the actual command to execute
+                if let Some(command_line) = alias_section.lines().find(|l| l.trim().starts_with("command")) {
+                    let actual_command = command_line.split('=').nth(1).unwrap_or("").trim().trim_matches('"');
+                    return Ok(Some(actual_command.to_string()));
+                } else {
+                    // No command specified, use alias name
+                    return Ok(Some(command.to_string()));
+                }
+            } else {
+                println!("❌ Access denied for command alias: {}", command);
+                return Ok(None);
+            }
+        }
+    }
+    
+    // Check general machine access
+    let machine_section = format!("[machine.{}]", target_machine);
+    println!("🔍 Looking for section: {}", machine_section);
+    if let Some(machine_section_start) = config_content.find(&machine_section) {
+        println!("✅ Found machine section at position {}", machine_section_start);
+        let remaining = &config_content[machine_section_start..];
+        let machine_section = remaining.split("[").next().unwrap_or("");
+        
+        if let Some(allow_line) = machine_section.lines().find(|l| l.trim().starts_with("allow_from")) {
+            let allowed = allow_line.split('=').nth(1).unwrap_or("").trim().trim_matches('"');
+            if check_access_permission(&config_content, &local_id52, allowed) {
+                println!("✅ General machine access granted");
+                return Ok(Some(command.to_string())); // Use command as-is
+            } else {
+                println!("❌ General machine access denied");
+                return Ok(None);
+            }
+        }
+    }
+    
+    println!("❌ Target machine '{}' not found in cluster config", target_machine);
+    Ok(None)
+}
+
+/// Check if local machine has access based on allow_from field
+fn check_access_permission(config_content: &str, local_id52: &str, allow_from: &str) -> bool {
+    println!("🔍 Checking access: local_id52={}, allow_from='{}'", local_id52, allow_from);
+    
+    // Handle wildcard
+    if allow_from == "*" {
+        println!("✅ Wildcard access granted");
+        return true;
+    }
+    
+    // Split allow_from and check each entry
+    for entry in allow_from.split(',') {
+        let entry = entry.trim();
+        
+        // Direct ID match
+        if entry == local_id52 {
+            println!("✅ Direct ID match: {}", entry);
+            return true;
+        }
+        
+        // Group match (TODO: implement group expansion)
+        if expand_group_membership(config_content, entry, local_id52) {
+            println!("✅ Group membership match: {}", entry);
+            return true;
+        }
+    }
+    
+    println!("❌ No access permission found");
+    false
+}
+
+/// Check if local machine is member of group (recursive)
+fn expand_group_membership(config_content: &str, group_name: &str, local_id52: &str) -> bool {
+    let group_section = format!("[group.{}]", group_name);
+    if let Some(group_start) = config_content.find(&group_section) {
+        let remaining = &config_content[group_start..];
+        let group_section = remaining.split("[").next().unwrap_or("");
+        
+        if let Some(members_line) = group_section.lines().find(|l| l.trim().starts_with("members")) {
+            let members = members_line.split('=').nth(1).unwrap_or("").trim().trim_matches('"');
+            
+            for member in members.split(',') {
+                let member = member.trim();
+                
+                // Direct ID match
+                if member == local_id52 {
+                    return true;
+                }
+                
+                // Recursive group check
+                if expand_group_membership(config_content, member, local_id52) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
 /// Start SSH agent with role detection
 pub async fn start_ssh_agent(environment: bool, lockdown: bool, http: bool) -> Result<()> {
     let malai_home = get_malai_home();
