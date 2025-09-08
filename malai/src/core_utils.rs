@@ -30,10 +30,10 @@ pub async fn init_cluster(cluster_name: String) -> Result<()> {
     println!("🏗️  Creating SSH cluster...");
     
     let malai_home = get_malai_home();
-    let ssh_dir = malai_home.clone();
+    let cluster_dir = malai_home.join("clusters").join(&cluster_name);
     
-    // Ensure SSH directory exists
-    std::fs::create_dir_all(&ssh_dir)?;
+    // Ensure cluster directory exists
+    std::fs::create_dir_all(&cluster_dir)?;
     
     // Generate or read existing cluster manager identity
     let identity_dir = malai_home.join("keys");
@@ -95,7 +95,7 @@ use_keyring = true
         cluster_name
     );
     
-    let config_path = ssh_dir.join("cluster-config.toml");
+    let config_path = cluster_dir.join("cluster-config.toml");
     std::fs::write(&config_path, cluster_config)?;
     
     println!("✅ Cluster configuration created at: {}", config_path.display());
