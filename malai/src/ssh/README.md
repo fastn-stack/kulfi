@@ -90,6 +90,7 @@ Machines can expose HTTP services through the malai network:
 # Cluster manager configuration
 [cluster-manager]
 id52 = "cluster-manager-id52-here"
+cluster_name = "company.example.com"
 
 # Machine definitions
 [machine.web01]
@@ -333,29 +334,27 @@ malai ssh web01.company.com
 malai ssh web01.cluster-id52 "systemctl status nginx"
 ```
 
-### Multi-Cluster Support
-- Each device can participate in multiple clusters
-- Separate id52 keypair for each cluster
-- Automatic cluster detection from server address
-- Configuration stored per cluster in `DATADIR[malai]/ssh/clusters/<cluster-alias>/`
+### Single Cluster Per MALAI_HOME
+- Each MALAI_HOME directory represents one machine in one cluster
+- Multi-cluster support via multiple MALAI_HOME environments
+- Clear separation: one cluster identity per MALAI_HOME instance
+- No complex multi-cluster management needed
 
-### Cluster Directory Structure
-```
-DATADIR[malai]/ssh/clusters/<cluster-alias>/
-├── cluster-config.toml    # Local cluster configuration
-├── keypair.key           # This device's private key for this cluster
-├── known-hosts          # Verified server public keys
-└── logs/                # Connection and sync logs
-```
+### Cluster Registration Security
+- Machines store verified cluster manager ID52 in `cluster-info.toml`
+- All config updates must come from verified cluster manager
+- DNS TXT record integration for automatic cluster manager discovery
+- Cryptographic proof required for cluster manager verification
 
 ## Command Reference
 
 ### Cluster Manager Commands
 ```bash
 # Initialize a new cluster (generates cluster manager identity)
-malai ssh cluster init [--alias company-cluster]
+malai ssh cluster init <cluster-name>
+# Example: malai ssh cluster init company.example.com
 # Outputs: "Cluster created with ID: <cluster-manager-id52>"
-# Creates: $MALAI_HOME/ssh/cluster-config.toml with this machine as cluster manager
+# Creates: $MALAI_HOME/ssh/cluster-config.toml with cluster manager config
 
 # Start cluster manager (config distribution and coordination)
 malai ssh cluster start
@@ -365,16 +364,18 @@ malai ssh cluster start
 
 ### Machine Commands  
 ```bash
-# Initialize machine for SSH (generates identity only, NO config)
-malai ssh machine init
+# Initialize machine for SSH cluster (contacts cluster manager)
+malai ssh machine init <cluster-name-or-manager-id52>
+# Example: malai ssh machine init company.example.com
 # Outputs: "Machine created with ID: <machine-id52>"
-# Creates: $MALAI_HOME/keys/identity.key (identity only)
-# Machine will receive config from cluster manager via P2P sync
+# Creates: $MALAI_HOME/keys/identity.key (machine identity)
+# Creates: $MALAI_HOME/ssh/cluster-info.toml (cluster manager verification)
+# Contacts cluster manager to register and verify cluster manager ID52
 
 # Start SSH server daemon (accepts incoming SSH connections)
 malai ssh machine start
 # Listens for P2P SSH requests, executes authorized commands
-# Requires config from cluster manager first (will panic without it)
+# Requires valid config from verified cluster manager (panics without it)
 # Environment: malai ssh machine start -e
 ```
 
@@ -392,16 +393,21 @@ malai ssh cluster-info
 # Shows: role (cluster-manager/machine/unknown), cluster ID, machine alias
 ```
 
-### Client Commands
+### SSH Execution Commands
 ```bash
-# Execute single command
-malai ssh <server-address> <command>
+# Execute command on remote machine (natural SSH syntax)
+malai ssh <machine-address> <command>
+# Examples:
+malai ssh web01.company.example.com "systemctl status nginx"
+malai ssh web01.cluster-id52 "ps aux"
 
-# Interactive session
-malai ssh <server-address>
+# Interactive shell session
+malai ssh <machine-address>
+# Example: malai ssh web01.company.example.com
 
-# With explicit cluster
-malai ssh --cluster company.com web01 "uptime"
+# Alternative explicit syntax
+malai ssh exec web01.company.example.com "uptime"
+malai ssh shell web01.company.example.com
 ```
 
 ### Agent Commands
@@ -530,15 +536,27 @@ $MALAI_HOME/
 │   ├── cluster-config.toml      # Cluster configuration
 │   │                           # • Cluster manager: manually edited by admin
 │   │                           # • Other machines: auto-synced from cluster manager
-│   ├── agent.sock              # Agent communication socket
-│   └── agent.lock              # Lockfile to prevent multiple agents
+│   ├── cluster-info.toml       # Machine's cluster registration (machines only)
+│   │                           # • Contains verified cluster manager ID52
+│   │                           # • Used to authenticate config updates
+│   ├── agent.sock              # Client agent communication socket (optional)
+│   ├── machine.sock            # SSH daemon socket (machines only)
+│   ├── cluster.sock            # Cluster manager socket (cluster manager only)
+│   ├── agent.lock              # Client agent lockfile
+│   ├── machine.lock            # SSH daemon lockfile  
+│   └── cluster.lock            # Cluster manager lockfile
 └── keys/
-    └── identity.key            # This machine's identity
+    └── identity.key            # This machine's identity (all machines)
 
 # Logs stored in standard system log directories:
 # - Linux/macOS: ~/.local/state/malai/ssh/logs/
 # - Windows: %LOCALAPPDATA%/malai/ssh/logs/
 ```
+
+**File Security:**
+- `identity.key`: Machine's private key (0600 permissions)
+- `cluster-info.toml`: Verified cluster manager ID52 (read-only after creation)
+- `cluster-config.toml`: Signed by cluster manager (signature verification required)
 
 **Agent Lockfile:**
 - `$MALAI_HOME/ssh/agent.lock` prevents multiple agents with same MALAI_HOME
@@ -815,12 +833,12 @@ malai ssh agent start &  # Optional: connection pooling
 **Daily usage:**
 ```bash
 # Direct SSH commands (natural syntax):
-malai ssh home-server htop
-malai ssh home-server "docker ps"
-malai ssh home-server "sudo systemctl restart nginx"
+malai ssh home-server.personal.local htop
+malai ssh home-server.personal.local "docker ps"
+malai ssh home-server.personal.local "sudo systemctl restart nginx"
 
 # HTTP services:
-curl admin.home-server.personal/api
+curl admin.home-server.personal.local/api
 ```
 
 ### Example 2: Fastn Cloud Cluster
@@ -1057,3 +1075,117 @@ jobs:
 6. **Comprehensive** - tests real P2P communication over fastn network
 
 The MALAI_HOME approach gives us everything we need for robust end-to-end testing!
+
+## Security Model
+
+### **Threat Model and Mitigations**
+
+#### **1. Identity and Authentication**
+- **Machine Identity**: Each machine has unique ID52 (equivalent to SSH public key)
+- **Cluster Manager Authentication**: Machines verify config sender against stored cluster manager ID52
+- **P2P Transport Security**: fastn-p2p provides encrypted communication channels
+
+#### **2. Configuration Security**  
+- **Config Authenticity**: Machines only accept config from verified cluster manager
+- **Config Integrity**: TODO: Implement cryptographic signatures on config distribution
+- **Machine Verification**: Machines only process config sections containing their own ID52
+
+#### **3. Command Execution Security**
+- **Permission Enforcement**: Multi-level access control (machine → command → group)
+- **Command Validation**: TODO: Implement shell injection protection
+- **User Context**: Commands run as specified username with proper privilege separation
+
+#### **4. Access Control**
+- **Hierarchical Groups**: Recursive group expansion with loop detection
+- **Principle of Least Privilege**: Granular permissions per command/service
+- **Shell vs Command Access**: Separate permissions for interactive shells vs command execution
+
+### **Security Vulnerabilities TO FIX:**
+
+**CRITICAL:**
+- [ ] **Config signing**: Cryptographically sign config distributions  
+- [ ] **Session authentication**: Per-request authentication validation
+- [ ] **Command injection protection**: Safe command parsing and execution
+- [ ] **Cluster manager verification**: DNS TXT record + cryptographic proof
+
+**HIGH:**
+- [ ] **Username validation**: Prevent privilege escalation via username field
+- [ ] **Group loop detection**: Prevent infinite recursion in group expansion
+- [ ] **Config content validation**: Validate config structure before processing
+- [ ] **Replay attack protection**: Nonce/timestamp system for requests
+
+**MEDIUM:**
+- [ ] **Rate limiting**: Prevent SSH command flooding attacks
+- [ ] **Audit logging**: Security event logging for compliance
+- [ ] **Session timeouts**: Automatic session expiration
+- [ ] **Failed authentication handling**: Lockout after failed attempts
+
+### **Security Implementation Status:**
+- 🔴 **NOT PRODUCTION READY**: Critical vulnerabilities must be fixed
+- ⚠️ **Development only**: Current implementation lacks essential security
+- 🎯 **Target**: Match OpenSSH security standards before production use
+
+## Required Security Implementation
+
+### **1. Cryptographic Config Signing**
+```rust
+// Cluster manager signs config before distribution
+let config_signature = cluster_manager_secret.sign(config_content);
+let signed_config = SignedConfig { 
+    content: config_content,
+    signature: config_signature,
+    signer_id52: cluster_manager_id52,
+};
+
+// Machine verifies signature before accepting config
+if !cluster_manager_public_key.verify(&config.content, &config.signature) {
+    panic!("SECURITY: Invalid config signature - possible attack");
+}
+```
+
+### **2. Secure Machine Registration**
+```rust
+// Machine proves identity when registering
+let registration_proof = machine_secret.sign(format!("register:{}", cluster_name));
+let registration = MachineRegistration {
+    machine_id52: machine_id52,
+    cluster_name: cluster_name, 
+    proof: registration_proof,
+};
+
+// Cluster manager verifies machine identity before adding to config
+if !machine_public_key.verify(&proof_message, &registration.proof) {
+    reject_registration("Invalid identity proof");
+}
+```
+
+### **3. Per-Request Authentication**
+```rust
+// Each SSH request includes authentication proof
+let request_auth = RequestAuth {
+    timestamp: current_timestamp(),
+    nonce: generate_nonce(),
+    request_hash: hash(request),
+};
+let auth_signature = client_secret.sign(&request_auth);
+
+// Server validates each request
+if !is_recent(auth.timestamp) || used_nonce(auth.nonce) {
+    reject_request("Replay attack detected");
+}
+```
+
+### **4. Command Injection Prevention**
+```rust
+// Safe command execution with shell escaping
+let safe_args: Vec<String> = args.iter()
+    .map(|arg| shell_escape(arg))
+    .collect();
+
+// No shell interpretation - direct process execution only
+let output = Command::new(&validated_command)
+    .args(&safe_args)  // No shell meta-characters processed
+    .spawn()?;
+```
+
+This security model ensures malai SSH meets enterprise security standards.
