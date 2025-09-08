@@ -129,8 +129,8 @@ async fn main() -> eyre::Result<()> {
                 }
             }
         }
-        Some(Command::Daemon { environment }) => {
-            malai::start_unified_malai(environment).await?;
+        Some(Command::Daemon { environment, foreground }) => {
+            malai::start_malai_daemon(environment, foreground).await?;
             return Ok(());
         }
         Some(Command::Info) => {
@@ -389,6 +389,11 @@ pub enum Command {
             help = "Print environment variables for shell integration"
         )]
         environment: bool,
+        #[arg(
+            long,
+            help = "Run in foreground (don't daemonize - for systemd/supervisor)"
+        )]
+        foreground: bool,
     },
     #[clap(about = "Show cluster information for this machine")]
     Info,
