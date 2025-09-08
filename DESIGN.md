@@ -73,10 +73,13 @@ malai consists of three distinct services that can run independently:
 ### 1. Cluster Manager
 - **Purpose**: Configuration management and cluster coordination  
 - **Auto-started by**: `malai start` on cluster manager machines
+- **Can run on**: Servers, laptops, **or mobile devices** (iOS/Android app)
+- **Operational model**: **Does NOT need to be online 24/7** - only needed for config updates
 - **Functions**:
   - Monitors `cluster-config.toml` for admin changes
-  - Distributes config updates to all cluster machines via P2P
-  - Coordinates cluster membership and permissions
+  - Distributes config updates to all cluster machines via P2P when online
+  - Coordinates cluster membership and permissions during config changes
+- **Mobile benefits**: Manage infrastructure from phone, sync when convenient
 
 ### 2. Remote Access Daemon  
 - **Purpose**: Accept and execute incoming remote commands
@@ -101,6 +104,65 @@ malai consists of three distinct services that can run independently:
 - **TCP services**: `mysql -h localhost:3306` → agent forwards via P2P
 - **HTTP services**: `http://admin.localhost` → agent routes via subdomain
 - **Unified operation**: Single `malai start` auto-detects and runs all applicable services
+
+## Mobile Cluster Manager
+
+### **Mobile Infrastructure Management:**
+The cluster manager can run on mobile devices (iOS/Android), enabling infrastructure management from anywhere:
+
+#### **Mobile App Architecture:**
+- **Terminal + Networking**: Single app provides both terminal interface and malai networking
+- **Background execution**: App stays active when providing terminal interface
+- **P2P networking**: Full fastn-p2p support for config distribution
+- **iOS/Android native**: Platform-specific apps with terminal emulation
+
+#### **Operational Model - CM Offline Tolerance:**
+- **Config distribution only**: Cluster manager only needed when updating configuration
+- **Machine-to-machine direct**: Operational SSH/services work without cluster manager
+- **Cached configs**: Machines operate independently with last synced configuration
+- **Sync when convenient**: Mobile CM comes online, syncs config changes, goes offline
+
+#### **Mobile Use Cases:**
+```bash
+# On mobile (cluster manager):
+malai cluster init company          # Initialize company infrastructure cluster
+# Edit config in mobile app to add servers
+malai start                         # Distribute config to all servers
+
+# Daily server management from mobile:
+malai web01.company systemctl status nginx
+malai db01.company backup
+malai web01.company deploy latest
+
+# Infrastructure monitoring via mobile:
+open http://grafana.company.localhost  # Mobile browser → remote Grafana
+open http://logs.company.localhost     # Mobile browser → log analysis
+```
+
+#### **Reliability Benefits:**
+- **Decentralized operations**: Servers continue operating when mobile CM offline
+- **Admin flexibility**: Manage infrastructure from anywhere with mobile device
+- **No single point of failure**: CM offline doesn't break machine-to-machine communication
+- **Sync-when-ready**: Config changes applied when convenient, not immediately required
+
+### **Mobile App Requirements:**
+#### **Terminal Integration:**
+- **Combined app**: Terminal emulator + malai networking in single iOS/Android app
+- **Background persistence**: App stays active when terminal interface is active
+- **Avoids backgrounding**: Prevents iOS/Android from killing networking services
+- **Native platform support**: iOS and Android specific implementations
+
+#### **Operational Advantages:**
+- **Always-available terminal**: Mobile terminal ensures malai commands always work
+- **No background restrictions**: App doesn't need kernel drivers or special permissions
+- **Infrastructure on-the-go**: Manage servers from anywhere with mobile connectivity
+- **Emergency management**: Critical infrastructure fixes possible from mobile device
+
+#### **Implementation Considerations:**
+- **Platform-specific builds**: iOS app store and Android app distributions
+- **Terminal emulation**: Full bash/shell support within mobile app
+- **P2P networking**: Complete fastn-p2p implementation for mobile platforms
+- **Config editing**: Mobile-friendly UI for cluster configuration management
 
 ## Addressing and Aliases
 
@@ -1548,7 +1610,7 @@ public_services = ["api"]               # These services don't get identity head
 4. **Unified start**: `malai start` (starts cluster manager + SSH daemons + agent)
 5. **Cross-cluster access**: `malai web01.ft systemctl status nginx`
 
-### **Revolutionary Capabilities:**
+### ** Capabilities:**
 - **Identity-aware service mesh**: HTTP services receive client identity automatically
 - **Protocol-agnostic**: TCP for databases, HTTP for web services  
 - **Browser integration**: Direct browser access to remote services

@@ -29,8 +29,8 @@ mod http_proxy;
 mod http_proxy_remote;
 mod keygen;
 mod run;
-// mod ssh;  // Keep disabled - using simpler P2P approach in ssh_utils
-mod ssh_utils;  // Simple SSH utilities for CLI commands
+mod core;  // Core malai functionality (formerly SSH)
+mod core_utils;  // Core malai utilities
 mod tcp_bridge;
 
 pub use browse::browse;
@@ -42,7 +42,7 @@ pub use http_proxy::{ProxyData, http_proxy};
 pub use http_proxy_remote::http_proxy_remote;
 pub use keygen::keygen;
 pub use run::run;
-pub use ssh_utils::{create_cluster, execute_ssh_command, init_cluster, init_machine_for_cluster, show_cluster_info, start_ssh_agent, start_ssh_cluster};
+pub use core_utils::{create_cluster, execute_ssh_command, init_cluster, init_machine_for_cluster, show_cluster_info, start_ssh_agent, start_ssh_cluster};
 pub use tcp_bridge::tcp_bridge;
 
 #[cfg(feature = "ui")]

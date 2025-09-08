@@ -349,88 +349,105 @@ pub enum Command {
         )]
         file: Option<String>,
     },
-    #[clap(about = "SSH functionality for secure P2P remote access")]
-    Ssh {
-        #[command(subcommand)]
-        ssh_command: SshCommand,
-    },
-}
-
-#[derive(clap::Subcommand, Debug)]
-pub enum SshCommand {
+    // Core malai commands (promoted from SSH):
     #[clap(about = "Cluster manager commands")]
     Cluster {
         #[command(subcommand)]
         cluster_command: ClusterCommand,
     },
-    #[clap(about = "Machine agent commands")]
-    Agent {
+    #[clap(about = "Machine commands")]
+    Machine {
         #[command(subcommand)]
-        agent_command: AgentCommand,
+        machine_command: MachineCommand,
+    },
+    #[clap(about = "Start all malai services (cluster manager + SSH daemon + service proxy)")]
+    Start {
+        #[arg(
+            long,
+            short = 'e',
+            help = "Print environment variables for shell integration"
+        )]
+        environment: bool,
     },
     #[clap(about = "Show cluster information for this machine")]
-    ClusterInfo,
-    #[clap(about = "Execute command on remote machine", name = "exec")]
-    Execute {
-        #[arg(help = "Machine address (e.g., web01.company.com, web01.cluster-id52)")]
-        machine: String,
-        #[arg(help = "Command to execute")]
-        command: String,
-        #[arg(help = "Command arguments")]
-        args: Vec<String>,
+    Info,
+    #[clap(about = "Service management commands")]
+    Service {
+        #[command(subcommand)]
+        service_command: ServiceCommand,
+    },
+    #[clap(about = "Identity management commands")]
+    Identity {
+        #[command(subcommand)]
+        identity_command: IdentityCommand,
     },
     #[clap(external_subcommand)]
     External(Vec<String>),
-    #[clap(about = "Start interactive shell session on remote machine")]
-    Shell {
-        #[arg(help = "Machine address (e.g., web01.company.com, web01.cluster-id52)")]
-        machine: String,
-    },
-    #[clap(about = "Access HTTP service through malai network")]
-    Curl {
-        #[arg(help = "Service URL (e.g., admin.web01.company.com/api)")]
-        url: String,
-        #[arg(help = "Additional curl arguments")]
-        curl_args: Vec<String>,
-    },
 }
 
 #[derive(clap::Subcommand, Debug)]
 pub enum ClusterCommand {
-    #[clap(about = "Initialize a new cluster (generates cluster manager identity)")]
+    #[clap(about = "Initialize a new cluster")]
     Init {
-        #[arg(help = "Cluster name (domain-like: company.example.com or personal.local)")]
+        #[arg(help = "Cluster name")]
         cluster_name: String,
-    },
-    #[clap(about = "Start cluster manager (config distribution and coordination)")]
-    Start {
-        #[arg(
-            long,
-            short = 'e',
-            help = "Print environment variables for shell integration"
-        )]
-        environment: bool,
     },
 }
 
 #[derive(clap::Subcommand, Debug)]
-pub enum AgentCommand {
-    #[clap(about = "Initialize machine for SSH (generates identity)")]
+pub enum MachineCommand {
+    #[clap(about = "Initialize machine for cluster")]
     Init {
-        #[arg(help = "Cluster to join (domain name or cluster-manager-id52)")]
-        cluster: String,
-    },
-    #[clap(about = "Start machine agent (connection management and HTTP proxy)")]
-    Start {
-        #[arg(
-            long,
-            short = 'e',
-            help = "Print environment variables for shell integration"
-        )]
-        environment: bool,
-        #[arg(long, help = "Enable lockdown mode (keys only accessible to agent)")]
-        lockdown: bool,
-        #[arg(long, help = "Enable HTTP proxy functionality", default_value = "true")]
-        http: bool,
+        #[arg(help = "Cluster manager ID52 or domain name")]
+        cluster_manager: String,
+        #[arg(help = "Local alias for cluster")]
+        cluster_alias: String,
     },
 }
+
+#[derive(clap::Subcommand, Debug)]
+pub enum ServiceCommand {
+    #[clap(about = "Add service configuration")]
+    Add {
+        #[arg(help = "Service type: ssh, tcp, or http")]
+        service_type: String,
+        #[arg(help = "Service name")]
+        name: String,
+        #[arg(help = "Service target")]
+        target: String,
+    },
+    #[clap(about = "Remove service configuration")]
+    Remove {
+        #[arg(help = "Service name")]
+        name: String,
+    },
+    #[clap(about = "List all configured services")]
+    List,
+}
+
+#[derive(clap::Subcommand, Debug)]
+pub enum IdentityCommand {
+    #[clap(about = "Create new identity")]
+    Create {
+        #[arg(help = "Identity name (optional)")]
+        name: Option<String>,
+    },
+    #[clap(about = "List all identities")]
+    List,
+    #[clap(about = "Export identity")]
+    Export {
+        #[arg(help = "Identity name")]
+        name: String,
+    },
+    #[clap(about = "Import identity")]
+    Import {
+        #[arg(help = "Identity file path")]
+        file: String,
+    },
+    #[clap(about = "Delete identity")]
+    Delete {
+        #[arg(help = "Identity name")]
+        name: String,
+    },
+}
+
