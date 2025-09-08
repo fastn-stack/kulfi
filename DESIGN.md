@@ -986,32 +986,50 @@ Self-daemonizing process that provides all infrastructure services:
 - **Graceful shutdown**: Use fastn-p2p graceful shutdown pattern for clean service termination
 - **Service cleanup**: Allow current requests to complete before shutdown (configurable timeout)
 
-#### **Daemon Responsibilities:**
-1. **Initial scan**: Load all cluster configs and machine configs from MALAI_HOME
-2. **Multi-role operation**: Runs cluster managers + SSH daemon + service proxy as needed
-3. **CLI communication**: Provides Unix socket for CLI commands (connection pooling)
-4. **Config management**: Responds to `malai rescan` for atomic config reloading
-5. **Service orchestration**: Coordinates all P2P services in single process
+#### **Daemon Startup Process (REQUIRED):**
+1. **Config validation**: Load and validate ALL configs before daemonizing
+2. **Fail fast**: Exit immediately if any config has syntax errors or invalid references  
+3. **Atomic validation**: Either all configs are valid or daemon refuses to start
+4. **Only then daemonize**: Self-daemonize only after successful config validation
+5. **Start services**: Begin cluster managers + SSH daemon + service proxy
 
-#### **Graceful Shutdown Implementation:**
+#### **Config Validation Requirements:**
+- **TOML syntax**: All .toml files must parse correctly
+- **Reference validation**: All machine IDs, group references must be valid
+- **Permission consistency**: No circular group references or invalid permissions
+- **Identity verification**: All identity.key files must be valid and accessible
+- **Startup failure**: Log specific config errors and exit with non-zero status
+
+#### **Daemon Responsibilities (After Validation):**
+1. **Multi-role operation**: Runs cluster managers + SSH daemon + service proxy as needed
+2. **CLI communication**: Provides Unix socket for CLI commands (connection pooling)  
+3. **Config management**: Responds to `malai rescan` for atomic config reloading
+4. **Service orchestration**: Coordinates all P2P services in single process
+
+#### **Implementation Sequence:**
 ```rust
-// Follow fastn-rig pattern:
+// 1. Acquire exclusive lock first
 let lock_file = std::fs::OpenOptions::new()
     .create(true)
-    .write(true)
+    .write(true) 
     .open(&lock_path)?;
-
-// Acquire exclusive lock
 lock_file.try_lock().map_err(|_| "Another daemon running")?;
-let _lock_guard = lock_file; // Hold lock for daemon lifetime
+let _lock_guard = lock_file;
 
-// Start all services using fastn-p2p::spawn()
-fastn_p2p::spawn(async move { /* cluster manager */ });
-fastn_p2p::spawn(async move { /* SSH daemon */ });
-fastn_p2p::spawn(async move { /* service proxy */ });
+// 2. Load and validate ALL configs (MUST succeed before daemonizing)
+let validated_configs = load_and_validate_all_configs(&malai_home)?;
+// Exit immediately if any config invalid
 
-// Wait for graceful shutdown (handles Ctrl+C)
-fastn_p2p::globals::graceful().shutdown().await?;
+// 3. Only then daemonize (if not --foreground)
+if !foreground {
+    daemonize()?; // Fork to background
+}
+
+// 4. Start services using validated configs
+start_services_from_configs(validated_configs);
+
+// 5. Wait for graceful shutdown
+fastn_p2p::cancelled().await;
 ```
 
 ### **Service Integration in Single Process:**
