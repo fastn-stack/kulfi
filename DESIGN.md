@@ -1,19 +1,19 @@
-# `malai ssh`
+# malai: Technical Design
 
-`malai ssh` provides a secure, P2P SSH-like system for managing clusters of machines and services over the kulfi network.
+malai provides a secure, P2P infrastructure platform for managing clusters of machines and services over the fastn network.
 
 ## Overview
 
-The SSH functionality enables:
+malai enables:
 - Creating and managing machine clusters
 - Secure remote command execution
-- HTTP service proxying over P2P connections
+- Protocol-agnostic service proxying over P2P connections
 - Centralized configuration and access control
-- Agent-based connection management
+- Identity-aware service mesh capabilities
 
 ## Clusters
 
-`malai ssh` organizes machines into clusters. Each cluster has:
+malai organizes machines into clusters. Each cluster has:
 
 - **Cluster Manager**: A designated server that manages cluster configuration and coordinates member communication
 - **Unique Identity**: Each cluster is identified by the cluster manager's id52
@@ -29,12 +29,12 @@ When joining a cluster, you need to contact the cluster manager. Two methods:
 
 1. **Direct ID52**: Use cluster manager's full ID52 (always works)
    ```bash
-   malai ssh machine init abc123def456ghi789jkl012mno345pqr678stu901vwx234 ft
+   malai machine init abc123def456ghi789jkl012mno345pqr678stu901vwx234 ft
    ```
 
 2. **Domain Name**: Use domain with DNS TXT record (if configured)
    ```bash
-   malai ssh machine init fifthtry.com ft
+   malai machine init fifthtry.com ft
    # DNS lookup: TXT record for fifthtry.com contains cluster manager ID52
    ```
 
@@ -48,7 +48,7 @@ Every cluster gets a local alias chosen during `machine init`:
 
 #### **2. Global Machine Aliases (cross-cluster)**  
 Edit `$MALAI_HOME/ssh/aliases.toml` for ultra-short machine access:
-- **Super short**: `malai ssh web top` instead of `malai ssh web01.ft top`
+- **Super short**: `malai web top` instead of `malai web01.ft top`
 - **Cross-cluster**: Mix machines from different clusters with unified names
 - **Role-based**: `prod-web`, `staging-web`, `dev-web` for different environments
 - **Service-based**: `db-primary`, `db-replica`, `monitoring` for service roles
@@ -63,47 +63,44 @@ For domains with DNS access:
 ```bash
 # Set TXT record: fifthtry.com TXT "malai-ssh=abc123def456..."
 # Then machines can join via domain:
-malai ssh machine init fifthtry.com ft  # Resolves to cluster manager ID52
+malai machine init fifthtry.com ft  # Resolves to cluster manager ID52
 ```
 
-## SSH System Architecture
+## System Architecture
 
-The malai SSH system consists of three distinct services that can run independently:
+malai consists of three distinct services that can run independently:
 
-### 1. Cluster Manager (`malai ssh cluster start`)
-- **Purpose**: Configuration management and cluster coordination
-- **Runs on**: The machine that initialized the cluster
+### 1. Cluster Manager
+- **Purpose**: Configuration management and cluster coordination  
+- **Auto-started by**: `malai start` on cluster manager machines
 - **Functions**:
   - Monitors `cluster-config.toml` for admin changes
   - Distributes config updates to all cluster machines via P2P
   - Coordinates cluster membership and permissions
-- **Required**: One per cluster (on the init-cluster machine)
 
-### 2. SSH Server Daemon (`malai ssh machine start`)  
-- **Purpose**: Accept and execute incoming SSH commands
-- **Runs on**: Machines that should accept SSH connections
+### 2. Remote Access Daemon  
+- **Purpose**: Accept and execute incoming remote commands
+- **Auto-started by**: `malai start` on machines with `allow_from` permissions
 - **Functions**:
-  - Listens for P2P SSH requests from other cluster machines
-  - Executes authorized commands with proper user context
-  - Enforces permissions based on received cluster config
-- **Required**: On any machine that should accept SSH (servers, etc.)
+  - Listens for P2P requests from authorized cluster machines
+  - Executes commands with proper user context and permission validation
+  - Provides secure remote shell access
 
-### 3. Client Agent (`malai ssh start` - client role)
-- **Purpose**: Local service access via TCP forwarding and HTTP subdomain routing
-- **Runs on**: Any machine that needs to access remote services
+### 3. Service Proxy Agent
+- **Purpose**: Local TCP/HTTP forwarding for transparent service access
+- **Auto-started by**: `malai start` on all machines (always runs)
 - **Functions**:
-  - **TCP forwarding**: Listen on specific ports, forward to remote services via P2P
-  - **HTTP subdomain routing**: Listen on port 80/8080, route by subdomain to remote services
-  - **SSH connection pooling**: Reuse P2P connections for faster SSH commands
-  - **Automatic identity injection**: HTTP requests get client ID52 headers
-- **Configuration**: `$MALAI_HOME/ssh/services.toml` defines mappings and subdomain routing
+  - **TCP forwarding**: Listen on local ports, forward to remote services via P2P
+  - **HTTP subdomain routing**: Listen on port 80, route by `Host: subdomain.localhost`
+  - **Connection pooling**: Reuse P2P connections for performance
+  - **Identity injection**: Automatic client ID52 headers for HTTP services
+- **Configuration**: `$MALAI_HOME/ssh/services.toml`
 
-### Service Interaction
-- **SSH without agent**: `malai ssh web01 cmd` → creates fresh P2P connection → slower
-- **SSH with agent**: `malai ssh web01 cmd` → uses agent's pooled connection → faster
-- **TCP services**: **REQUIRE agent** for port forwarding (agent listens on specific ports)
-- **HTTP services**: **REQUIRE agent** for subdomain routing (agent listens on port 80/8080)
-- **Service access**: Applications connect to localhost, agent routes to remote services via P2P
+### Service Integration
+- **Remote commands**: `malai web01.company ps aux` → direct P2P execution
+- **TCP services**: `mysql -h localhost:3306` → agent forwards via P2P
+- **HTTP services**: `http://admin.localhost` → agent routes via subdomain
+- **Unified operation**: Single `malai start` auto-detects and runs all applicable services
 
 ## Addressing and Aliases
 
@@ -269,12 +266,12 @@ Commands can run as different users based on a hierarchy of username settings:
 **Username Resolution Order:**
 1. **Command-level**: `[machine.X.command.Y] username = "specific-user"`
 2. **Machine-level**: `[machine.X] username = "machine-user"`  
-3. **Agent default**: Same user that runs `malai ssh agent`
+3. **Agent default**: Same user that runs `malai start`
 
 **Examples:**
-- `malai ssh web01 restart-nginx` → runs as `nginx` user (command-level override)
-- `malai ssh web01 top` → runs as `webservice` user (machine-level default)  
-- `malai ssh database restart-db` → runs as `postgres` user (command-level override)
+- `malai web01 restart-nginx` → runs as `nginx` user (command-level override)
+- `malai web01 top` → runs as `webservice` user (machine-level default)  
+- `malai database restart-db` → runs as `postgres` user (command-level override)
 
 **Security Benefits:**
 - **Privilege separation**: Different commands can run as appropriate service users
@@ -381,19 +378,19 @@ command = tail -f /var/log/nginx/access.log
 ### **Command Execution Syntax:**
 ```bash
 # Direct commands (natural SSH-like syntax)
-malai ssh web01.cluster top
-malai ssh web01.cluster ps aux
+malai web01.cluster top
+malai web01.cluster ps aux
 
 # Command aliases (defined in config)
-malai ssh web01.cluster restart-nginx   # Executes: sudo systemctl restart nginx  
-malai ssh database.cluster restart-db   # Executes: sudo systemctl restart postgresql
+malai web01.cluster restart-nginx   # Executes: sudo systemctl restart nginx  
+malai database.cluster restart-db   # Executes: sudo systemctl restart postgresql
 
 # Interactive shell (requires allow_shell permission)
-malai ssh web01.cluster                 # Starts interactive shell session
+malai web01.cluster                 # Starts interactive shell session
 
 # Alternative explicit syntax also supported
-malai ssh exec web01.cluster "top"
-malai ssh shell web01.cluster
+malai exec web01.cluster "top"
+malai shell web01.cluster
 ```
 
 ### **Command Configuration:**
@@ -443,13 +440,13 @@ Each machine's agent automatically detects its role by:
 ### Basic SSH Command
 ```bash
 # Connect to a server and run a command
-malai ssh web01.company.com "ps aux"
+malai web01.company.com "ps aux"
 
 # Interactive SSH session
-malai ssh web01.company.com
+malai web01.company.com
 
 # Using ID-based addressing
-malai ssh web01.cluster-id52 systemctl status nginx
+malai web01.cluster-id52 systemctl status nginx
 ```
 
 ### Single Cluster Per MALAI_HOME
@@ -469,65 +466,65 @@ malai ssh web01.cluster-id52 systemctl status nginx
 ### Initialization Commands
 ```bash
 # Initialize a new cluster (generates cluster manager identity)
-malai ssh cluster init <cluster-alias>
-# Example: malai ssh cluster init company
+malai cluster init <cluster-alias>
+# Example: malai cluster init company
 # Creates: $MALAI_HOME/ssh/clusters/company/ with cluster manager config
 
 # Join existing cluster as machine (contacts cluster manager)
-malai ssh machine init <cluster-id52-or-domain> <local-alias>
+malai machine init <cluster-id52-or-domain> <local-alias>
 # Examples:
-malai ssh machine init abc123def456ghi789... company     # Using cluster manager ID52
-malai ssh machine init fifthtry.com ft                  # Using domain (if DNS configured)
+malai machine init abc123def456ghi789... company     # Using cluster manager ID52
+malai machine init fifthtry.com ft                  # Using domain (if DNS configured)
 # Creates: $MALAI_HOME/ssh/clusters/ft/ with machine config and registration
 ```
 
 ### Unified Service Management
 ```bash
 # Start all SSH services (auto-detects roles across all clusters)
-malai ssh start
+malai start
 # Scans $MALAI_HOME/ssh/clusters/ and starts:
 # - Cluster manager for clusters where this machine is manager
 # - SSH daemon for clusters where this machine accepts SSH
 # - Client agent for connection pooling across all clusters
-# Environment: malai ssh start -e
+# Environment: malai start -e
 
 # Show information for all clusters
-malai ssh info
+malai info
 # Shows role and status for each cluster this machine participates in
 
 # Local service management
-malai ssh service add ssh web web01.ft                    # Add SSH alias  
-malai ssh service add tcp mysql 3306 mysql.db01.ft:3306   # Add TCP forwarding
-malai ssh service add http admin admin.web01.ft           # Add HTTP subdomain route
-malai ssh service remove mysql                            # Remove service
-malai ssh service list                                    # List all configured services
+malai service add ssh web web01.ft                    # Add SSH alias  
+malai service add tcp mysql 3306 mysql.db01.ft:3306   # Add TCP forwarding
+malai service add http admin admin.web01.ft           # Add HTTP subdomain route
+malai service remove mysql                            # Remove service
+malai service list                                    # List all configured services
 ```
 
 ### SSH Execution Commands
 ```bash
 # Execute command on remote machine (natural SSH syntax)
-malai ssh <machine-address> <command>
+malai <machine-address> <command>
 # Examples:
-malai ssh web01.company systemctl status nginx
-malai ssh web01.cluster-id52 ps aux
+malai web01.company systemctl status nginx
+malai web01.cluster-id52 ps aux
 
 # Interactive shell session
-malai ssh <machine-address>
-# Example: malai ssh web01.company
+malai <machine-address>
+# Example: malai web01.company
 
 # Alternative explicit syntax
-malai ssh exec web01.company uptime
-malai ssh shell web01.company
+malai exec web01.company uptime
+malai shell web01.company
 ```
 
 ### Agent Commands
 ```bash
 # Start agent in background (handles all SSH functionality automatically)
 # Requires MALAI_HOME to be set or uses default location
-malai ssh agent
+malai start
 
 # Get environment setup commands for shell integration
-malai ssh agent -e
+malai start -e
 
 # Agent automatically:
 # - Uses MALAI_HOME for all data (config, identity, socket, lockfile)
@@ -589,7 +586,7 @@ wget api.web01.company.com/data.json
 ### Explicit HTTP Commands
 ```bash
 # Force HTTP access through malai network
-malai ssh curl admin.web01.company.com/api
+malai curl admin.web01.company.com/api
 
 # Equivalent to:
 # HTTP_PROXY=<agent-proxy> curl admin.web01.company.com/api
@@ -602,20 +599,20 @@ The agent outputs environment variables in `ENV=value` format for shell evaluati
 
 ```bash
 # Start agent and configure environment
-eval $(malai ssh agent -e)
+eval $(malai start -e)
 
 # With specific options
-eval $(malai ssh agent -e --lockdown --http)
+eval $(malai start -e --lockdown --http)
 
 # Disable HTTP proxy
-eval $(malai ssh agent -e --http=false)
+eval $(malai start -e --http=false)
 ```
 
 ### Persistent Setup
 Add to your shell profile (`.bashrc`, `.zshrc`, etc.):
 ```bash
-# Enable malai ssh agent on shell startup
-eval $(malai ssh agent -e)
+# Enable malai start on shell startup
+eval $(malai start -e)
 ```
 
 ### Environment Variables Set
@@ -636,7 +633,7 @@ The `MALAI_HOME` environment variable controls where malai stores its configurat
 ```bash
 export MALAI_HOME=/path/to/custom/malai/data
 # Create cluster or machine, then agent handles everything automatically
-eval $(malai ssh agent -e)  # Agent auto-detects role and starts appropriate services
+eval $(malai start -e)  # Agent auto-detects role and starts appropriate services
 ```
 
 **Multi-Cluster Directory Structure:**
@@ -681,10 +678,10 @@ machine_alias = "dev-laptop-001"                  # This machine's alias in clus
 ```toml
 # SSH aliases for convenient access across all clusters
 [ssh]
-web = "web01.ft"                    # malai ssh web top
-db = "db01.ft"                      # malai ssh db pg_stat_activity  
-home = "home-server.personal"       # malai ssh home htop
-monitoring = "grafana.ft"           # malai ssh monitoring restart
+web = "web01.ft"                    # malai web top
+db = "db01.ft"                      # malai db pg_stat_activity  
+home = "home-server.personal"       # malai home htop
+monitoring = "grafana.ft"           # malai monitoring restart
 
 # TCP port forwarding (agent listens on local ports, forwards via P2P)
 [tcp]
@@ -709,7 +706,7 @@ public_routes = ["api"]                      # These routes don't get identity h
 **Usage after agent starts:**
 ```bash
 # SSH with aliases:
-malai ssh web systemctl status nginx
+malai web systemctl status nginx
 
 # Direct TCP connections:
 mysql -h localhost:3306              # → mysql.db01.ft:3306 via P2P
@@ -770,15 +767,15 @@ mkdir -p /tmp/malai-test/{cluster1,cluster2,server1,server2,device1,device2}
 **2. Initialize Cluster (Terminal 1):**
 ```bash
 export MALAI_HOME=/tmp/malai-test/cluster1
-malai ssh init-cluster --alias test-cluster
+malai init-cluster --alias test-cluster
 # Outputs: "Cluster created with ID: abc123..."
-eval $(malai ssh agent -e)  # Start agent (automatically runs as cluster manager)
+eval $(malai start -e)  # Start agent (automatically runs as cluster manager)
 ```
 
 **3. Initialize Server Machine (Terminal 2):**
 ```bash
 export MALAI_HOME=/tmp/malai-test/server1
-malai ssh init  # Generate machine identity (NO config yet)
+malai init  # Generate machine identity (NO config yet)
 # Outputs: "Machine created with ID: def456..."
 ```
 
@@ -795,13 +792,13 @@ malai ssh init  # Generate machine identity (NO config yet)
 
 **5. Start Server Agent (Terminal 2):**
 ```bash
-eval $(malai ssh agent -e)  # Agent receives config and auto-detects SSH server role
+eval $(malai start -e)  # Agent receives config and auto-detects SSH server role
 ```
 
 **6. Create Client Machine (Terminal 3):**
 ```bash
 export MALAI_HOME=/tmp/malai-test/client1
-malai keygen  # Generate client identity
+malai identity create  # Generate client identity
 # Outputs: "Identity created with ID52: ghi789..."
 ```
 
@@ -815,8 +812,8 @@ malai keygen  # Generate client identity
 
 **8. Test SSH (Terminal 3):**
 ```bash
-eval $(malai ssh agent -e)  # Start agent (automatically runs as client)
-malai ssh web01.test-cluster "echo 'Hello from remote server!'"
+eval $(malai start -e)  # Start agent (automatically runs as client)
+malai web01.test-cluster "echo 'Hello from remote server!'"
 ```
 
 **5. Test HTTP Service Access:**
@@ -835,23 +832,23 @@ Test cross-cluster scenarios by setting up multiple independent clusters:
 **Company Cluster:**
 ```bash
 export MALAI_HOME=/tmp/malai-test/company-cluster
-malai ssh init-cluster --alias company-cluster
-eval $(malai ssh agent -e)  # Runs as cluster manager automatically
+malai init-cluster --alias company-cluster
+eval $(malai start -e)  # Runs as cluster manager automatically
 ```
 
 **Test Cluster:**
 ```bash
 export MALAI_HOME=/tmp/malai-test/test-cluster
-malai ssh init-cluster --alias test-cluster
-eval $(malai ssh agent -e)  # Runs as different cluster manager
+malai init-cluster --alias test-cluster
+eval $(malai start -e)  # Runs as different cluster manager
 ```
 
 **Client with Access to Both:**
 ```bash
 export MALAI_HOME=/tmp/malai-test/multi-client
-eval $(malai ssh agent -e)
-malai ssh web01.company.com "uptime"
-malai ssh test-server.test.local "ps aux"
+eval $(malai start -e)
+malai web01.company.com "uptime"
+malai test-server.test.local "ps aux"
 ```
 
 ### Test Scenarios
@@ -859,8 +856,8 @@ malai ssh test-server.test.local "ps aux"
 **1. Permission Testing:**
 ```bash
 # Test command restrictions
-malai ssh restricted-server.cluster.local "ls"  # Should work
-malai ssh restricted-server.cluster.local "rm file"  # Should fail
+malai restricted-server.cluster.local "ls"  # Should work
+malai restricted-server.cluster.local "rm file"  # Should fail
 ```
 
 **2. Service Access Testing:**
@@ -873,7 +870,7 @@ curl admin.server1.cluster.local/secret  # Should fail without permission
 **3. Agent Functionality Testing:**
 ```bash
 # Test agent environment setup
-eval $(malai ssh agent -e --lockdown --http)
+eval $(malai start -e --lockdown --http)
 echo $MALAI_SSH_AGENT
 echo $HTTP_PROXY
 echo $MALAI_LOCKDOWN_MODE
@@ -889,7 +886,7 @@ echo $MALAI_LOCKDOWN_MODE
 ### Cleanup
 ```bash
 # Kill all background processes
-pkill -f "malai ssh"
+pkill -f "malai"
 
 # Clean up test directories
 rm -rf /tmp/malai-test/
@@ -901,15 +898,15 @@ rm -rf /tmp/malai-test/
 
 **1. Initialize Cluster (on cluster manager machine):**
 ```bash
-malai ssh init-cluster --alias company-cluster
+malai init-cluster --alias company-cluster
 # Outputs: "Cluster created with ID: <cluster-manager-id52>"
-eval $(malai ssh agent -e)  # Start agent in background
+eval $(malai start -e)  # Start agent in background
 ```
 
 **2. Initialize Machines:**
 ```bash
 # On each machine that should join the cluster:
-malai ssh init  # Generate identity for this machine
+malai init  # Generate identity for this machine
 # Outputs: "Machine created with ID: <machine-id52>"
 
 # Cluster admin manually adds to cluster manager's config:
@@ -926,7 +923,7 @@ malai ssh init  # Generate identity for this machine
 **3. Start Agents on All Machines:**
 ```bash
 # On each machine (add to ~/.bashrc for automatic startup):
-eval $(malai ssh agent -e)
+eval $(malai start -e)
 # Agent automatically:
 # - Receives config from cluster manager
 # - Detects its role (cluster-manager/SSH server/client-only)
@@ -935,7 +932,7 @@ eval $(malai ssh agent -e)
 
 **4. Use SSH:**
 ```bash
-malai ssh web01.company-cluster "uptime"
+malai web01.company-cluster "uptime"
 curl admin.web01.company-cluster/status
 ```
 
@@ -952,20 +949,20 @@ mkdir -p $MALAI_HOME
 **2. Generate Test Identities:**
 ```bash
 # Each component gets its own identity
-malai keygen  # Creates identity in $MALAI_HOME
+malai identity create  # Creates identity in $MALAI_HOME
 ```
 
 **3. Test Multi-Node Setup:**
 ```bash
 # Terminal 1 - Create Cluster
 export MALAI_HOME=/tmp/malai-cluster-manager
-malai ssh create-cluster --alias test-cluster
+malai create-cluster --alias test-cluster
 # Note the cluster ID output: "Cluster created with ID: abc123..."
-eval $(malai ssh agent -e)  # Auto-runs as cluster manager
+eval $(malai start -e)  # Auto-runs as cluster manager
 
 # Terminal 2 - Create Server Machine
 export MALAI_HOME=/tmp/malai-server1
-malai ssh create-machine
+malai create-machine
 # Note the machine ID output: "Machine created with ID: def456..."
 
 # Terminal 1 - Add Server to Cluster Config
@@ -976,14 +973,14 @@ malai ssh create-machine
 # Config automatically syncs to Terminal 2
 
 # Terminal 2 - Server Starts Automatically  
-eval $(malai ssh agent -e)  # Agent detects role and starts SSH server
+eval $(malai start -e)  # Agent detects role and starts SSH server
 
 # Terminal 3 - Create and Add Client
 export MALAI_HOME=/tmp/malai-client1
-malai ssh create-machine
+malai create-machine
 # Add this ID to cluster config as [device.laptop]
-eval $(malai ssh agent -e)
-malai ssh web01.test-cluster "echo 'Multi-node test successful!'"
+eval $(malai start -e)
+malai web01.test-cluster "echo 'Multi-node test successful!'"
 ```
 
 This approach allows you to test complex multi-cluster scenarios, permission systems, and service configurations entirely on a single development machine.
@@ -995,14 +992,14 @@ This approach allows you to test complex multi-cluster scenarios, permission sys
 **Setup (one-time):**
 ```bash
 # On my laptop (cluster manager):
-malai ssh cluster init personal
+malai cluster init personal
 # Edit $MALAI_HOME/ssh/clusters/personal/cluster-config.toml to add machines
-malai ssh start &  # Starts cluster manager + client agent
+malai start &  # Starts cluster manager + client agent
 
 # On home server:
-malai ssh machine init personal  # Contacts cluster, registers
+malai machine init personal  # Contacts cluster, registers
 # Laptop admin adds machine to personal cluster config
-malai ssh start &  # Starts SSH daemon + client agent
+malai start &  # Starts SSH daemon + client agent
 
 # Both machines now participate in 'personal' cluster
 ```
@@ -1010,9 +1007,9 @@ malai ssh start &  # Starts SSH daemon + client agent
 **Daily usage:**
 ```bash
 # Direct SSH commands (natural syntax):
-malai ssh home-server.personal htop
-malai ssh home-server.personal docker ps  
-malai ssh home-server.personal sudo systemctl restart nginx
+malai home-server.personal htop
+malai home-server.personal docker ps  
+malai home-server.personal sudo systemctl restart nginx
 
 # HTTP services:
 curl admin.home-server.personal/api
@@ -1023,28 +1020,28 @@ curl admin.home-server.personal/api
 **Setup:**
 ```bash
 # On fastn-ops machine (cluster manager):
-malai ssh cluster init ft
+malai cluster init ft
 # Edit $MALAI_HOME/ssh/clusters/ft/cluster-config.toml
-malai ssh start  # Starts cluster manager
+malai start  # Starts cluster manager
 
 # On each fastn server:
-malai ssh machine init fifthtry.com ft  # Join via domain, use short alias
+malai machine init fifthtry.com ft  # Join via domain, use short alias
 # fastn-ops adds machine to cluster config
-malai ssh start  # Starts SSH daemon
+malai start  # Starts SSH daemon
 
 # On developer laptops:
-malai ssh machine init <cluster-manager-id52> ft  # Join via ID52, short alias
-malai ssh start  # Starts client agent for connection pooling
+malai machine init <cluster-manager-id52> ft  # Join via ID52, short alias
+malai start  # Starts client agent for connection pooling
 ```
 
 **Daily operations:**
 ```bash
 # Server management (using short alias):
-malai ssh web01.ft systemctl status nginx
-malai ssh db01.ft restart-postgres  # Command alias
+malai web01.ft systemctl status nginx
+malai db01.ft restart-postgres  # Command alias
 
 # Monitoring:
-malai ssh web01.ft tail -f /var/log/nginx/access.log
+malai web01.ft tail -f /var/log/nginx/access.log
 
 # HTTP services (using short alias):
 curl api.web01.ft/health
@@ -1056,12 +1053,12 @@ curl grafana.monitoring.ft/dashboard
 **Setup (same machine in multiple clusters):**
 ```bash
 # Initialize participation in multiple clusters:
-malai ssh cluster init personal                           # Create personal cluster (cluster manager)
-malai ssh machine init company.example.com company       # Join company cluster (via domain)
-malai ssh machine init abc123def456ghi789... ft          # Join fifthtry cluster (via ID52, alias "ft")
+malai cluster init personal                           # Create personal cluster (cluster manager)
+malai machine init company.example.com company       # Join company cluster (via domain)
+malai machine init abc123def456ghi789... ft          # Join fifthtry cluster (via ID52, alias "ft")
 
 # Single unified start:
-malai ssh start  # Automatically starts:
+malai start  # Automatically starts:
                  # - Cluster manager for 'personal'
                  # - SSH daemon for 'company' and 'fastn-cloud'  
                  # - Client agent for all three clusters
@@ -1070,14 +1067,14 @@ malai ssh start  # Automatically starts:
 **Multi-cluster daily usage:**
 ```bash
 # Ultra-short commands using global aliases:
-malai ssh home htop                    # home = home-server.personal
-malai ssh web systemctl status nginx  # web = web01.company
-malai ssh db pg_stat_activity         # db = db01.ft
+malai home htop                    # home = home-server.personal
+malai web systemctl status nginx  # web = web01.company
+malai db pg_stat_activity         # db = db01.ft
 
 # Or use cluster.machine format:
-malai ssh home-server.personal htop
-malai ssh web01.company systemctl status nginx  
-malai ssh db01.ft pg_stat_activity
+malai home-server.personal htop
+malai web01.company systemctl status nginx  
+malai db01.ft pg_stat_activity
 
 # Cross-cluster services via agent forwarding:
 curl http://admin.localhost/dashboard  # → admin.home-server.personal (+ client ID52 header)
@@ -1095,15 +1092,15 @@ open http://admin.localhost          # Direct access to remote admin interface
 **After joining multiple clusters, set up personal services:**
 ```bash
 # Set up SSH aliases and service forwarding:
-malai ssh service add ssh web web01.ft
-malai ssh service add ssh db db01.ft
-malai ssh service add tcp mysql 3306 mysql.db01.ft:3306
-malai ssh service add http admin admin.web01.ft
-malai ssh service add http grafana grafana.monitoring.ft
+malai service add ssh web web01.ft
+malai service add ssh db db01.ft
+malai service add tcp mysql 3306 mysql.db01.ft:3306
+malai service add http admin admin.web01.ft
+malai service add http grafana grafana.monitoring.ft
 
 # Now ultra-convenient access:
-malai ssh web systemctl status nginx    # SSH via alias
-malai ssh db backup                     # SSH via alias
+malai web systemctl status nginx    # SSH via alias
+malai db backup                     # SSH via alias
 mysql -h localhost:3306                 # Direct MySQL access
 open http://admin.localhost             # Browser access to admin interface
 open http://grafana.localhost           # Browser access to monitoring
@@ -1118,18 +1115,18 @@ open http://grafana.localhost           # Browser access to monitoring
 ### User Experience Summary
 
 **Onboarding a new machine** (2 commands):
-1. `malai ssh machine init company` → register with cluster
-2. `malai ssh start` → auto-starts all appropriate services
+1. `malai machine init company` → register with cluster
+2. `malai start` → auto-starts all appropriate services
 
 **Multi-cluster management** (unified):
-- Single `malai ssh start` handles all cluster roles
+- Single `malai start` handles all cluster roles
 - Cross-cluster SSH access with cluster.machine addressing
 - Unified HTTP proxy across all clusters
 
 **Daily SSH usage** (ultra-convenient):
-- `malai ssh web ps aux` (global alias) or `malai ssh web01.company ps aux` (full form)
+- `malai web ps aux` (global alias) or `malai web01.company ps aux` (full form)
 - No quotes needed for commands (like real SSH)
-- Personal aliases: `malai ssh db backup` much better than `malai ssh db01.fifthtry.com backup`
+- Personal aliases: `malai db backup` much better than `malai db01.fifthtry.com backup`
 - Single agent optimizes connections across all clusters
 
 ## End-to-End Testing Strategy
@@ -1157,13 +1154,13 @@ mkdir -p $TEST_DIR/{manager,server1,client1}
 
 # 1. Create cluster
 export MALAI_HOME=$TEST_DIR/manager
-malai ssh create-cluster --alias test-cluster
-CLUSTER_ID=$(malai ssh cluster-info | grep "Cluster ID" | cut -d: -f2)
+malai create-cluster --alias test-cluster
+CLUSTER_ID=$(malai info | grep "Cluster ID" | cut -d: -f2)
 
 # 2. Create SSH server
 export MALAI_HOME=$TEST_DIR/server1  
-malai keygen
-SERVER_ID=$(malai keygen | grep "ID52" | cut -d: -f2)
+malai identity create
+SERVER_ID=$(malai identity create | grep "ID52" | cut -d: -f2)
 
 # 3. Add server to cluster config
 export MALAI_HOME=$TEST_DIR/manager
@@ -1173,14 +1170,14 @@ accept_ssh = true
 allow_from = \"*\"" >> $MALAI_HOME/ssh/cluster-config.toml
 
 # 4. Start agents
-export MALAI_HOME=$TEST_DIR/manager && malai ssh agent &
-export MALAI_HOME=$TEST_DIR/server1 && malai ssh agent &
+export MALAI_HOME=$TEST_DIR/manager && malai start &
+export MALAI_HOME=$TEST_DIR/server1 && malai start &
 sleep 2  # Wait for config sync
 
 # 5. Test SSH execution
 export MALAI_HOME=$TEST_DIR/client1
-malai keygen
-CLIENT_ID=$(malai keygen | grep "ID52" | cut -d: -f2)
+malai identity create
+CLIENT_ID=$(malai identity create | grep "ID52" | cut -d: -f2)
 
 # Add client to config
 export MALAI_HOME=$TEST_DIR/manager  
@@ -1189,8 +1186,8 @@ id52 = \"$CLIENT_ID\"" >> $MALAI_HOME/ssh/cluster-config.toml
 
 # Wait for sync and test
 export MALAI_HOME=$TEST_DIR/client1
-eval $(malai ssh agent -e)
-malai ssh web01.test-cluster "echo 'SSH test successful'"
+eval $(malai start -e)
+malai web01.test-cluster "echo 'SSH test successful'"
 
 # Verify output contains "SSH test successful"
 ```
@@ -1205,8 +1202,8 @@ malai ssh web01.test-cluster "echo 'SSH test successful'"
 # allow_from = "restricted-id52"
 
 # Test: restricted user can run ls but not other commands
-malai ssh web01.test-cluster "ls"        # Should succeed
-malai ssh web01.test-cluster "whoami"    # Should fail with permission denied
+malai web01.test-cluster "ls"        # Should succeed
+malai web01.test-cluster "whoami"    # Should fail with permission denied
 ```
 
 #### **Level 3: HTTP Service Testing**
@@ -1227,19 +1224,19 @@ curl test-api.web01.test-cluster/
 ```bash
 # Create two independent clusters
 export MALAI_HOME=/tmp/test-company-cluster
-malai ssh create-cluster --alias company
+malai create-cluster --alias company
 
 export MALAI_HOME=/tmp/test-dev-cluster  
-malai ssh create-cluster --alias dev
+malai create-cluster --alias dev
 
 # Create client with access to both clusters
 export MALAI_HOME=/tmp/test-multi-client
 # Copy both cluster configs or implement multi-cluster client support
 
 # Test cross-cluster access isolation
-malai ssh company-server.company "uptime"  # Should work
-malai ssh dev-server.dev "uptime"          # Should work  
-malai ssh company-server.dev "uptime"      # Should fail (wrong cluster)
+malai company-server.company "uptime"  # Should work
+malai dev-server.dev "uptime"          # Should work  
+malai company-server.dev "uptime"      # Should fail (wrong cluster)
 ```
 
 #### **Level 5: Advanced Scenarios**
@@ -1407,7 +1404,7 @@ The foundation is cryptographically stronger than OpenSSH - we just need applica
 ## Strategic Design Insight: malai SSH IS Complete malai
 
 ### **Design Revelation:**
-What we've built as "malai ssh" actually fulfills the complete malai vision:
+What we've built as "malai" actually fulfills the complete malai vision:
 
 **malai 0.3 planned features:**
 - Multiple services in single process ✅
@@ -1415,7 +1412,7 @@ What we've built as "malai ssh" actually fulfills the complete malai vision:
 - Identity management ✅
 - Service orchestration ✅
 
-**Our "malai ssh" provides all this PLUS:**
+**Our "malai" provides all this PLUS:**
 - Secure remote access (SSH functionality)
 - Multi-cluster enterprise capabilities
 - Identity-aware service mesh
@@ -1425,17 +1422,17 @@ What we've built as "malai ssh" actually fulfills the complete malai vision:
 ### **Command Structure Evolution:**
 **Current nested structure:**
 ```bash
-malai ssh cluster init company
-malai ssh machine init company corp
-malai ssh start  
-malai ssh web01.company ps aux
+malai cluster init company
+malai machine init company corp
+malai start  
+malai web01.company ps aux
 ```
 
 **Should become top-level:**
 ```bash
 malai cluster init company          # Promote to top-level
 malai machine init company corp     # Promote to top-level  
-malai start                         # Replaces both 'malai run' and 'malai ssh start'
+malai start                         # Replaces both 'malai run' and 'malai start'
 malai web01.company ps aux          # Direct SSH execution (no 'ssh' prefix)
 
 # Keep legacy single-service mode:
@@ -1444,7 +1441,7 @@ malai tcp 3306 --public             # Backwards compatibility
 ```
 
 ### **Identity Management Integration:**
-Replace `malai keygen` with richer identity system from 0.3 plan:
+Replace `malai identity create` with richer identity system from 0.3 plan:
 ```bash
 malai identity create [name]         # Replace keygen  
 malai identity list                  # List all identities
