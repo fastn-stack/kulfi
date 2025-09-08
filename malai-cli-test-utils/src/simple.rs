@@ -105,7 +105,7 @@ impl CommandOutput {
         }
     }
 
-    /// Extract ID52 from keygen output (checks both stdout and stderr)
+    /// Extract ID52 from keygen or SSH init output (checks both stdout and stderr)
     pub fn extract_id52(&self) -> Result<String, Box<dyn std::error::Error>> {
         // Check stderr first (where keygen puts the ID52)
         for line in self.stderr.lines() {
@@ -116,8 +116,14 @@ impl CommandOutput {
             }
         }
         
-        // Fallback to stdout
+        // Check stdout for "Machine created with ID:" pattern (from SSH init)
         for line in self.stdout.lines() {
+            if line.contains("Machine created with ID:") {
+                if let Some(id52_part) = line.split(':').nth(1) {
+                    return Ok(id52_part.trim().to_string());
+                }
+            }
+            // Also check for "ID52:" pattern
             if line.contains("ID52") && line.contains(":") {
                 if let Some(id52_part) = line.split(':').nth(1) {
                     return Ok(id52_part.trim().to_string());
