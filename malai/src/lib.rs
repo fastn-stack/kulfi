@@ -6,8 +6,17 @@ extern crate self as malai;
 
 use clap as _;
 use clap_verbosity_flag as _;
+use dirs as _;
+use fastn_id52 as _;
 use fastn_net as _;
+use fastn_p2p as _;
+use toml as _;
 use tracing_subscriber as _;
+
+#[cfg(test)]
+use malai_cli_test_utils as _;
+#[cfg(test)]
+use tempfile as _;
 
 mod browse;
 mod expose_http;
@@ -18,7 +27,7 @@ mod http_proxy;
 mod http_proxy_remote;
 mod keygen;
 mod run;
-mod ssh;
+// mod ssh;  // Temporarily disabled until compilation issues resolved
 mod tcp_bridge;
 
 pub use browse::browse;

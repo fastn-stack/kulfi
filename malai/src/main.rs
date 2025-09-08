@@ -125,13 +125,13 @@ async fn main() -> eyre::Result<()> {
                     return Ok(());
                 }
                 SshCommand::Agent { environment, lockdown, http } => {
-                    if *environment {
+                    if environment {
                         // Print environment variables
                         println!("MALAI_SSH_AGENT=/tmp/placeholder-agent.sock");
-                        if *lockdown {
+                        if lockdown {
                             println!("MALAI_LOCKDOWN_MODE=true");
                         }
-                        if *http {
+                        if http {
                             println!("HTTP_PROXY=http://127.0.0.1:8080");
                         }
                         return Ok(());
