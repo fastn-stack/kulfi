@@ -13,14 +13,21 @@ malai provides secure remote access to your machines and services using peer-to-
 ```bash
 # On your laptop (cluster manager):
 malai cluster init personal
+# Outputs: "Cluster created with ID: abc123def456ghi789..."
 malai start &
 
-# On your home server:  
-malai machine init personal
-# Add machine to cluster config on laptop
+# On your home server (copy the cluster manager ID52 from above):  
+malai machine init abc123def456ghi789... personal  # Cluster manager ID52 + local alias
+# Outputs: "Machine created with ID: xyz789abc123def456..."
+
+# Back on laptop, add machine to cluster config:
+# Edit ~/.local/share/malai/ssh/clusters/personal/cluster-config.toml
+# Add: [machine.home-server] id52 = "xyz789abc123def456..." allow_from = "*"
+
+# On home server, start services:
 malai start &
 
-# Now enjoy natural remote access:
+# Now enjoy natural remote access from laptop:
 malai home-server.personal htop
 malai home-server.personal docker ps
 open http://admin.localhost  # Direct browser access to remote services
