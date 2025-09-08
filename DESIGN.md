@@ -743,15 +743,16 @@ eval $(malai start -e)  # Agent auto-detects role and starts appropriate service
 $MALAI_HOME/
 ├── ssh/
 │   ├── clusters/
-│   │   ├── company/                 # Local alias for cluster (chosen by user)
+│   │   ├── company/                 # Local alias for cluster
 │   │   │   ├── cluster-config.toml  # Full cluster config (if cluster manager)
 │   │   │   ├── machine-config.toml  # Machine-specific config (if regular machine)
 │   │   │   ├── cluster-info.toml    # Cluster details and registration
-│   │   │   └── identity.key         # This machine's identity for this cluster
-│   │   ├── ft/                      # Local alias for fifthtry.com cluster
-│   │   │   ├── cluster-info.toml    # Contains: cluster_id52="abc123...", domain="fifthtry.com"
+│   │   │   ├── identity.key         # This machine's identity for this cluster
+│   │   │   └── state.json          # Config distribution state (cluster manager only)
+│   │   ├── ft/                      # Local alias for fifthtry.com cluster  
+│   │   │   ├── cluster-info.toml    # Contains cluster_id52, domain, role
 │   │   │   ├── machine-config.toml  # Received from cluster manager
-│   │   │   └── identity.key         # Machine identity for fifthtry.com cluster
+│   │   │   └── identity.key         # Machine identity for this cluster
 │   │   └── personal/                # Personal cluster alias
 │   │       └── ...
 │   ├── services.toml                # Local services: aliases + port forwarding
@@ -839,6 +840,53 @@ http://grafana.localhost             # Direct browser access to remote Grafana
 - **Unified proxy**: Access services from any cluster via localhost ports
 - **Role flexibility**: Can be cluster manager of one, machine in another
 - **Isolated configs**: Each cluster has separate configuration and identity
+
+## Config Distribution State Management
+
+### **state.json Structure (Cluster Manager Only):**
+```json
+{
+  "cluster_alias": "company",
+  "cluster_config_hash": "abc123def456",
+  "last_distribution": "2025-01-15T10:30:00Z",
+  "machine_states": {
+    "web01-machine-id52": {
+      "machine_alias": "web01",
+      "last_config_hash": "abc123def456",
+      "last_sync": "2025-01-15T10:30:00Z",
+      "sync_status": "success"
+    },
+    "db01-machine-id52": {
+      "machine_alias": "db01", 
+      "last_config_hash": "old456def789",
+      "last_sync": "2025-01-15T09:45:00Z",
+      "sync_status": "pending"
+    }
+  }
+}
+```
+
+### **Config Distribution Algorithm:**
+1. **Monitor config**: Watch cluster-config.toml for file changes
+2. **Calculate hash**: Hash current config content
+3. **Compare states**: Check which machines have outdated config hash
+4. **Distribute updates**: Send new config to machines with old hash via P2P
+5. **Update state**: Record successful distribution and new hash per machine
+
+### **Multi-Cluster State:**
+Each cluster directory has its own state.json:
+- `$MALAI_HOME/ssh/clusters/company/state.json` 
+- `$MALAI_HOME/ssh/clusters/ft/state.json`
+- `$MALAI_HOME/ssh/clusters/personal/state.json`
+
+### **Startup Orchestration (malai start):**
+1. **Scan clusters**: Find all cluster directories in `$MALAI_HOME/ssh/clusters/`
+2. **Detect roles**: For each cluster, determine if cluster-manager/machine/client-only
+3. **Start services**:
+   - **Cluster managers**: Config monitoring + distribution for each managed cluster
+   - **SSH daemons**: P2P listeners for each cluster where machine accepts SSH
+   - **Service proxy**: TCP/HTTP forwarding agent (always runs)
+4. **Cross-cluster coordination**: Single agent handles all clusters simultaneously
 
 ## Multi-Cluster Agent
 

@@ -32,6 +32,7 @@ strip = true
 # using the latest dependency, and what is the plan to move to the latest version.
 bb8 = "0.9"
 bytes = "1"
+chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive", "env"] }
 clap-verbosity-flag = "3"
 colored = "3"

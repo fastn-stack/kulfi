@@ -4,6 +4,7 @@
 
 extern crate self as malai;
 
+use chrono as _;
 use clap as _;
 use clap_verbosity_flag as _;
 use dirs as _;

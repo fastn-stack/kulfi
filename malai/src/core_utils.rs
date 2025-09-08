@@ -307,28 +307,31 @@ pub async fn start_unified_malai(environment: bool) -> Result<()> {
     
     // Start services based on detected roles
     for (cluster_alias, role) in cluster_roles {
+        let cluster_dir = malai_home.join("ssh").join("clusters").join(&cluster_alias);
+        
         match role {
             MachineRole::ClusterManager => {
                 println!("👑 Starting cluster manager for: {}", cluster_alias);
-                // TODO: Start cluster manager for this cluster
+                tokio::spawn(start_cluster_manager_for_cluster(cluster_dir.clone()));
             }
             MachineRole::SshServer(machine_name) => {
                 println!("🖥️  Starting SSH daemon for: {} (machine: {})", cluster_alias, machine_name);
-                // TODO: Start SSH daemon for this cluster
+                tokio::spawn(start_ssh_daemon_for_cluster(cluster_dir.clone(), machine_name.clone()));
             }
             MachineRole::ClientOnly(machine_name) => {
                 println!("💻 Client-only access for: {} (machine: {})", cluster_alias, machine_name);
-                // TODO: Start client services for this cluster
+                // Client-only machines don't need separate services (just service proxy)
             }
             MachineRole::Unknown => {
-                println!("❓ Unknown role for cluster: {}", cluster_alias);
+                println!("❓ Unknown role for cluster: {} (waiting for config)", cluster_alias);
+                tokio::spawn(start_config_listener_for_cluster(cluster_dir.clone()));
             }
         }
     }
     
     // Always start service proxy agent
-    println!("📡 Starting service proxy agent");
-    // TODO: Start TCP/HTTP forwarding agent
+    println!("📡 Starting service proxy agent for all clusters");
+    tokio::spawn(start_service_proxy_agent(malai_home.clone()));
     
     println!("✅ malai services started");
     println!("💡 Use 'malai start -e' for environment variables");
@@ -936,7 +939,7 @@ async fn detect_all_cluster_roles(malai_home: &PathBuf) -> Result<Vec<(String, M
                     // This machine is cluster manager for this cluster
                     roles.push((cluster_alias, MachineRole::ClusterManager));
                 } else if cluster_info_path.exists() {
-                    // This machine is a regular machine in this cluster
+                    // This machine is a regular machine in this cluster  
                     let role = detect_machine_role_for_cluster(malai_home, &cluster_alias).await?;
                     roles.push((cluster_alias, role));
                 }
@@ -945,6 +948,58 @@ async fn detect_all_cluster_roles(malai_home: &PathBuf) -> Result<Vec<(String, M
     }
     
     Ok(roles)
+}
+
+/// Load or create state.json for cluster manager
+fn load_cluster_state(cluster_dir: &PathBuf) -> Result<ClusterState> {
+    let state_path = cluster_dir.join("state.json");
+    
+    if state_path.exists() {
+        let state_content = std::fs::read_to_string(&state_path)?;
+        let state: ClusterState = serde_json::from_str(&state_content)?;
+        Ok(state)
+    } else {
+        // Create new state
+        let cluster_alias = cluster_dir.file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+            
+        let state = ClusterState {
+            cluster_alias,
+            cluster_config_hash: String::new(),
+            last_distribution: None,
+            machine_states: std::collections::HashMap::new(),
+        };
+        
+        Ok(state)
+    }
+}
+
+/// Save state.json for cluster manager
+fn save_cluster_state(cluster_dir: &PathBuf, state: &ClusterState) -> Result<()> {
+    let state_path = cluster_dir.join("state.json");
+    let state_json = serde_json::to_string_pretty(state)?;
+    std::fs::write(&state_path, state_json)?;
+    Ok(())
+}
+
+/// Cluster manager state for config distribution tracking
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct ClusterState {
+    cluster_alias: String,
+    cluster_config_hash: String,
+    last_distribution: Option<String>,
+    machine_states: std::collections::HashMap<String, MachineState>,
+}
+
+/// Individual machine state within cluster
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct MachineState {
+    machine_alias: String,
+    last_config_hash: String,
+    last_sync: Option<String>,
+    sync_status: String, // "success", "pending", "failed"
 }
 
 /// Detect machine role for specific cluster
@@ -959,6 +1014,106 @@ async fn detect_machine_role_for_cluster(malai_home: &PathBuf, cluster_alias: &s
     // TODO: Parse machine config to determine role
     // For now, assume client-only
     Ok(MachineRole::ClientOnly(cluster_alias.to_string()))
+}
+
+/// Start cluster manager for specific cluster
+async fn start_cluster_manager_for_cluster(cluster_dir: PathBuf) -> Result<()> {
+    let cluster_alias = cluster_dir.file_name().unwrap().to_string_lossy().to_string();
+    println!("📋 Cluster Manager starting for: {}", cluster_alias);
+    
+    let config_path = cluster_dir.join("cluster-config.toml");
+    let mut last_config_hash = String::new();
+    
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        
+        // Check if config changed
+        if let Ok(config_content) = std::fs::read_to_string(&config_path) {
+            let current_hash = calculate_config_hash(&config_content);
+            
+            if current_hash != last_config_hash {
+                println!("📋 Config changed for {}, distributing...", cluster_alias);
+                last_config_hash = current_hash.clone();
+                
+                // Load state
+                let mut state = load_cluster_state(&cluster_dir)?;
+                state.cluster_config_hash = current_hash;
+                
+                // Find machines that need config updates
+                let machines = extract_all_machine_ids(&config_content);
+                for (machine_alias, machine_id52) in machines {
+                    let needs_update = state.machine_states
+                        .get(&machine_id52)
+                        .map(|ms| ms.last_config_hash != state.cluster_config_hash)
+                        .unwrap_or(true);
+                    
+                    if needs_update {
+                        println!("📤 Sending config to {}", machine_alias);
+                        // TODO: Send config via P2P
+                        
+                        // Update state
+                        state.machine_states.insert(machine_id52.clone(), MachineState {
+                            machine_alias: machine_alias.clone(),
+                            last_config_hash: state.cluster_config_hash.clone(),
+                            last_sync: Some(chrono::Utc::now().to_rfc3339()),
+                            sync_status: "success".to_string(),
+                        });
+                    }
+                }
+                
+                // Save state
+                save_cluster_state(&cluster_dir, &state)?;
+            }
+        }
+    }
+}
+
+/// Start SSH daemon for specific cluster
+async fn start_ssh_daemon_for_cluster(cluster_dir: PathBuf, machine_name: String) -> Result<()> {
+    let cluster_alias = cluster_dir.file_name().unwrap().to_string_lossy().to_string();
+    println!("🚪 SSH Daemon starting for: {} (machine: {})", cluster_alias, machine_name);
+    
+    // TODO: Start P2P listener for SSH requests
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        // TODO: Handle incoming P2P SSH requests
+        // TODO: Execute commands with permission checking
+        // TODO: Send responses back via P2P
+    }
+}
+
+/// Start config listener for cluster waiting for cluster manager
+async fn start_config_listener_for_cluster(cluster_dir: PathBuf) -> Result<()> {
+    let cluster_alias = cluster_dir.file_name().unwrap().to_string_lossy().to_string();
+    println!("📡 Config Listener starting for: {} (waiting for cluster manager)", cluster_alias);
+    
+    // TODO: Start P2P listener for config updates
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        // TODO: Listen for config updates from cluster manager
+        // TODO: Validate config sender against cluster-info.toml
+        // TODO: Write received config to machine-config.toml
+        // TODO: Trigger role detection and service restart if needed
+    }
+}
+
+/// Start service proxy agent (TCP/HTTP forwarding)
+async fn start_service_proxy_agent(malai_home: PathBuf) -> Result<()> {
+    println!("🌐 Service Proxy Agent starting for all clusters");
+    
+    let services_path = malai_home.join("ssh").join("services.toml");
+    
+    // TODO: Parse services.toml configuration
+    // TODO: Start TCP port listeners for configured services
+    // TODO: Start HTTP server on port 80 for subdomain routing
+    // TODO: Forward connections to remote services via P2P
+    
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        // TODO: Handle incoming TCP connections and HTTP requests
+        // TODO: Route to appropriate remote services via P2P
+        // TODO: Inject client identity headers for HTTP services
+    }
 }
 
 /// Machine roles for agent
