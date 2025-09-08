@@ -581,3 +581,194 @@ malai ssh web01.test-cluster "echo 'Multi-node test successful!'"
 ```
 
 This approach allows you to test complex multi-cluster scenarios, permission systems, and service configurations entirely on a single development machine.
+
+## End-to-End Testing Strategy
+
+The MALAI_HOME-based isolation enables comprehensive testing of the entire SSH system on a single machine without external dependencies.
+
+### Test Architecture
+
+**Single Machine Multi-Cluster Testing:**
+- **Process isolation**: Each MALAI_HOME gets separate agent with lockfile protection
+- **Network sharing**: All agents share the fastn-p2p network for communication
+- **Config isolation**: Separate cluster-config.toml for each test instance
+- **Identity separation**: Each instance has unique identity and role
+
+### Test Scenarios
+
+#### **Level 1: Basic Cluster Functionality**
+```bash
+#!/bin/bash
+# Test basic cluster creation and SSH functionality
+
+# Setup
+export TEST_DIR=/tmp/malai-e2e-test
+mkdir -p $TEST_DIR/{manager,server1,client1}
+
+# 1. Create cluster
+export MALAI_HOME=$TEST_DIR/manager
+malai ssh create-cluster --alias test-cluster
+CLUSTER_ID=$(malai ssh cluster-info | grep "Cluster ID" | cut -d: -f2)
+
+# 2. Create SSH server
+export MALAI_HOME=$TEST_DIR/server1  
+malai keygen
+SERVER_ID=$(malai keygen | grep "ID52" | cut -d: -f2)
+
+# 3. Add server to cluster config
+export MALAI_HOME=$TEST_DIR/manager
+echo "[machine.web01]
+id52 = \"$SERVER_ID\"
+accept_ssh = true
+allow_from = \"*\"" >> $MALAI_HOME/ssh/cluster-config.toml
+
+# 4. Start agents
+export MALAI_HOME=$TEST_DIR/manager && malai ssh agent &
+export MALAI_HOME=$TEST_DIR/server1 && malai ssh agent &
+sleep 2  # Wait for config sync
+
+# 5. Test SSH execution
+export MALAI_HOME=$TEST_DIR/client1
+malai keygen
+CLIENT_ID=$(malai keygen | grep "ID52" | cut -d: -f2)
+
+# Add client to config
+export MALAI_HOME=$TEST_DIR/manager  
+echo "[machine.client1]
+id52 = \"$CLIENT_ID\"" >> $MALAI_HOME/ssh/cluster-config.toml
+
+# Wait for sync and test
+export MALAI_HOME=$TEST_DIR/client1
+eval $(malai ssh agent -e)
+malai ssh web01.test-cluster "echo 'SSH test successful'"
+
+# Verify output contains "SSH test successful"
+```
+
+#### **Level 2: Permission System Testing**
+```bash
+# Test command restrictions and access control
+# Add restricted user to config:
+# [machine.restricted]
+# id52 = "restricted-id52"
+# [machine.web01.command.ls]  
+# allow_from = "restricted-id52"
+
+# Test: restricted user can run ls but not other commands
+malai ssh web01.test-cluster "ls"        # Should succeed
+malai ssh web01.test-cluster "whoami"    # Should fail with permission denied
+```
+
+#### **Level 3: HTTP Service Testing**
+```bash
+# Test HTTP service proxying
+# On server machine: python3 -m http.server 8080 &
+# Add to config:
+# [machine.web01.service.test-api]
+# port = 8080  
+# allow_from = "client1-id52"
+
+# Test HTTP access through agent proxy
+curl test-api.web01.test-cluster/
+# Should return HTTP server content
+```
+
+#### **Level 4: Multi-Cluster Testing**
+```bash
+# Create two independent clusters
+export MALAI_HOME=/tmp/test-company-cluster
+malai ssh create-cluster --alias company
+
+export MALAI_HOME=/tmp/test-dev-cluster  
+malai ssh create-cluster --alias dev
+
+# Create client with access to both clusters
+export MALAI_HOME=/tmp/test-multi-client
+# Copy both cluster configs or implement multi-cluster client support
+
+# Test cross-cluster access isolation
+malai ssh company-server.company "uptime"  # Should work
+malai ssh dev-server.dev "uptime"          # Should work  
+malai ssh company-server.dev "uptime"      # Should fail (wrong cluster)
+```
+
+#### **Level 5: Advanced Scenarios**
+```bash
+# Config sync testing
+# 1. Start cluster with basic config
+# 2. Add new machines to config while running
+# 3. Verify all agents receive updates automatically
+# 4. Test new machine functionality immediately
+
+# Agent restart testing
+# 1. Kill agent process
+# 2. Restart agent 
+# 3. Verify role detection and service restart
+
+# Lockfile testing
+# 1. Start agent with MALAI_HOME
+# 2. Try starting second agent with same MALAI_HOME
+# 3. Verify second agent exits gracefully
+```
+
+### Automated Test Suite
+
+**Test Script Structure:**
+```bash
+#!/bin/bash
+# run-e2e-tests.sh
+
+set -e  # Exit on any failure
+
+echo "🧪 Running malai SSH end-to-end tests"
+
+# Level 1: Basic functionality
+./tests/test-basic-cluster.sh
+
+# Level 2: Permissions  
+./tests/test-permissions.sh
+
+# Level 3: HTTP services
+./tests/test-http-services.sh
+
+# Level 4: Multi-cluster
+./tests/test-multi-cluster.sh
+
+# Level 5: Advanced scenarios
+./tests/test-config-sync.sh
+./tests/test-agent-restart.sh
+./tests/test-lockfiles.sh
+
+echo "✅ All tests passed!"
+```
+
+**CI Integration:**
+```yaml
+# .github/workflows/ssh-e2e-tests.yml
+name: SSH End-to-End Tests
+on: [push, pull_request]
+jobs:
+  ssh-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Build malai
+        run: cargo build --release
+      - name: Run SSH E2E Tests
+        run: ./scripts/run-e2e-tests.sh
+        env:
+          RUST_LOG: malai=debug
+```
+
+### Benefits of This Approach
+
+1. **No external dependencies** - pure single-machine testing
+2. **Complete scenario coverage** - can test any cluster configuration
+3. **Fast feedback loops** - no Docker/VM startup time
+4. **CI friendly** - runs in standard GitHub Actions
+5. **Reproducible** - same test environment every time
+6. **Comprehensive** - tests real P2P communication over fastn network
+
+The MALAI_HOME approach gives us everything we need for robust end-to-end testing!

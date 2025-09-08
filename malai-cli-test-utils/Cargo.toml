@@ -1,0 +1,17 @@
+[package]
+name = "malai-cli-test-utils"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+eyre.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["process", "time", "macros"] }
+serde.workspace = true
+serde_json.workspace = true

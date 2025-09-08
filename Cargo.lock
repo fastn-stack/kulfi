@@ -3323,6 +3323,7 @@ dependencies = [
  "hyper-util",
  "iroh",
  "kulfi-utils",
+ "malai-cli-test-utils",
  "mime_guess",
  "percent-encoding",
  "serde",
@@ -3337,6 +3338,17 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "webbrowser",
+]
+
+[[package]]
+name = "malai-cli-test-utils"
+version = "0.1.0"
+dependencies = [
+ "eyre",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]

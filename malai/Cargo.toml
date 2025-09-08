@@ -43,6 +43,7 @@ webbrowser.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+malai-cli-test-utils = { path = "../malai-cli-test-utils" }
 
 [build-dependencies]
 tauri-build = { workspace = true, optional = true }
