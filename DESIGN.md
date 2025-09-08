@@ -112,16 +112,36 @@ Each machine has multiple addressing options:
 - **Full ID**: `machine-id52.cluster-id52` (direct addressing)
 
 ### Service Addressing
-Services on machines can be addressed as:
 
-- **Domain-based**: `service-alias.machine-alias.cluster-domain.com`
-- **ID-based**: `service-alias.machine-alias.cluster-id52`
-- **Full ID**: `service-alias.machine-id52.cluster-id52`
+#### **Cluster-Global Unique Service Names:**
+Services have cluster-global unique names (no machine prefix needed):
 
-**Protocol-Specific Examples:**
-- **HTTP**: `admin.web01.company` → HTTP service on port 8080
-- **TCP**: `mysql.db01.company:3306` → TCP service on port 3306
-- **Mixed**: `redis.cache01.company:6379` → Redis TCP service
+- **HTTP**: `admin.company` → routes to admin service in company cluster
+- **TCP**: `mysql.company:3306` → routes to mysql service in company cluster
+- **Service-only**: `grafana.ft` → routes to grafana service in ft cluster
+
+#### **Full localhost URL Structure:**
+For HTTP services, the complete URL format is:
+`http://<service>.<cluster>.localhost[:<port>]`
+
+**Examples:**
+- `http://admin.company.localhost` → admin service in company cluster
+- `http://grafana.ft.localhost` → grafana service in ft cluster  
+- `http://api.personal.localhost` → api service in personal cluster
+- `http://admin.abc123def456.localhost` → admin service in cluster with ID52 abc123def456
+
+#### **URL Parsing Rules:**
+Agent parses `subdomain.localhost` requests as:
+1. **Simple**: `admin.company.localhost` → service=admin, cluster=company
+2. **Domain cluster**: `api.mycompany.com.localhost` → service=api, cluster=mycompany.com  
+3. **ID52 cluster**: `grafana.abc123def456.localhost` → service=grafana, cluster=abc123def456
+4. **Complex domain**: `api.aws.mycompany.com.localhost` → service=api, cluster=aws.mycompany.com
+
+#### **Service Resolution:**
+1. Parse subdomain: extract service name and cluster identifier
+2. Lookup cluster: resolve cluster ID52 from cluster identifier  
+3. Find service: locate service in cluster config
+4. Route request: forward to `service.machine-running-service` via P2P
 
 ## Protocol-Agnostic Service Proxying
 
@@ -209,23 +229,37 @@ username = "nginx"                   # Run as nginx user
 allow_from = "devs"                  # Simple command (uses command name as-is)
 # username not specified = inherits from machine.username or agent user
 
-# Protocol-agnostic service exposure
-[machine.web01.tcp.mysql]
+# Machine configuration (no services defined here)
+[machine.web01]
+id52 = "web01-id52-here"
+allow_from = "admins,devs"           # Who can run commands on this machine
+allow_shell = "admins"               # Who can start interactive shells
+username = "webservice"              # Default user for commands
+
+# Cluster-global unique services (specify which machine runs them)
+[service.mysql]
+machine = "db01"                     # Which machine runs this service
+protocol = "tcp"
 port = 3306
 allow_from = "backend-services,admins"
 
-[machine.web01.http.admin]
+[service.admin]
+machine = "web01" 
+protocol = "http"
 port = 8080
-allow_from = "admins,web01-id52"     # Groups + individual IDs
-secure = false                       # Optional: true for HTTPS (default: false)
+allow_from = "admins"
 # inject_headers = true (default for HTTP)
 
-[machine.web01.http.api]  
+[service.api]
+machine = "web01"
+protocol = "http"  
 port = 3000
-allow_from = "*"                     # All cluster machines can access
-inject_headers = false               # Disable header injection for public API
+allow_from = "*"
+inject_headers = false               # Disable for public API
 
-[machine.web01.tcp.redis]
+[service.redis]
+machine = "cache01"
+protocol = "tcp"
 port = 6379
 allow_from = "backend-services"
 
@@ -341,18 +375,24 @@ When processing `allow_from`, the system recursively expands groups:
 [machine.production-server]
 allow_from = "admins,on-call-devs"
 
-# Protocol-agnostic service access
-[machine.database.tcp.postgres]
+# Cluster-global services (unique names, specify hosting machine)
+[service.postgres]
+machine = "database"  
+protocol = "tcp"
 port = 5432
 allow_from = "backend-services,admins"
 
-[machine.web01.http.internal-api]
+[service.internal-api]
+machine = "web01"
+protocol = "http"
 port = 5000
 allow_from = "backend-services,monitoring-id52"
 secure = true                        # HTTPS endpoint
-inject_headers = true                # Add malai-client-id52 header for app-level ACL
+# inject_headers = true (default)
 
-[machine.cache01.tcp.redis]
+[service.redis]
+machine = "cache01"
+protocol = "tcp"
 port = 6379
 allow_from = "backend-services"
 
@@ -1077,14 +1117,15 @@ malai web01.company systemctl status nginx
 malai db01.ft pg_stat_activity
 
 # Cross-cluster services via agent forwarding:
-curl http://admin.localhost/dashboard  # → admin.home-server.personal (+ client ID52 header)
-curl http://api.localhost/metrics      # → api.web01.company (+ client ID52 header)
-mysql -h localhost:3306               # → mysql.db01.ft:3306 (TCP forwarding)
-redis-cli -p 6379                    # → redis.cache01.ft:6379 (TCP forwarding)
+curl http://admin.personal.localhost/dashboard  # → admin service in personal cluster (+ client ID52 header)
+curl http://api.company.localhost/metrics       # → api service in company cluster (+ client ID52 header)
+mysql -h localhost:3306                         # → mysql service via TCP forwarding
+redis-cli -p 6379                              # → redis service via TCP forwarding
 
-# Browser access (no configuration needed):
-open http://grafana.localhost         # Direct access to remote Grafana dashboard
-open http://admin.localhost          # Direct access to remote admin interface
+# Browser access (explicit cluster.service.localhost):
+open http://grafana.ft.localhost               # Grafana service in ft cluster
+open http://admin.company.localhost           # Admin service in company cluster
+open http://mysql-admin.personal.localhost    # MySQL admin interface in personal cluster
 ```
 
 ### Example 4: Power User Alias Setup
@@ -1485,16 +1526,19 @@ db = "db01.ft"
 mysql = { local_port = 3306, remote = "mysql.db01.ft:3306" }
 redis = { local_port = 6379, remote = "redis.cache01.ft:6379" }
 
-# HTTP subdomain routing
+# HTTP subdomain routing (agent listens on port 80)
 [http]
 port = 80
+# Routes map localhost subdomains to cluster-global services
+# Format: "service.cluster.localhost" → service in cluster
 routes = {
-    "admin" = "admin.web01.ft",
-    "api" = "api.web01.ft", 
-    "grafana" = "grafana.monitoring.ft"
+    "admin.company" = "admin",           # admin.company.localhost → admin service in company cluster
+    "api.company" = "api",               # api.company.localhost → api service in company cluster
+    "grafana.ft" = "grafana",            # grafana.ft.localhost → grafana service in ft cluster
+    "mysql-admin.personal" = "mysql-admin"  # mysql-admin.personal.localhost → mysql-admin service
 }
-inject_headers = true  # Default for HTTP
-public_routes = ["api"]  # No identity headers
+inject_headers = true                    # Default: add client ID52 headers
+public_services = ["api"]               # These services don't get identity headers
 ```
 
 ### **Multi-Cluster Power User Workflow:**
