@@ -45,9 +45,9 @@ pub use http_proxy_remote::http_proxy_remote;
 pub use keygen::keygen;
 pub use run::run;
 pub use core_utils::{
-    create_cluster, execute_ssh_command, init_cluster, init_machine_for_cluster, 
-    init_machine_for_cluster_with_alias, show_cluster_info, start_ssh_agent, 
-    start_malai_daemon, start_ssh_cluster
+    create_cluster, init_cluster, init_machine_for_cluster, 
+    init_machine_for_cluster_with_alias, show_cluster_info,
+    start_malai_daemon
 };
 pub use tcp_bridge::tcp_bridge;
 
