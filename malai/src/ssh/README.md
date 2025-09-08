@@ -88,18 +88,21 @@ The malai SSH system consists of three distinct services that can run independen
   - Enforces permissions based on received cluster config
 - **Required**: On any machine that should accept SSH (servers, etc.)
 
-### 3. Client Agent (`malai ssh agent start`)
-- **Purpose**: Connection pooling and HTTP proxy for SSH clients
-- **Runs on**: Machines that frequently initiate SSH commands (optional)
+### 3. Client Agent (`malai ssh start` - client role)
+- **Purpose**: Local TCP/HTTP proxy for transparent service access
+- **Runs on**: Any machine that needs to access remote services
 - **Functions**:
-  - Connection reuse: faster SSH commands via pooled connections
-  - HTTP proxy: transparent access to remote HTTP services
-  - Performance optimization for heavy SSH usage
-- **Optional**: SSH commands work without agent (slower, fresh connections)
+  - **TCP forwarding**: Listen on local ports, forward to remote services via P2P
+  - **HTTP proxy**: Transparent HTTP access with automatic client ID52 header injection
+  - **SSH connection pooling**: Reuse P2P connections for faster SSH commands
+  - **Multi-protocol support**: Forward any TCP/HTTP traffic to cluster services
+- **Configuration**: `$MALAI_HOME/ssh/services.toml` defines port mappings and aliases
 
 ### Service Interaction
-- **Without agent**: `malai ssh web01 cmd` → creates fresh P2P connection → slower
-- **With agent**: `malai ssh web01 cmd` → uses agent's pooled connection → faster
+- **SSH without agent**: `malai ssh web01 cmd` → creates fresh P2P connection → slower
+- **SSH with agent**: `malai ssh web01 cmd` → uses agent's pooled connection → faster
+- **TCP/HTTP services**: **REQUIRE agent** for port forwarding (agent listens on local ports)
+- **Service access**: `mysql -h localhost:3306` → agent forwards to remote via P2P
 
 ## Addressing and Aliases
 
@@ -491,10 +494,12 @@ malai ssh start
 malai ssh info
 # Shows role and status for each cluster this machine participates in
 
-# Alias management
-malai ssh alias add web web01.ft               # Add global alias
-malai ssh alias remove web                     # Remove global alias
-malai ssh alias list                           # List all global aliases
+# Local service management
+malai ssh service add ssh web web01.ft                    # Add SSH alias  
+malai ssh service add tcp mysql localhost:3306 mysql.db01.ft:3306  # Add TCP forwarding
+malai ssh service add http admin localhost:8080 admin.web01.ft      # Add HTTP forwarding
+malai ssh service remove mysql                            # Remove service
+malai ssh service list                                    # List all configured services
 ```
 
 ### SSH Execution Commands
@@ -649,7 +654,7 @@ $MALAI_HOME/
 │   │   │   └── identity.key         # Machine identity for fifthtry.com cluster
 │   │   └── personal/                # Personal cluster alias
 │   │       └── ...
-│   ├── aliases.toml                 # Global machine aliases across all clusters
+│   ├── services.toml                # Local services: aliases + port forwarding
 │   ├── agent.sock                   # Single agent manages all clusters
 │   └── agent.lock                   # Single agent lockfile
 └── keys/
@@ -671,31 +676,54 @@ role = "machine"                                   # cluster-manager, machine, o
 machine_alias = "dev-laptop-001"                  # This machine's alias in cluster
 ```
 
-**aliases.toml - Global Machine Aliases:**
+**services.toml - Unified Local Services Configuration:**
 ```toml
-# Global aliases for convenient access across all clusters
-# Format: alias = "machine.cluster"
-
-# Short aliases for frequently used machines
+# SSH aliases for convenient access across all clusters
+[ssh]
 web = "web01.ft"                    # malai ssh web top
 db = "db01.ft"                      # malai ssh db pg_stat_activity  
 home = "home-server.personal"       # malai ssh home htop
-laptop = "admin-laptop.company"     # malai ssh laptop uptime
+monitoring = "grafana.ft"           # malai ssh monitoring restart
 
-# Role-based aliases  
-prod-web = "web01.ft"
-staging-web = "web01-staging.company"
-dev-web = "web01-dev.personal"
+# TCP port forwarding (agent listens on local ports, forwards via P2P)
+[tcp]
+mysql = { local_port = 3306, remote = "mysql.db01.ft:3306" }
+redis = { local_port = 6379, remote = "redis.cache01.ft:6379" }
+postgres = { local_port = 5432, remote = "postgres.db01.company:5432" }
 
-# Service-specific aliases
-db-primary = "db01.ft"
-db-replica = "db02.ft"
-monitoring = "grafana.ft"
+# HTTP port forwarding (with automatic header injection)
+[http]
+admin = { local_port = 8080, remote = "admin.web01.ft", inject_headers = true }
+api = { local_port = 3000, remote = "api.web01.ft", inject_headers = true }
+public-api = { local_port = 3001, remote = "public.web01.ft", inject_headers = false }
 ```
 
+**Usage after agent starts:**
+```bash
+# SSH with aliases:
+malai ssh web systemctl status nginx
+
+# Direct TCP connections:
+mysql -h localhost:3306              # → forwarded to mysql.db01.ft:3306
+redis-cli -p 6379                    # → forwarded to redis.cache01.ft:6379
+psql -h localhost -p 5432            # → forwarded to postgres.db01.company:5432
+
+# HTTP with identity headers:
+curl http://localhost:8080/users     # → admin.web01.ft (gets client ID52 header)
+curl http://localhost:3000/api       # → api.web01.ft (gets client ID52 header)
+```
+
+**Agent TCP/HTTP Forwarding:**
+- **Local port binding**: Agent listens on configured local ports (3306, 6379, 8080, etc.)
+- **P2P forwarding**: Incoming connections forwarded to remote services via encrypted P2P
+- **Port conflict detection**: Agent refuses to start if configured ports are already in use
+- **Service discovery**: Automatic connection routing based on services.toml configuration
+- **Multi-cluster access**: Single agent can forward to services across all clusters
+- **Protocol transparency**: Applications connect to localhost as if services were local
+
 **Multi-Cluster Benefits:**
-- **Single agent**: Manages connections to all clusters
-- **Unified HTTP proxy**: Access services across all clusters  
+- **Single agent**: Manages all SSH connections and service forwarding across clusters
+- **Unified proxy**: Access services from any cluster via localhost ports
 - **Role flexibility**: Can be cluster manager of one, machine in another
 - **Isolated configs**: Each cluster has separate configuration and identity
 
@@ -1037,11 +1065,11 @@ malai ssh home-server.personal htop
 malai ssh web01.company systemctl status nginx  
 malai ssh db01.ft pg_stat_activity
 
-# Cross-cluster services with aliases:
-curl admin.home/dashboard              # HTTP: admin.home-server.personal
-curl api.web/metrics                   # HTTP: api.web01.company
-mysql -h mysql.db:3306                 # TCP: mysql.db01.ft
-redis-cli -h redis.cache               # TCP: redis.cache01.company
+# Cross-cluster services via local port forwarding:
+curl http://localhost:8080/dashboard   # → admin.home-server.personal (with client ID52 header)
+curl http://localhost:3000/metrics     # → api.web01.company (with client ID52 header)
+mysql -h localhost:3306                # → mysql.db01.ft:3306 (TCP forwarding)
+redis-cli -p 6379                     # → redis.cache01.ft:6379 (TCP forwarding)
 ```
 
 ### Example 4: Power User Alias Setup
