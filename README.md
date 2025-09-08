@@ -30,7 +30,7 @@ malai start &
 # Now enjoy natural remote access from laptop:
 malai home-server.personal htop
 malai home-server.personal docker ps
-open http://admin.localhost  # Direct browser access to remote services
+open http://admin.personal.localhost  # Direct browser access to admin service in personal cluster
 ```
 
 ### Enterprise Cluster Setup
@@ -99,8 +99,8 @@ malai db backup                     # Run database backup
 malai cache restart                 # Restart Redis cache
 
 # Monitoring access:
-open http://grafana.localhost       # Grafana dashboard
-open http://logs.localhost          # Log analysis tools
+open http://grafana.company.localhost    # Grafana dashboard  
+open http://logs.company.localhost       # Log analysis tools
 ```
 
 ### Multi-Cloud Setup
