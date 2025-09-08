@@ -3322,6 +3322,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "iroh",
+ "kulfi-id52",
  "kulfi-utils",
  "malai-cli-test-utils",
  "mime_guess",

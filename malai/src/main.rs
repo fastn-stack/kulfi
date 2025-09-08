@@ -116,51 +116,30 @@ async fn main() -> eyre::Result<()> {
         Some(Command::Ssh { ssh_command }) => {
             match ssh_command {
                 SshCommand::CreateCluster { alias } => {
-                    println!("Creating cluster...");
-                    // TODO: Implement cluster creation
-                    println!("Cluster created with ID: placeholder-cluster-id52");
-                    if let Some(alias) = alias {
-                        println!("Cluster alias: {}", alias);
-                    }
+                    malai::create_cluster(alias.clone()).await?;
                     return Ok(());
                 }
                 SshCommand::Agent { environment, lockdown, http } => {
-                    if environment {
-                        // Print environment variables
-                        println!("MALAI_SSH_AGENT=/tmp/placeholder-agent.sock");
-                        if lockdown {
-                            println!("MALAI_LOCKDOWN_MODE=true");
-                        }
-                        if http {
-                            println!("HTTP_PROXY=http://127.0.0.1:8080");
-                        }
-                        return Ok(());
-                    } else {
-                        println!("Starting SSH agent...");
-                        // TODO: Implement agent startup
-                        println!("SSH agent started");
-                        return Ok(());
-                    }
-                }
-                SshCommand::ClusterInfo => {
-                    println!("Cluster info...");
-                    // TODO: Implement cluster info display
-                    println!("Role: placeholder");
+                    malai::start_ssh_agent(environment, lockdown, http).await?;
                     return Ok(());
                 }
-                SshCommand::Execute { machine, command, args } => {
+                SshCommand::ClusterInfo => {
+                    malai::show_cluster_info().await?;
+                    return Ok(());
+                }
+                SshCommand::Execute { machine, command, args: _ } => {
                     println!("Executing '{}' on machine '{}'", command, machine);
-                    // TODO: Implement command execution
+                    println!("❌ SSH command execution not yet implemented");
                     return Ok(());
                 }
                 SshCommand::Shell { machine } => {
                     println!("Starting shell on machine '{}'", machine);
-                    // TODO: Implement shell session
+                    println!("❌ SSH shell not yet implemented");
                     return Ok(());
                 }
-                SshCommand::Curl { url, curl_args } => {
-                    println!("Curl to '{}' with args: {:?}", url, curl_args);
-                    // TODO: Implement HTTP proxy curl
+                SshCommand::Curl { url, curl_args: _ } => {
+                    println!("Curl to '{}'", url);
+                    println!("❌ SSH curl not yet implemented");
                     return Ok(());
                 }
             }

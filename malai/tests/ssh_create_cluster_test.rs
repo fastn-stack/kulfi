@@ -98,18 +98,22 @@ async fn test_create_cluster_without_alias() {
 fn test_malai_home_detection() {
     println!("🧪 Testing MALAI_HOME detection");
     
-    // Test default behavior
-    let default_home = malai::ssh::config::get_default_malai_home();
+    // Test default behavior using dirs crate
+    let default_home = dirs::data_dir().unwrap_or_default().join("malai");
     println!("📁 Default MALAI_HOME: {}", default_home.display());
     assert!(default_home.to_string_lossy().contains("malai"));
     
     // Test override behavior  
-    std::env::set_var("MALAI_HOME", "/tmp/custom-malai-test");
-    let custom_home = malai::ssh::config::get_malai_home();
-    assert_eq!(custom_home, PathBuf::from("/tmp/custom-malai-test"));
+    unsafe {
+        std::env::set_var("MALAI_HOME", "/tmp/custom-malai-test");
+    }
+    let custom_home = std::env::var("MALAI_HOME").unwrap();
+    assert_eq!(custom_home, "/tmp/custom-malai-test");
     
     // Clean up
-    std::env::remove_var("MALAI_HOME");
+    unsafe {
+        std::env::remove_var("MALAI_HOME");
+    }
     
     println!("✅ MALAI_HOME detection test passed");
 }

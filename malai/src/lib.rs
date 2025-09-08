@@ -10,6 +10,7 @@ use dirs as _;
 use fastn_id52 as _;
 use fastn_net as _;
 use fastn_p2p as _;
+use kulfi_id52 as _;
 use toml as _;
 use tracing_subscriber as _;
 
@@ -28,6 +29,7 @@ mod http_proxy_remote;
 mod keygen;
 mod run;
 // mod ssh;  // Temporarily disabled until compilation issues resolved
+mod ssh_utils;  // Simple SSH utilities for CLI commands
 mod tcp_bridge;
 
 pub use browse::browse;
@@ -39,6 +41,7 @@ pub use http_proxy::{ProxyData, http_proxy};
 pub use http_proxy_remote::http_proxy_remote;
 pub use keygen::keygen;
 pub use run::run;
+pub use ssh_utils::{create_cluster, show_cluster_info, start_ssh_agent};
 pub use tcp_bridge::tcp_bridge;
 
 #[cfg(feature = "ui")]

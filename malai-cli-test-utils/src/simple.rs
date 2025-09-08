@@ -22,7 +22,7 @@ pub fn get_malai_binary() -> PathBuf {
 pub fn ensure_malai_built() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔨 Building fresh malai binary to avoid stale binary issues...");
     let output = Command::new("cargo")
-        .args(["build", "--bin", "malai"])
+        .args(["build", "--bin", "malai", "--workspace"])
         .output()?;
     
     if !output.status.success() {
@@ -38,21 +38,27 @@ pub fn ensure_malai_built() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Detect target directory (supports workspace and local builds)
 pub fn detect_target_dir() -> PathBuf {
-    // Try workspace target first
+    // Strategy 1: Check current directory (workspace root)
     let workspace_target = std::env::current_dir()
         .expect("Could not get current directory")
         .join("target")
         .join("debug");
     
-    if workspace_target.join("malai").exists() {
-        return workspace_target;
+    // Strategy 2: Check if we're in malai subdirectory
+    let parent_target = std::env::current_dir()
+        .expect("Could not get current directory")
+        .parent()
+        .map(|p| p.join("target").join("debug"));
+
+    // Check in order of preference
+    for candidate in [&workspace_target, &parent_target.unwrap_or(workspace_target.clone())] {
+        if candidate.join("malai").exists() {
+            return candidate.clone();
+        }
     }
     
-    // Fallback to current directory target
-    std::env::current_dir()
-        .expect("Could not get current directory")
-        .join("target")
-        .join("debug")
+    // Fallback - return workspace target (build will create it)
+    workspace_target
 }
 
 /// Output from a malai CLI command execution
