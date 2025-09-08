@@ -68,42 +68,69 @@ malai machine init fifthtry.com ft  # Resolves to cluster manager ID52
 
 ## System Architecture
 
-malai consists of three distinct services that can run independently:
+malai runs as a **single unified process** that provides all functionality:
 
-### 1. Cluster Manager
-- **Purpose**: Configuration management and cluster coordination  
-- **Auto-started by**: `malai start` on cluster manager machines
-- **Can run on**: Servers, laptops, **or mobile devices** (iOS/Android app)
-- **Operational model**: **Does NOT need to be online 24/7** - only needed for config updates
+### **Unified malai start Process:**
+- **Purpose**: All infrastructure functionality in one process
+- **Runs on**: Any machine (servers, laptops, mobile devices)  
+- **Auto-detects roles**: Scans MALAI_HOME for clusters and starts appropriate services
+- **Integrated services**: No separate agent processes needed
+
+### **Services Within Single Process:**
+
+#### **1. Cluster Manager(s)** (0 or more per MALAI_HOME)
+- **Triggered by**: Finding cluster-config.toml files
 - **Functions**:
-  - Monitors `cluster-config.toml` for admin changes
-  - Distributes config updates to all cluster machines via P2P when online
-  - Coordinates cluster membership and permissions during config changes
-- **Mobile benefits**: Manage infrastructure from phone, sync when convenient
+  - Monitor cluster-config.toml for changes
+  - Distribute config updates via P2P to cluster machines
+  - Maintain state.json tracking per-machine sync status
+- **Mobile friendly**: Can run on iOS/Android, offline tolerance built-in
 
-### 2. Remote Access Daemon  
-- **Purpose**: Accept and execute incoming remote commands
-- **Auto-started by**: `malai start` on machines with `allow_from` permissions
+#### **2. SSH Daemon** (0 or 1 per MALAI_HOME)
+- **Triggered by**: Finding machine-config.toml with SSH permissions
 - **Functions**:
-  - Listens for P2P requests from authorized cluster machines
-  - Executes commands with proper user context and permission validation
-  - Provides secure remote shell access
+  - Listen for P2P SSH requests from cluster machines
+  - Execute authorized commands with permission validation
+  - Provide secure remote shell access
 
-### 3. Service Proxy Agent
-- **Purpose**: Local TCP/HTTP forwarding for transparent service access
-- **Auto-started by**: `malai start` on all machines (always runs)
+#### **3. Service Proxy** (Always runs)
+- **Always active**: Handles local service access
 - **Functions**:
-  - **TCP forwarding**: Listen on local ports, forward to remote services via P2P
-  - **HTTP subdomain routing**: Listen on port 80, route by `Host: subdomain.localhost`
-  - **Connection pooling**: Reuse P2P connections for performance
-  - **Identity injection**: Automatic client ID52 headers for HTTP services
-- **Configuration**: `$MALAI_HOME/ssh/services.toml`
+  - **HTTP server**: Port 80, routes by `subdomain.localhost` to remote services
+  - **TCP servers**: Listen on configured ports (3306, 6379), forward via P2P
+  - **Identity injection**: Add client ID52 headers to HTTP requests
+  - **Connection pooling**: Shared P2P connections across all clusters
 
-### Service Integration
-- **Remote commands**: `malai web01.company ps aux` → direct P2P execution
-- **TCP services**: `mysql -h localhost:3306` → agent forwards via P2P
-- **HTTP services**: `http://admin.localhost` → agent routes via subdomain
-- **Unified operation**: Single `malai start` auto-detects and runs all applicable services
+### CLI to Service Communication
+
+#### **Connection Pooling Architecture:**
+- **CLI commands**: `malai web01.company ps aux` → connect to local `malai start` via Unix socket
+- **Shared P2P connections**: `malai start` maintains fastn-p2p connections, CLI reuses them  
+- **Performance optimization**: No new iroh connection per CLI invocation
+- **Local protocol**: Custom protocol over Unix socket for CLI ↔ malai start communication
+
+#### **CLI Communication Protocol:**
+```
+CLI Command: malai web01.company ps aux
+    ↓
+1. CLI connects to $MALAI_HOME/ssh/malai.sock
+2. CLI sends: {"type": "ssh_exec", "machine": "web01.company", "command": "ps", "args": ["aux"]}
+3. malai start receives, validates permissions, forwards via existing P2P connection
+4. malai start sends response: {"stdout": "...", "stderr": "...", "exit_code": 0}
+5. CLI displays output and exits
+
+No P2P overhead per command - all connections pooled in malai start process.
+```
+
+#### **Fallback Behavior:**
+- **malai start running**: CLI uses socket communication (fast)
+- **malai start not running**: CLI creates direct P2P connection (slower, but works)
+
+### Service Integration  
+- **Remote commands**: CLI → malai start → P2P execution
+- **TCP services**: `mysql -h localhost:3306` → malai start forwards via P2P
+- **HTTP services**: `http://admin.localhost` → malai start routes via subdomain  
+- **Unified operation**: Single `malai start` handles all P2P connections and service forwarding
 
 ## Mobile Cluster Manager
 
@@ -756,8 +783,8 @@ $MALAI_HOME/
 │   │   └── personal/                # Personal cluster alias
 │   │       └── ...
 │   ├── services.toml                # Local services: aliases + port forwarding
-│   ├── agent.sock                   # Single agent manages all clusters
-│   └── agent.lock                   # Single agent lockfile
+│   ├── malai.sock                   # CLI communication socket (malai commands → malai start)
+│   └── malai.lock                   # Process lockfile
 └── keys/
     └── default-identity.key         # Default identity for new clusters
 
@@ -879,14 +906,21 @@ Each cluster directory has its own state.json:
 - `$MALAI_HOME/ssh/clusters/ft/state.json`
 - `$MALAI_HOME/ssh/clusters/personal/state.json`
 
-### **Startup Orchestration (malai start):**
-1. **Scan clusters**: Find all cluster directories in `$MALAI_HOME/ssh/clusters/`
-2. **Detect roles**: For each cluster, determine if cluster-manager/machine/client-only
-3. **Start services**:
-   - **Cluster managers**: Config monitoring + distribution for each managed cluster
-   - **SSH daemons**: P2P listeners for each cluster where machine accepts SSH
-   - **Service proxy**: TCP/HTTP forwarding agent (always runs)
-4. **Cross-cluster coordination**: Single agent handles all clusters simultaneously
+### **Unified malai start Architecture:**
+Single process handles everything:
+
+1. **Scan MALAI_HOME**: Find cluster configs and machine configs in all cluster directories
+2. **Start cluster managers**: For each cluster-config.toml found (0 or more per MALAI_HOME)
+3. **Start SSH daemon**: If any machine-config.toml indicates SSH acceptance (0 or 1 per MALAI_HOME)  
+4. **Start service proxy**: Always runs - handles TCP ports + HTTP subdomain routing
+5. **Integrated operation**: No separate malai agent process needed
+
+### **Service Integration in Single Process:**
+- **HTTP server**: Listen on port 80, route by `subdomain.localhost` to remote services
+- **TCP servers**: Listen on configured ports (3306, 6379, etc.), forward to remote services
+- **Cluster manager poller**: Monitor config changes, distribute via P2P  
+- **SSH P2P listener**: Accept remote commands via fastn-p2p
+- **All services**: Run in same process with shared connection pool and identity management
 
 ## Multi-Cluster Agent
 
