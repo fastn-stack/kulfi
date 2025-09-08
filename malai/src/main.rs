@@ -115,8 +115,12 @@ async fn main() -> eyre::Result<()> {
         }
         Some(Command::Ssh { ssh_command }) => {
             match ssh_command {
-                SshCommand::CreateCluster { alias } => {
+                SshCommand::InitCluster { alias } => {
                     malai::create_cluster(alias.clone()).await?;
+                    return Ok(());
+                }
+                SshCommand::Init => {
+                    malai::init_machine().await?;
                     return Ok(());
                 }
                 SshCommand::Agent { environment, lockdown, http } => {
@@ -319,11 +323,13 @@ pub enum Command {
 
 #[derive(clap::Subcommand, Debug)]
 pub enum SshCommand {
-    #[clap(about = "Create a new cluster (generates cluster manager identity)")]
-    CreateCluster {
+    #[clap(about = "Initialize a new cluster (generates cluster manager identity)")]
+    InitCluster {
         #[arg(long, help = "Optional cluster alias")]
         alias: Option<String>,
     },
+    #[clap(about = "Initialize machine for SSH (generates identity)")]
+    Init,
     #[clap(about = "Start SSH agent for connection management and HTTP proxy")]
     Agent {
         #[arg(

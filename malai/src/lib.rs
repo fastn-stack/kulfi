@@ -42,7 +42,7 @@ pub use http_proxy::{ProxyData, http_proxy};
 pub use http_proxy_remote::http_proxy_remote;
 pub use keygen::keygen;
 pub use run::run;
-pub use ssh_utils::{create_cluster, show_cluster_info, start_ssh_agent};
+pub use ssh_utils::{create_cluster, init_machine, show_cluster_info, start_ssh_agent};
 pub use tcp_bridge::tcp_bridge;
 
 #[cfg(feature = "ui")]

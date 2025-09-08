@@ -58,13 +58,18 @@ impl MalaiCommand {
         self.execute_args(["keygen", "--file", file_path.as_ref().to_str().unwrap()]).await
     }
 
-    /// Execute `malai ssh create-cluster` command
-    pub async fn ssh_create_cluster(self, alias: Option<&str>) -> Result<CommandOutput, Box<dyn std::error::Error>> {
-        let mut args = vec!["ssh", "create-cluster"];
+    /// Execute `malai ssh init-cluster` command
+    pub async fn ssh_init_cluster(self, alias: Option<&str>) -> Result<CommandOutput, Box<dyn std::error::Error>> {
+        let mut args = vec!["ssh", "init-cluster"];
         if let Some(alias) = alias {
             args.extend(["--alias", alias]);
         }
         self.execute_args(args).await
+    }
+
+    /// Execute `malai ssh init` command
+    pub async fn ssh_init(self) -> Result<CommandOutput, Box<dyn std::error::Error>> {
+        self.execute_args(["ssh", "init"]).await
     }
 
     /// Execute `malai ssh cluster-info` command

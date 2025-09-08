@@ -105,8 +105,18 @@ impl CommandOutput {
         }
     }
 
-    /// Extract ID52 from keygen output
+    /// Extract ID52 from keygen output (checks both stdout and stderr)
     pub fn extract_id52(&self) -> Result<String, Box<dyn std::error::Error>> {
+        // Check stderr first (where keygen puts the ID52)
+        for line in self.stderr.lines() {
+            if line.contains("ID52") && line.contains(":") {
+                if let Some(id52_part) = line.split(':').nth(1) {
+                    return Ok(id52_part.trim().to_string());
+                }
+            }
+        }
+        
+        // Fallback to stdout
         for line in self.stdout.lines() {
             if line.contains("ID52") && line.contains(":") {
                 if let Some(id52_part) = line.split(':').nth(1) {
@@ -114,7 +124,8 @@ impl CommandOutput {
                 }
             }
         }
-        Err(format!("Could not extract ID52 from output: {}", self.stdout).into())
+        
+        Err(format!("Could not extract ID52 from output\nstdout: {}\nstderr: {}", self.stdout, self.stderr).into())
     }
 
     /// Extract cluster ID from create-cluster output

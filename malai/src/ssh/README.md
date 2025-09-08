@@ -172,14 +172,20 @@ DATADIR[malai]/ssh/clusters/<cluster-alias>/
 
 ### Cluster Management Commands
 ```bash
-# Create a new cluster (generates cluster manager identity)
-malai ssh create-cluster [--alias company-cluster]
+# Initialize a new cluster (generates cluster manager identity)
+malai ssh init-cluster [--alias company-cluster]
 # Outputs: "Cluster created with ID: <cluster-manager-id52>"
 # Creates: $MALAI_HOME/ssh/cluster-config.toml with this machine as cluster manager
 
+# Initialize machine for SSH (generates identity only, NO config)
+malai ssh init
+# Outputs: "Machine created with ID: <machine-id52>"
+# Creates: $MALAI_HOME/keys/identity.key (identity only)
+# Machine will receive config from cluster manager via P2P sync
+
 # List cluster information  
 malai ssh cluster-info
-# Shows: role (cluster-manager/machine), cluster ID, machine alias from config
+# Shows: role (cluster-manager/machine/unknown), cluster ID, machine alias from config
 ```
 
 ### Client Commands
@@ -361,19 +367,19 @@ The `MALAI_HOME` environment variable enables comprehensive testing of multi-clu
 mkdir -p /tmp/malai-test/{cluster1,cluster2,server1,server2,device1,device2}
 ```
 
-**2. Create Cluster (Terminal 1):**
+**2. Initialize Cluster (Terminal 1):**
 ```bash
 export MALAI_HOME=/tmp/malai-test/cluster1
-malai ssh create-cluster --alias test-cluster
+malai ssh init-cluster --alias test-cluster
 # Outputs: "Cluster created with ID: abc123..."
 eval $(malai ssh agent -e)  # Start agent (automatically runs as cluster manager)
 ```
 
-**3. Create Server Machine (Terminal 2):**
+**3. Initialize Server Machine (Terminal 2):**
 ```bash
 export MALAI_HOME=/tmp/malai-test/server1
-malai keygen  # Generate server identity
-# Outputs: "Identity created with ID52: def456..."
+malai ssh init  # Generate machine identity (NO config yet)
+# Outputs: "Machine created with ID: def456..."
 ```
 
 **4. Update Cluster Config (Terminal 1 - Cluster Manager):**
@@ -493,18 +499,18 @@ rm -rf /tmp/malai-test/
 
 ### Production Setup
 
-**1. Create Cluster (on cluster manager machine):**
+**1. Initialize Cluster (on cluster manager machine):**
 ```bash
-malai ssh create-cluster --alias company-cluster
+malai ssh init-cluster --alias company-cluster
 # Outputs: "Cluster created with ID: <cluster-manager-id52>"
 eval $(malai ssh agent -e)  # Start agent in background
 ```
 
-**2. Add Machines to Cluster:**
+**2. Initialize Machines:**
 ```bash
 # On each machine that should join the cluster:
-malai keygen  # Generate identity for this machine
-# Copy the ID52 from output
+malai ssh init  # Generate identity for this machine
+# Outputs: "Machine created with ID: <machine-id52>"
 
 # Cluster admin manually adds to cluster manager's config:
 # Edit $MALAI_HOME/ssh/cluster-config.toml:
@@ -513,7 +519,7 @@ malai keygen  # Generate identity for this machine
 # accept_ssh = true        # If this should accept SSH connections
 # allow_from = "*"
 #
-# Config automatically syncs to all machines
+# Config automatically syncs to all machines via P2P
 # Each machine's agent auto-detects its role and starts appropriate services
 ```
 
