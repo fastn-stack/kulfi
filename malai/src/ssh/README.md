@@ -90,7 +90,7 @@ Machines can expose HTTP services through the malai network:
 # Cluster manager configuration
 [cluster-manager]
 id52 = "cluster-manager-id52-here"
-cluster_name = "company.example.com"
+cluster_name = "company"
 
 # Machine definitions
 [machine.web01]
@@ -106,7 +106,7 @@ username = "root"                    # Run as root user
 
 [machine.web01.command.restart-nginx]
 allow_from = "admins,on-call-devs"   # Custom command with alias
-command = "sudo systemctl restart nginx"  # Actual command to execute
+command = sudo systemctl restart nginx  # Actual command to execute
 username = "nginx"                   # Run as nginx user
 
 [machine.web01.command.top]
@@ -254,7 +254,7 @@ username = "deploy"                  # Run as deploy user (safer than root)
 
 [machine.web01.command.logs]
 allow_from = "devs,support"
-command = "tail -f /var/log/nginx/access.log"
+command = tail -f /var/log/nginx/access.log
 # username not specified = inherits from machine.username
 ```
 
@@ -331,7 +331,7 @@ malai ssh web01.company.com "ps aux"
 malai ssh web01.company.com
 
 # Using ID-based addressing
-malai ssh web01.cluster-id52 "systemctl status nginx"
+malai ssh web01.cluster-id52 systemctl status nginx
 ```
 
 ### Single Cluster Per MALAI_HOME
@@ -352,7 +352,7 @@ malai ssh web01.cluster-id52 "systemctl status nginx"
 ```bash
 # Initialize a new cluster (generates cluster manager identity)
 malai ssh cluster init <cluster-name>
-# Example: malai ssh cluster init company.example.com
+# Example: malai ssh cluster init company
 # Outputs: "Cluster created with ID: <cluster-manager-id52>"
 # Creates: $MALAI_HOME/ssh/cluster-config.toml with cluster manager config
 
@@ -366,7 +366,7 @@ malai ssh cluster start
 ```bash
 # Initialize machine for SSH cluster (contacts cluster manager)
 malai ssh machine init <cluster-name-or-manager-id52>
-# Example: malai ssh machine init company.example.com
+# Example: malai ssh machine init company
 # Outputs: "Machine created with ID: <machine-id52>"
 # Creates: $MALAI_HOME/keys/identity.key (machine identity)
 # Creates: $MALAI_HOME/ssh/cluster-info.toml (cluster manager verification)
@@ -398,16 +398,16 @@ malai ssh cluster-info
 # Execute command on remote machine (natural SSH syntax)
 malai ssh <machine-address> <command>
 # Examples:
-malai ssh web01.company.example.com "systemctl status nginx"
-malai ssh web01.cluster-id52 "ps aux"
+malai ssh web01.company systemctl status nginx
+malai ssh web01.cluster-id52 ps aux
 
 # Interactive shell session
 malai ssh <machine-address>
-# Example: malai ssh web01.company.example.com
+# Example: malai ssh web01.company
 
 # Alternative explicit syntax
-malai ssh exec web01.company.example.com "uptime"
-malai ssh shell web01.company.example.com
+malai ssh exec web01.company uptime
+malai ssh shell web01.company
 ```
 
 ### Agent Commands
@@ -817,12 +817,12 @@ This approach allows you to test complex multi-cluster scenarios, permission sys
 **Setup (one-time):**
 ```bash
 # On my laptop (cluster manager):
-malai ssh cluster init personal.local
+malai ssh cluster init personal
 # Edit config to add machines with permissions
 malai ssh cluster start &  # Run in background
 
 # On home server:
-malai ssh machine init personal.local  # Contacts cluster, registers machine
+malai ssh machine init personal  # Contacts cluster, registers machine
 # Laptop admin adds machine to cluster config as [machine.home-server]
 malai ssh machine start &  # SSH daemon
 
@@ -833,12 +833,12 @@ malai ssh agent start &  # Optional: connection pooling
 **Daily usage:**
 ```bash
 # Direct SSH commands (natural syntax):
-malai ssh home-server.personal.local htop
-malai ssh home-server.personal.local "docker ps"
-malai ssh home-server.personal.local "sudo systemctl restart nginx"
+malai ssh home-server.personal htop
+malai ssh home-server.personal docker ps
+malai ssh home-server.personal sudo systemctl restart nginx
 
 # HTTP services:
-curl admin.home-server.personal.local/api
+curl admin.home-server.personal/api
 ```
 
 ### Example 2: Fastn Cloud Cluster
@@ -862,11 +862,11 @@ malai ssh agent start  # Connection pooling for frequent SSH
 **Daily operations:**
 ```bash
 # Server management:
-malai ssh web01.fastn-cloud "systemctl status nginx"
+malai ssh web01.fastn-cloud systemctl status nginx
 malai ssh db01.fastn-cloud restart-postgres  # Command alias
 
 # Monitoring:
-malai ssh web01.fastn-cloud "tail -f /var/log/nginx/access.log"
+malai ssh web01.fastn-cloud tail -f /var/log/nginx/access.log
 
 # HTTP services:
 curl api.web01.fastn-cloud/health
