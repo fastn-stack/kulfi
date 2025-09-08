@@ -14,7 +14,7 @@ malai provides secure remote access to your machines and services using peer-to-
 # On your laptop (cluster manager):
 malai cluster init personal
 # Outputs: "Cluster created with ID: abc123def456ghi789..."
-malai start &
+malai daemon &
 
 # On your home server (copy the cluster manager ID52 from above):  
 malai machine init abc123def456ghi789... personal  # Cluster manager ID52 + local alias
@@ -25,7 +25,7 @@ malai machine init abc123def456ghi789... personal  # Cluster manager ID52 + loca
 # Add: [machine.home-server] id52 = "xyz789abc123def456..." allow_from = "*"
 
 # On home server, start services:
-malai start &
+malai daemon &
 
 # Now enjoy natural remote access from laptop:
 malai home-server.personal htop
@@ -38,11 +38,11 @@ open http://admin.personal.localhost  # Direct browser access to admin service i
 ```bash
 # On ops machine (cluster manager):
 malai cluster init company
-malai start &
+malai daemon &
 
 # On each server:
 malai machine init company.example.com corp  # Join via domain
-malai start &
+malai daemon &
 
 # Developers get instant access:
 malai web01.corp systemctl status nginx
@@ -85,14 +85,14 @@ malai operates as three integrated services:
 2. **SSH Daemon**: Accept remote commands on authorized machines
 3. **Client Agent**: Local TCP/HTTP proxy for transparent service access
 
-A single `malai start` command auto-detects roles and starts appropriate services.
+A single `malai daemon` command auto-detects roles and starts appropriate services.
 
 ## Real-World Examples
 
 ### DevOps Engineer
 ```bash
 # Morning routine:
-malai start &  # Starts all services for all clusters
+malai daemon &  # Starts all services for all clusters
 
 # Server management:
 malai web ps aux                    # Check web server processes
@@ -109,7 +109,7 @@ open http://logs.company.localhost       # Log analysis tools
 # Initialize from mobile device (iPhone/Android malai app):
 malai cluster init company
 # Edit cluster config in mobile app UI
-malai start  # Distribute config to all servers
+malai daemon  # Distribute config to all servers
 
 # Daily infrastructure management from mobile:
 malai web01.company systemctl status nginx

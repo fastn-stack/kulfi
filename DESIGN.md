@@ -70,7 +70,7 @@ malai machine init fifthtry.com ft  # Resolves to cluster manager ID52
 
 malai runs as a **single unified process** that provides all functionality:
 
-### **Unified malai start Process:**
+### **Unified malai daemon Process:**
 - **Purpose**: All infrastructure functionality in one process
 - **Runs on**: Any machine (servers, laptops, mobile devices)  
 - **Auto-detects roles**: Scans MALAI_HOME for clusters and starts appropriate services
@@ -104,10 +104,10 @@ malai runs as a **single unified process** that provides all functionality:
 ### CLI to Service Communication
 
 #### **Connection Pooling Architecture:**
-- **CLI commands**: `malai web01.company ps aux` → connect to local `malai start` via Unix socket
-- **Shared P2P connections**: `malai start` maintains fastn-p2p connections, CLI reuses them  
+- **CLI commands**: `malai web01.company ps aux` → connect to local `malai daemon` via Unix socket
+- **Shared P2P connections**: `malai daemon` maintains fastn-p2p connections, CLI reuses them  
 - **Performance optimization**: No new iroh connection per CLI invocation
-- **Local protocol**: Custom protocol over Unix socket for CLI ↔ malai start communication
+- **Local protocol**: Custom protocol over Unix socket for CLI ↔ malai daemon communication
 
 #### **CLI Communication Protocol:**
 ```
@@ -115,16 +115,16 @@ CLI Command: malai web01.company ps aux
     ↓
 1. CLI connects to $MALAI_HOME/malai.sock
 2. CLI sends: {"type": "ssh_exec", "machine": "web01.company", "command": "ps", "args": ["aux"]}
-3. malai start receives, validates permissions, forwards via existing P2P connection
-4. malai start sends response: {"stdout": "...", "stderr": "...", "exit_code": 0}
+3. malai daemon receives, validates permissions, forwards via existing P2P connection
+4. malai daemon sends response: {"stdout": "...", "stderr": "...", "exit_code": 0}
 5. CLI displays output and exits
 
-No P2P overhead per command - all connections pooled in malai start process.
+No P2P overhead per command - all connections pooled in malai daemon process.
 ```
 
 #### **Fallback Behavior:**
-- **malai start running**: CLI uses socket communication (fast)
-- **malai start not running**: CLI creates direct P2P connection (slower, but works)
+- **malai daemon running**: CLI uses socket communication (fast)
+- **malai daemon not running**: CLI creates direct P2P connection (slower, but works)
 
 ## Explicit Configuration Management
 
@@ -142,9 +142,10 @@ malai rescan --check
 
 # Apply config changes atomically  
 malai rescan
-# 1. Load and validate all configs in MALAI_HOME
+# Sends reload signal to running malai daemon via Unix socket
+# 1. Daemon loads and validates all configs in MALAI_HOME
 # 2. If valid: replace running config, trigger service updates
-# 3. If invalid: keep existing config, report errors
+# 3. If invalid: keep existing config, report errors  
 # 4. Atomic operation: either all configs update or none do
 ```
 
@@ -172,10 +173,10 @@ malai info  # Shows sync status per cluster
 This gives admins full control over when configuration changes take effect.
 
 ### Service Integration  
-- **Remote commands**: CLI → malai start → P2P execution
-- **TCP services**: `mysql -h localhost:3306` → malai start forwards via P2P
-- **HTTP services**: `http://admin.localhost` → malai start routes via subdomain  
-- **Unified operation**: Single `malai start` handles all P2P connections and service forwarding
+- **Remote commands**: CLI → malai daemon → P2P execution
+- **TCP services**: `mysql -h localhost:3306` → malai daemon forwards via P2P
+- **HTTP services**: `http://admin.localhost` → malai daemon routes via subdomain  
+- **Unified operation**: Single `malai daemon` handles all P2P connections and service forwarding
 
 ## Mobile Cluster Manager
 
@@ -199,7 +200,7 @@ The cluster manager can run on mobile devices (iOS/Android), enabling infrastruc
 # On mobile (cluster manager):
 malai cluster init company          # Initialize company infrastructure cluster
 # Edit config in mobile app to add servers
-malai start                         # Distribute config to all servers
+malai daemon                         # Distribute config to all servers
 
 # Daily server management from mobile:
 malai web01.company systemctl status nginx
@@ -434,7 +435,7 @@ Commands can run as different users based on a hierarchy of username settings:
 **Username Resolution Order:**
 1. **Command-level**: `[machine.X.command.Y] username = "specific-user"`
 2. **Machine-level**: `[machine.X] username = "machine-user"`  
-3. **Agent default**: Same user that runs `malai start`
+3. **Agent default**: Same user that runs `malai daemon`
 
 **Examples:**
 - `malai web01 restart-nginx` → runs as `nginx` user (command-level override)
@@ -655,12 +656,12 @@ malai machine init fifthtry.com ft                  # Using domain (if DNS confi
 ### Unified Service Management
 ```bash
 # Start all SSH services (auto-detects roles across all clusters)
-malai start
+malai daemon
 # Scans $MALAI_HOME/clusters/ and starts:
 # - Cluster manager for clusters where this machine is manager
 # - SSH daemon for clusters where this machine accepts SSH
 # - Client agent for connection pooling across all clusters
-# Environment: malai start -e
+# Environment: malai daemon -e
 
 # Show information for all clusters
 malai info
@@ -695,10 +696,10 @@ malai shell web01.company
 ```bash
 # Start agent in background (handles all SSH functionality automatically)
 # Requires MALAI_HOME to be set or uses default location
-malai start
+malai daemon
 
 # Get environment setup commands for shell integration
-malai start -e
+malai daemon -e
 
 # Agent automatically:
 # - Uses MALAI_HOME for all data (config, identity, socket, lockfile)
@@ -773,20 +774,20 @@ The agent outputs environment variables in `ENV=value` format for shell evaluati
 
 ```bash
 # Start agent and configure environment
-eval $(malai start -e)
+eval $(malai daemon -e)
 
 # With specific options
-eval $(malai start -e --lockdown --http)
+eval $(malai daemon -e --lockdown --http)
 
 # Disable HTTP proxy
-eval $(malai start -e --http=false)
+eval $(malai daemon -e --http=false)
 ```
 
 ### Persistent Setup
 Add to your shell profile (`.bashrc`, `.zshrc`, etc.):
 ```bash
-# Enable malai start on shell startup
-eval $(malai start -e)
+# Enable malai daemon on shell startup
+eval $(malai daemon -e)
 ```
 
 ### Environment Variables Set
@@ -807,7 +808,7 @@ The `MALAI_HOME` environment variable controls where malai stores its configurat
 ```bash
 export MALAI_HOME=/path/to/custom/malai/data
 # Create cluster or machine, then agent handles everything automatically
-eval $(malai start -e)  # Agent auto-detects role and starts appropriate services
+eval $(malai daemon -e)  # Agent auto-detects role and starts appropriate services
 ```
 
 **Multi-Cluster Directory Structure:**
@@ -827,16 +828,16 @@ $MALAI_HOME/
 │   │   │   └── identity.key         # Machine identity for this cluster
 │   │   └── personal/                # Personal cluster alias
 │   │       └── ...
-│   ├── services.toml                # Local services: aliases + port forwarding
-│   ├── malai.sock                   # CLI communication socket (malai commands → malai start)
-│   └── malai.lock                   # Process lockfile
+├── services.toml                    # Local services: aliases + port forwarding
+├── malai.sock                       # CLI communication socket (malai commands → malai daemon)
+├── malai.lock                       # Process lockfile
 └── keys/
     └── default-identity.key         # Default identity for new clusters
 
 # Logs stored in standard system log directories per cluster:
-# - ~/.local/state/malai/malai/logs/company/
-# - ~/.local/state/malai/malai/logs/ft/
-# - ~/.local/state/malai/malai/logs/personal/
+# - ~/.local/state/malai/logs/company/
+# - ~/.local/state/malai/logs/ft/
+# - ~/.local/state/malai/logs/personal/
 ```
 
 **cluster-info.toml Example:**
@@ -951,14 +952,15 @@ Each cluster directory has its own state.json:
 - `$MALAI_HOME/clusters/ft/state.json`
 - `$MALAI_HOME/clusters/personal/state.json`
 
-### **Unified malai start Architecture:**
-Single process handles everything:
+### **malai daemon Architecture:**
+Single persistent process that provides all infrastructure services:
 
-1. **Initial scan**: Load all cluster configs and machine configs at startup
-2. **Start services**: Cluster managers, SSH daemon, service proxy based on configs
-3. **Explicit rescanning**: Use `malai rescan` to reload configs (no file system watchers)
+1. **Initial scan**: Load all cluster configs and machine configs from MALAI_HOME
+2. **Multi-role operation**: Runs cluster managers + SSH daemon + service proxy as needed
+3. **Explicit rescanning**: Use `malai rescan` to reload configs (no file system watchers)  
 4. **Atomic config updates**: Validate new configs before replacing running config
-5. **Integrated operation**: Single process, explicit control, no background watchers
+5. **CLI communication**: Provides Unix socket for CLI commands (connection pooling)
+6. **Process management**: Single daemon with lockfile, starts with `malai daemon` or `malai d`
 
 ### **Service Integration in Single Process:**
 - **HTTP server**: Listen on port 80, route by `subdomain.localhost` to remote services
@@ -998,7 +1000,7 @@ mkdir -p /tmp/malai-test/{cluster1,cluster2,server1,server2,device1,device2}
 export MALAI_HOME=/tmp/malai-test/cluster1
 malai init-cluster --alias test-cluster
 # Outputs: "Cluster created with ID: abc123..."
-eval $(malai start -e)  # Start agent (automatically runs as cluster manager)
+eval $(malai daemon -e)  # Start agent (automatically runs as cluster manager)
 ```
 
 **3. Initialize Server Machine (Terminal 2):**
@@ -1021,7 +1023,7 @@ malai init  # Generate machine identity (NO config yet)
 
 **5. Start Server Agent (Terminal 2):**
 ```bash
-eval $(malai start -e)  # Agent receives config and auto-detects SSH server role
+eval $(malai daemon -e)  # Agent receives config and auto-detects SSH server role
 ```
 
 **6. Create Client Machine (Terminal 3):**
@@ -1041,7 +1043,7 @@ malai identity create  # Generate client identity
 
 **8. Test SSH (Terminal 3):**
 ```bash
-eval $(malai start -e)  # Start agent (automatically runs as client)
+eval $(malai daemon -e)  # Start agent (automatically runs as client)
 malai web01.test-cluster "echo 'Hello from remote server!'"
 ```
 
@@ -1062,20 +1064,20 @@ Test cross-cluster scenarios by setting up multiple independent clusters:
 ```bash
 export MALAI_HOME=/tmp/malai-test/company-cluster
 malai init-cluster --alias company-cluster
-eval $(malai start -e)  # Runs as cluster manager automatically
+eval $(malai daemon -e)  # Runs as cluster manager automatically
 ```
 
 **Test Cluster:**
 ```bash
 export MALAI_HOME=/tmp/malai-test/test-cluster
 malai init-cluster --alias test-cluster
-eval $(malai start -e)  # Runs as different cluster manager
+eval $(malai daemon -e)  # Runs as different cluster manager
 ```
 
 **Client with Access to Both:**
 ```bash
 export MALAI_HOME=/tmp/malai-test/multi-client
-eval $(malai start -e)
+eval $(malai daemon -e)
 malai web01.company.com "uptime"
 malai test-server.test.local "ps aux"
 ```
@@ -1099,7 +1101,7 @@ curl admin.server1.cluster.local/secret  # Should fail without permission
 **3. Agent Functionality Testing:**
 ```bash
 # Test agent environment setup
-eval $(malai start -e --lockdown --http)
+eval $(malai daemon -e --lockdown --http)
 echo $MALAI_SSH_AGENT
 echo $HTTP_PROXY
 echo $MALAI_LOCKDOWN_MODE
@@ -1129,7 +1131,7 @@ rm -rf /tmp/malai-test/
 ```bash
 malai init-cluster --alias company-cluster
 # Outputs: "Cluster created with ID: <cluster-manager-id52>"
-eval $(malai start -e)  # Start agent in background
+eval $(malai daemon -e)  # Start agent in background
 ```
 
 **2. Initialize Machines:**
@@ -1152,7 +1154,7 @@ malai init  # Generate identity for this machine
 **3. Start Agents on All Machines:**
 ```bash
 # On each machine (add to ~/.bashrc for automatic startup):
-eval $(malai start -e)
+eval $(malai daemon -e)
 # Agent automatically:
 # - Receives config from cluster manager
 # - Detects its role (cluster-manager/SSH server/client-only)
@@ -1187,7 +1189,7 @@ malai identity create  # Creates identity in $MALAI_HOME
 export MALAI_HOME=/tmp/malai-cluster-manager
 malai create-cluster --alias test-cluster
 # Note the cluster ID output: "Cluster created with ID: abc123..."
-eval $(malai start -e)  # Auto-runs as cluster manager
+eval $(malai daemon -e)  # Auto-runs as cluster manager
 
 # Terminal 2 - Create Server Machine
 export MALAI_HOME=/tmp/malai-server1
@@ -1202,13 +1204,13 @@ malai create-machine
 # Config automatically syncs to Terminal 2
 
 # Terminal 2 - Server Starts Automatically  
-eval $(malai start -e)  # Agent detects role and starts SSH server
+eval $(malai daemon -e)  # Agent detects role and starts SSH server
 
 # Terminal 3 - Create and Add Client
 export MALAI_HOME=/tmp/malai-client1
 malai create-machine
 # Add this ID to cluster config as [device.laptop]
-eval $(malai start -e)
+eval $(malai daemon -e)
 malai web01.test-cluster "echo 'Multi-node test successful!'"
 ```
 
@@ -1223,12 +1225,12 @@ This approach allows you to test complex multi-cluster scenarios, permission sys
 # On my laptop (cluster manager):
 malai cluster init personal
 # Edit $MALAI_HOME/clusters/personal/cluster-config.toml to add machines
-malai start &  # Starts cluster manager + client agent
+malai daemon &  # Starts cluster manager + client agent
 
 # On home server:
 malai machine init personal  # Contacts cluster, registers
 # Laptop admin adds machine to personal cluster config
-malai start &  # Starts SSH daemon + client agent
+malai daemon &  # Starts SSH daemon + client agent
 
 # Both machines now participate in 'personal' cluster
 ```
@@ -1251,16 +1253,16 @@ curl admin.home-server.personal/api
 # On fastn-ops machine (cluster manager):
 malai cluster init ft
 # Edit $MALAI_HOME/clusters/ft/cluster-config.toml
-malai start  # Starts cluster manager
+malai daemon  # Starts cluster manager
 
 # On each fastn server:
 malai machine init fifthtry.com ft  # Join via domain, use short alias
 # fastn-ops adds machine to cluster config
-malai start  # Starts SSH daemon
+malai daemon  # Starts SSH daemon
 
 # On developer laptops:
 malai machine init <cluster-manager-id52> ft  # Join via ID52, short alias
-malai start  # Starts client agent for connection pooling
+malai daemon  # Starts client agent for connection pooling
 ```
 
 **Daily operations:**
@@ -1287,7 +1289,7 @@ malai machine init company.example.com company       # Join company cluster (via
 malai machine init abc123def456ghi789... ft          # Join fifthtry cluster (via ID52, alias "ft")
 
 # Single unified start:
-malai start  # Automatically starts:
+malai daemon  # Automatically starts:
                  # - Cluster manager for 'personal'
                  # - SSH daemon for 'company' and 'fastn-cloud'  
                  # - Client agent for all three clusters
@@ -1346,10 +1348,10 @@ open http://grafana.localhost           # Browser access to monitoring
 
 **Onboarding a new machine** (2 commands):
 1. `malai machine init company` → register with cluster
-2. `malai start` → auto-starts all appropriate services
+2. `malai daemon` → auto-starts all appropriate services
 
 **Multi-cluster management** (unified):
-- Single `malai start` handles all cluster roles
+- Single `malai daemon` handles all cluster roles
 - Cross-cluster SSH access with cluster.machine addressing
 - Unified HTTP proxy across all clusters
 
@@ -1400,8 +1402,8 @@ accept_ssh = true
 allow_from = \"*\"" >> $MALAI_HOME/cluster-config.toml
 
 # 4. Start agents
-export MALAI_HOME=$TEST_DIR/manager && malai start &
-export MALAI_HOME=$TEST_DIR/server1 && malai start &
+export MALAI_HOME=$TEST_DIR/manager && malai daemon &
+export MALAI_HOME=$TEST_DIR/server1 && malai daemon &
 sleep 2  # Wait for config sync
 
 # 5. Test SSH execution
@@ -1416,7 +1418,7 @@ id52 = \"$CLIENT_ID\"" >> $MALAI_HOME/cluster-config.toml
 
 # Wait for sync and test
 export MALAI_HOME=$TEST_DIR/client1
-eval $(malai start -e)
+eval $(malai daemon -e)
 malai web01.test-cluster "echo 'SSH test successful'"
 
 # Verify output contains "SSH test successful"
@@ -1654,7 +1656,7 @@ What we've built as "malai" actually fulfills the complete malai vision:
 ```bash
 malai cluster init company
 malai machine init company corp
-malai start  
+malai daemon  
 malai web01.company ps aux
 ```
 
@@ -1662,7 +1664,7 @@ malai web01.company ps aux
 ```bash
 malai cluster init company          # Promote to top-level
 malai machine init company corp     # Promote to top-level  
-malai start                         # Replaces both 'malai run' and 'malai start'
+malai daemon                         # Replaces both 'malai run' and 'malai daemon'
 malai web01.company ps aux          # Direct SSH execution (no 'ssh' prefix)
 
 # Keep legacy single-service mode:
@@ -1734,7 +1736,7 @@ public_services = ["api"]               # These services don't get identity head
 1. **Cluster manager**: `malai cluster init personal` (manage personal cluster)
 2. **Join company**: `malai machine init company.example.com corp` (work cluster)  
 3. **Join fifthtry**: `malai machine init abc123...xyz789 ft` (client cluster)
-4. **Unified start**: `malai start` (starts cluster manager + SSH daemons + agent)
+4. **Unified start**: `malai daemon` (starts cluster manager + SSH daemons + agent)
 5. **Cross-cluster access**: `malai web01.ft systemctl status nginx`
 
 ### ** Capabilities:**
