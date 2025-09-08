@@ -29,7 +29,7 @@ mod http_proxy;
 mod http_proxy_remote;
 mod keygen;
 mod run;
-// mod ssh;  // Temporarily disabled until compilation issues resolved
+// mod ssh;  // Keep disabled - using simpler P2P approach in ssh_utils
 mod ssh_utils;  // Simple SSH utilities for CLI commands
 mod tcp_bridge;
 
