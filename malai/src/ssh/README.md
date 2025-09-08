@@ -38,13 +38,25 @@ When joining a cluster, you need to contact the cluster manager. Two methods:
    # DNS lookup: TXT record for fifthtry.com contains cluster manager ID52
    ```
 
-### **Local Cluster Aliases:**
-Every cluster gets a local alias chosen by you for convenient access:
+### **Two-Level Alias System:**
 
+#### **1. Cluster Aliases (per-cluster)**
+Every cluster gets a local alias chosen during `machine init`:
 - **Short aliases**: `ft` instead of `fifthtry.com` 
 - **Personal naming**: Use whatever makes sense to you
-- **Command simplification**: `malai ssh web01.ft top` vs `malai ssh web01.fifthtry.com top`
 - **Folder names**: Aliases become directory names in `$MALAI_HOME/ssh/clusters/`
+
+#### **2. Global Machine Aliases (cross-cluster)**  
+Edit `$MALAI_HOME/ssh/aliases.toml` for ultra-short machine access:
+- **Super short**: `malai ssh web top` instead of `malai ssh web01.ft top`
+- **Cross-cluster**: Mix machines from different clusters with unified names
+- **Role-based**: `prod-web`, `staging-web`, `dev-web` for different environments
+- **Service-based**: `db-primary`, `db-replica`, `monitoring` for service roles
+
+#### **Alias Resolution Order:**
+1. **Check global aliases**: `web` → `web01.ft`
+2. **Check cluster.machine**: `web01.ft` → resolve cluster and machine
+3. **Direct ID52**: `abc123...xyz789` → direct machine contact
 
 ### **DNS Integration (Optional):**
 For domains with DNS access:
@@ -99,22 +111,73 @@ Each machine has multiple addressing options:
 - **Full ID**: `machine-id52.cluster-id52` (direct addressing)
 
 ### Service Addressing
-HTTP services on machines can be addressed as:
+Services on machines can be addressed as:
 
 - **Domain-based**: `service-alias.machine-alias.cluster-domain.com`
 - **ID-based**: `service-alias.machine-alias.cluster-id52`
 - **Full ID**: `service-alias.machine-id52.cluster-id52`
 
-Example: A Django admin service on machine `web01` in cluster `company.com` could be reached at `admin.web01.company.com`.
+**Protocol-Specific Examples:**
+- **HTTP**: `admin.web01.company` → HTTP service on port 8080
+- **TCP**: `mysql.db01.company:3306` → TCP service on port 3306
+- **Mixed**: `redis.cache01.company:6379` → Redis TCP service
 
-## HTTP Service Proxying
+## Protocol-Agnostic Service Proxying
 
-Machines can expose HTTP services through the malai network:
+Machines can expose services through the malai network using any protocol:
 
-- **Service Registration**: Each HTTP service gets a unique alias
-- **Access Control**: Configure which cluster machines can access each service
-- **Transparent Proxying**: Services appear as if running locally to authorized clients
-- **Port Flexibility**: No need to manage port conflicts across the cluster
+### **TCP Services** (protocol-agnostic)
+- **Database access**: MySQL, PostgreSQL, Redis via TCP tunneling
+- **Raw protocols**: Any TCP service can be proxied
+- **Port forwarding**: Direct TCP connection between authorized machines
+
+### **HTTP Services** (enhanced features)
+- **Header injection**: Automatic `malai-client-id52` header for application-level ACL (default: enabled)
+- **Transparent proxying**: Services appear as if running locally to authorized clients  
+- **HTTPS support**: Optional secure flag for encrypted HTTP services
+- **Application integration**: Local services can implement ACL using injected client ID52
+- **Disable injection**: Set `inject_headers = false` for public APIs that shouldn't receive identity
+
+**HTTP Header Injection Example:**
+```toml
+[machine.api-server.http.admin]
+port = 8080
+# inject_headers = true (default)
+allow_from = "admins,developers"
+
+[machine.api-server.http.public]
+port = 3000
+inject_headers = false               # Disable for public API
+allow_from = "*"
+```
+
+**Application receives request with:**
+```http
+GET /admin/users HTTP/1.1
+Host: admin.api-server.company
+malai-client-id52: abc123def456ghi789...
+malai-client-machine: laptop
+malai-client-cluster: company
+Authorization: Bearer original-token
+```
+
+**Application-level ACL:**
+```python
+# Your application can now do sophisticated ACL
+client_id52 = request.headers.get('malai-client-id52')
+client_machine = request.headers.get('malai-client-machine')
+
+if client_id52 in allowed_admin_ids:
+    return admin_data()
+else:
+    return forbidden()
+```
+
+### **Service Benefits:**
+- **Protocol flexibility**: HTTP, TCP, or any other protocol
+- **Access control**: Per-service permissions with group support
+- **Port conflict resolution**: No port management needed across cluster
+- **Enhanced HTTP**: Client identity headers for sophisticated app-level authorization
 
 ## Config File Format
 
@@ -145,15 +208,25 @@ username = "nginx"                   # Run as nginx user
 allow_from = "devs"                  # Simple command (uses command name as-is)
 # username not specified = inherits from machine.username or agent user
 
-# HTTP service exposure  
+# Protocol-agnostic service exposure
+[machine.web01.tcp.mysql]
+port = 3306
+allow_from = "backend-services,admins"
+
 [machine.web01.http.admin]
 port = 8080
 allow_from = "admins,web01-id52"     # Groups + individual IDs
 secure = false                       # Optional: true for HTTPS (default: false)
+# inject_headers = true (default for HTTP)
 
 [machine.web01.http.api]  
 port = 3000
 allow_from = "*"                     # All cluster machines can access
+inject_headers = false               # Disable header injection for public API
+
+[machine.web01.tcp.redis]
+port = 6379
+allow_from = "backend-services"
 
 # Client-only machine (no accept_ssh = true)
 [machine.laptop]
@@ -267,11 +340,20 @@ When processing `allow_from`, the system recursively expands groups:
 [machine.production-server]
 allow_from = "admins,on-call-devs"
 
-# HTTP service access with mixed permissions  
+# Protocol-agnostic service access
+[machine.database.tcp.postgres]
+port = 5432
+allow_from = "backend-services,admins"
+
 [machine.web01.http.internal-api]
 port = 5000
 allow_from = "backend-services,monitoring-id52"
 secure = true                        # HTTPS endpoint
+inject_headers = true                # Add malai-client-id52 header for app-level ACL
+
+[machine.cache01.tcp.redis]
+port = 6379
+allow_from = "backend-services"
 
 # Command aliases and restrictions
 [machine.database.command.restart-db]
@@ -408,6 +490,11 @@ malai ssh start
 # Show information for all clusters
 malai ssh info
 # Shows role and status for each cluster this machine participates in
+
+# Alias management
+malai ssh alias add web web01.ft               # Add global alias
+malai ssh alias remove web                     # Remove global alias
+malai ssh alias list                           # List all global aliases
 ```
 
 ### SSH Execution Commands
@@ -562,6 +649,7 @@ $MALAI_HOME/
 │   │   │   └── identity.key         # Machine identity for fifthtry.com cluster
 │   │   └── personal/                # Personal cluster alias
 │   │       └── ...
+│   ├── aliases.toml                 # Global machine aliases across all clusters
 │   ├── agent.sock                   # Single agent manages all clusters
 │   └── agent.lock                   # Single agent lockfile
 └── keys/
@@ -581,6 +669,28 @@ cluster_id52 = "abc123def456ghi789..."            # Cluster manager ID52
 domain = "fifthtry.com"                           # Original domain (if used)
 role = "machine"                                   # cluster-manager, machine, or client-only
 machine_alias = "dev-laptop-001"                  # This machine's alias in cluster
+```
+
+**aliases.toml - Global Machine Aliases:**
+```toml
+# Global aliases for convenient access across all clusters
+# Format: alias = "machine.cluster"
+
+# Short aliases for frequently used machines
+web = "web01.ft"                    # malai ssh web top
+db = "db01.ft"                      # malai ssh db pg_stat_activity  
+home = "home-server.personal"       # malai ssh home htop
+laptop = "admin-laptop.company"     # malai ssh laptop uptime
+
+# Role-based aliases  
+prod-web = "web01.ft"
+staging-web = "web01-staging.company"
+dev-web = "web01-dev.personal"
+
+# Service-specific aliases
+db-primary = "db01.ft"
+db-replica = "db02.ft"
+monitoring = "grafana.ft"
 ```
 
 **Multi-Cluster Benefits:**
@@ -917,16 +1027,45 @@ malai ssh start  # Automatically starts:
 
 **Multi-cluster daily usage:**
 ```bash
-# Access different clusters seamlessly using local aliases:
+# Ultra-short commands using global aliases:
+malai ssh home htop                    # home = home-server.personal
+malai ssh web systemctl status nginx  # web = web01.company
+malai ssh db pg_stat_activity         # db = db01.ft
+
+# Or use cluster.machine format:
 malai ssh home-server.personal htop
 malai ssh web01.company systemctl status nginx  
-malai ssh db01.ft pg_stat_activity              # ft = local alias for fifthtry.com
+malai ssh db01.ft pg_stat_activity
 
-# Cross-cluster HTTP services:
-curl admin.home-server.personal/dashboard
-curl api.web01.company/metrics
-curl grafana.ft/alerts                          # Short alias for complex domain
+# Cross-cluster services with aliases:
+curl admin.home/dashboard              # HTTP: admin.home-server.personal
+curl api.web/metrics                   # HTTP: api.web01.company
+mysql -h mysql.db:3306                 # TCP: mysql.db01.ft
+redis-cli -h redis.cache               # TCP: redis.cache01.company
 ```
+
+### Example 4: Power User Alias Setup
+
+**After joining multiple clusters, set up personal aliases:**
+```bash
+# Set up ultra-short aliases for daily use:
+malai ssh alias add web web01.ft                  # fifthtry production web
+malai ssh alias add web-stg web01-staging.company # company staging web  
+malai ssh alias add db db01.ft                    # fifthtry database
+malai ssh alias add home home-server.personal     # personal home server
+
+# Now ultra-convenient daily commands:
+malai ssh web systemctl status nginx              # Instead of: malai ssh web01.ft systemctl status nginx
+malai ssh db backup                               # Instead of: malai ssh db01.ft backup  
+malai ssh home htop                               # Instead of: malai ssh home-server.personal htop
+malai ssh web-stg deploy staging                  # Instead of: malai ssh web01-staging.company deploy staging
+```
+
+**Workflow benefits:**
+- **Instant access**: 3-4 characters instead of full machine.cluster names
+- **Personal choice**: Aliases match your workflow and preferences
+- **Cross-cluster**: Mix machines from different clusters with unified naming
+- **Future-proof**: Change underlying machines without changing aliases
 
 ### User Experience Summary
 
@@ -939,9 +1078,10 @@ curl grafana.ft/alerts                          # Short alias for complex domain
 - Cross-cluster SSH access with cluster.machine addressing
 - Unified HTTP proxy across all clusters
 
-**Daily SSH usage** (natural):
-- `malai ssh web01.company ps aux` works immediately
+**Daily SSH usage** (ultra-convenient):
+- `malai ssh web ps aux` (global alias) or `malai ssh web01.company ps aux` (full form)
 - No quotes needed for commands (like real SSH)
+- Personal aliases: `malai ssh db backup` much better than `malai ssh db01.fifthtry.com backup`
 - Single agent optimizes connections across all clusters
 
 ## End-to-End Testing Strategy
