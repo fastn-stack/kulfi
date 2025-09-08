@@ -29,7 +29,7 @@ mod http_proxy;
 mod http_proxy_remote;
 mod keygen;
 mod run;
-mod core;  // Core malai functionality (formerly SSH)
+// mod core;  // Temporarily disabled - fixing module reorganization
 mod core_utils;  // Core malai utilities
 mod tcp_bridge;
 
@@ -42,7 +42,11 @@ pub use http_proxy::{ProxyData, http_proxy};
 pub use http_proxy_remote::http_proxy_remote;
 pub use keygen::keygen;
 pub use run::run;
-pub use core_utils::{create_cluster, execute_ssh_command, init_cluster, init_machine_for_cluster, show_cluster_info, start_ssh_agent, start_ssh_cluster};
+pub use core_utils::{
+    create_cluster, execute_ssh_command, init_cluster, init_machine_for_cluster, 
+    init_machine_for_cluster_with_alias, show_cluster_info, start_ssh_agent, 
+    start_ssh_cluster, start_unified_malai
+};
 pub use tcp_bridge::tcp_bridge;
 
 #[cfg(feature = "ui")]

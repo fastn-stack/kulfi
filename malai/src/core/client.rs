@@ -1,4 +1,4 @@
-use crate::ssh::protocol::*;
+use crate::core::protocol::*;
 use eyre::Result;
 use std::path::PathBuf;
 

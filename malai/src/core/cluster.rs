@@ -1,4 +1,4 @@
-use crate::ssh::config::Config;
+use crate::core::config::Config;
 use eyre::Result;
 use std::collections::HashMap;
 use std::path::PathBuf;

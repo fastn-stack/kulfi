@@ -1,5 +1,5 @@
-use crate::ssh::config::Config;
-use crate::ssh::protocol::*;
+use crate::core::config::Config;
+use crate::core::protocol::*;
 use eyre::Result;
 use std::process::Stdio;
 use tokio::process::Command;
