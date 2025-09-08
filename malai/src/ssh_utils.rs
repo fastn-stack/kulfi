@@ -259,7 +259,7 @@ async fn contact_cluster_manager(cluster: &str, machine_id52: &str, malai_home: 
 
 /// Legacy function for backward compatibility
 pub async fn create_cluster(alias: Option<String>) -> Result<()> {
-    let cluster_name = alias.unwrap_or_else(|| "default.local".to_string());
+    let cluster_name = alias.unwrap_or_else(|| "default".to_string());
     init_cluster(cluster_name).await
 }
 
@@ -267,7 +267,7 @@ pub async fn create_cluster(alias: Option<String>) -> Result<()> {
 pub async fn init_machine() -> Result<()> {
     println!("❌ Machine init requires cluster name");
     println!("💡 Usage: malai ssh machine init <cluster-name-or-id52>");
-    println!("💡 Example: malai ssh machine init company.example.com");
+    println!("💡 Example: malai ssh machine init company");
     Ok(())
 }
 
