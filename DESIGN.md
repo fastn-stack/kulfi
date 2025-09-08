@@ -126,6 +126,51 @@ No P2P overhead per command - all connections pooled in malai start process.
 - **malai start running**: CLI uses socket communication (fast)
 - **malai start not running**: CLI creates direct P2P connection (slower, but works)
 
+## Explicit Configuration Management
+
+### **No File System Watchers:**
+File system watchers cause issues:
+- **Partial file writes**: Triggers on incomplete/invalid config during editing
+- **Race conditions**: Multiple rapid changes cause unnecessary reloads
+- **Unpredictable timing**: Admin loses control over when changes take effect
+
+### **Explicit Rescanning Commands:**
+```bash
+# Check config validity without applying changes
+malai rescan --check
+# Output: Reports config syntax errors, permission issues, invalid references
+
+# Apply config changes atomically  
+malai rescan
+# 1. Load and validate all configs in MALAI_HOME
+# 2. If valid: replace running config, trigger service updates
+# 3. If invalid: keep existing config, report errors
+# 4. Atomic operation: either all configs update or none do
+```
+
+### **Atomic Config Update Process:**
+1. **Load new configs**: Parse all cluster-config.toml and machine-config.toml files
+2. **Validate configs**: Check syntax, references, permissions
+3. **Test compatibility**: Ensure new configs work with current cluster state  
+4. **Apply atomically**: Replace running config only if validation passes
+5. **Trigger sync**: Start distributing new config to machines (cluster managers only)
+6. **Rollback on error**: Keep existing config if any validation fails
+
+### **Admin Workflow:**
+```bash
+# 1. Edit config files as needed (vi, nano, etc.)
+# 2. Check changes before applying:
+malai rescan --check
+
+# 3. Apply if valid:
+malai rescan  
+
+# 4. Monitor distribution:
+malai info  # Shows sync status per cluster
+```
+
+This gives admins full control over when configuration changes take effect.
+
 ### Service Integration  
 - **Remote commands**: CLI → malai start → P2P execution
 - **TCP services**: `mysql -h localhost:3306` → malai start forwards via P2P
@@ -909,11 +954,11 @@ Each cluster directory has its own state.json:
 ### **Unified malai start Architecture:**
 Single process handles everything:
 
-1. **Scan MALAI_HOME**: Find cluster configs and machine configs in all cluster directories
-2. **Start cluster managers**: For each cluster-config.toml found (0 or more per MALAI_HOME)
-3. **Start SSH daemon**: If any machine-config.toml indicates SSH acceptance (0 or 1 per MALAI_HOME)  
-4. **Start service proxy**: Always runs - handles TCP ports + HTTP subdomain routing
-5. **Integrated operation**: No separate malai agent process needed
+1. **Initial scan**: Load all cluster configs and machine configs at startup
+2. **Start services**: Cluster managers, SSH daemon, service proxy based on configs
+3. **Explicit rescanning**: Use `malai rescan` to reload configs (no file system watchers)
+4. **Atomic config updates**: Validate new configs before replacing running config
+5. **Integrated operation**: Single process, explicit control, no background watchers
 
 ### **Service Integration in Single Process:**
 - **HTTP server**: Listen on port 80, route by `subdomain.localhost` to remote services

@@ -292,54 +292,104 @@ pub async fn start_unified_malai(environment: bool) -> Result<()> {
         return Ok(());
     }
     
-    println!("🚀 Starting malai services...");
+    println!("🚀 Starting malai - scanning MALAI_HOME...");
     let malai_home = get_malai_home();
+    println!("📁 MALAI_HOME: {}", malai_home.display());
     
-    // Scan all clusters and detect roles
-    let cluster_roles = detect_all_cluster_roles(&malai_home).await?;
+    // Simple scan and report what we find
+    scan_and_report_configs(&malai_home).await?;
     
-    if cluster_roles.is_empty() {
-        println!("❌ No cluster configurations found");
+    println!("✅ malai start complete");
+    Ok(())
+}
+
+/// Scan MALAI_HOME and report what configs we find
+async fn scan_and_report_configs(malai_home: &PathBuf) -> Result<()> {
+    println!("🔍 Scanning for configurations...");
+    
+    let clusters_dir = malai_home.join("ssh").join("clusters");
+    
+    if !clusters_dir.exists() {
+        println!("❌ No clusters directory found: {}", clusters_dir.display());
         println!("💡 Initialize a cluster: malai cluster init <name>");
-        println!("💡 Join a cluster: malai machine init <cluster-manager-id52> <alias>");
         return Ok(());
     }
     
-    // Start services based on detected roles
-    for (cluster_alias, role) in cluster_roles {
-        let cluster_dir = malai_home.join("ssh").join("clusters").join(&cluster_alias);
+    println!("📂 Clusters directory: {}", clusters_dir.display());
+    
+    // Scan cluster directories
+    if let Ok(entries) = std::fs::read_dir(&clusters_dir) {
+        let mut found_clusters = false;
         
-        match role {
-            MachineRole::ClusterManager => {
-                println!("👑 Starting cluster manager for: {}", cluster_alias);
-                tokio::spawn(start_cluster_manager_for_cluster(cluster_dir.clone()));
-            }
-            MachineRole::SshServer(machine_name) => {
-                println!("🖥️  Starting SSH daemon for: {} (machine: {})", cluster_alias, machine_name);
-                tokio::spawn(start_ssh_daemon_for_cluster(cluster_dir.clone(), machine_name.clone()));
-            }
-            MachineRole::ClientOnly(machine_name) => {
-                println!("💻 Client-only access for: {} (machine: {})", cluster_alias, machine_name);
-                // Client-only machines don't need separate services (just service proxy)
-            }
-            MachineRole::Unknown => {
-                println!("❓ Unknown role for cluster: {} (waiting for config)", cluster_alias);
-                tokio::spawn(start_config_listener_for_cluster(cluster_dir.clone()));
+        for entry in entries.flatten() {
+            if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                found_clusters = true;
+                let cluster_alias = entry.file_name().to_string_lossy().to_string();
+                let cluster_dir = entry.path();
+                
+                println!("\n📋 Cluster: {}", cluster_alias);
+                println!("   📁 Directory: {}", cluster_dir.display());
+                
+                // Check what files exist
+                let config_path = cluster_dir.join("cluster-config.toml");
+                let machine_config_path = cluster_dir.join("machine-config.toml");
+                let cluster_info_path = cluster_dir.join("cluster-info.toml");
+                let identity_path = cluster_dir.join("identity.key");
+                let state_path = cluster_dir.join("state.json");
+                
+                if config_path.exists() {
+                    println!("   👑 cluster-config.toml found → Cluster Manager");
+                    if let Ok(content) = std::fs::read_to_string(&config_path) {
+                        let hash = calculate_config_hash(&content);
+                        println!("   📄 Config hash: {}", hash);
+                    }
+                } else {
+                    println!("   ❌ No cluster-config.toml");
+                }
+                
+                if machine_config_path.exists() {
+                    println!("   🖥️  machine-config.toml found → SSH Daemon");
+                } else {
+                    println!("   ❌ No machine-config.toml");
+                }
+                
+                if cluster_info_path.exists() {
+                    println!("   📋 cluster-info.toml found → Cluster Registration");
+                    if let Ok(content) = std::fs::read_to_string(&cluster_info_path) {
+                        println!("   📄 Registration info:");
+                        for line in content.lines().take(3) {
+                            if !line.starts_with('#') && !line.trim().is_empty() {
+                                println!("      {}", line.trim());
+                            }
+                        }
+                    }
+                } else {
+                    println!("   ❌ No cluster-info.toml");
+                }
+                
+                if identity_path.exists() {
+                    println!("   🔑 identity.key found");
+                } else {
+                    println!("   ❌ No identity.key");
+                }
+                
+                if state_path.exists() {
+                    println!("   📊 state.json found");
+                } else {
+                    println!("   ❌ No state.json");
+                }
             }
         }
+        
+        if !found_clusters {
+            println!("❌ No cluster directories found in {}", clusters_dir.display());
+            println!("💡 Initialize a cluster: malai cluster init <name>");
+        }
+    } else {
+        println!("❌ Could not read clusters directory");
     }
     
-    // Always start service proxy agent
-    println!("📡 Starting service proxy agent for all clusters");
-    tokio::spawn(start_service_proxy_agent(malai_home.clone()));
-    
-    println!("✅ malai services started");
-    println!("💡 Use 'malai start -e' for environment variables");
-    
-    // Keep services running
-    loop {
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-    }
+    Ok(())
 }
 
 /// Legacy function - start SSH cluster manager
