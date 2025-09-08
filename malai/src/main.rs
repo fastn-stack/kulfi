@@ -129,7 +129,7 @@ async fn main() -> eyre::Result<()> {
                 }
             }
         }
-        Some(Command::Start { environment }) => {
+        Some(Command::Daemon { environment }) => {
             malai::start_unified_malai(environment).await?;
             return Ok(());
         }
@@ -381,8 +381,8 @@ pub enum Command {
         #[command(subcommand)]
         machine_command: MachineCommand,
     },
-    #[clap(about = "Start all malai services (cluster manager + SSH daemon + service proxy)")]
-    Start {
+    #[clap(about = "Start malai daemon (cluster managers + SSH daemon + service proxy)", name = "daemon", alias = "d")]
+    Daemon {
         #[arg(
             long,
             short = 'e',
