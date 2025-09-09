@@ -592,3 +592,129 @@ pub async fn show_detailed_status() -> Result<()> {
     
     Ok(())
 }
+
+/// Generate personalized config for a specific machine
+pub fn generate_personalized_config(master_config: &str, machine_id52: &str) -> Result<String> {
+    // Parse master config
+    let master: toml::Value = toml::from_str(master_config)?;
+    
+    // Find which machine this ID52 corresponds to
+    let machine_alias = find_machine_alias_by_id52(&master, machine_id52)?;
+    
+    // Create personalized config with only relevant sections
+    let mut personalized = toml::Value::Table(toml::Table::new());
+    
+    // 1. Include cluster manager section (always needed)
+    if let Some(cluster_manager) = master.get("cluster-manager") {
+        personalized.as_table_mut().unwrap()
+            .insert("cluster-manager".to_string(), cluster_manager.clone());
+    }
+    
+    // 2. Include this specific machine section
+    if let Some(machine_section) = master.get("machine") {
+        if let Some(machine_table) = machine_section.as_table() {
+            if let Some(this_machine) = machine_table.get(&machine_alias) {
+                // Create machine table with just this machine
+                let mut machine_map = toml::Table::new();
+                machine_map.insert(machine_alias.clone(), this_machine.clone());
+                
+                personalized.as_table_mut().unwrap()
+                    .insert("machine".to_string(), toml::Value::Table(machine_map));
+            }
+        }
+    }
+    
+    // 3. Include referenced groups (TODO: implement group dependency resolution)
+    
+    // 4. Include services hosted by this machine (TODO: implement service filtering)
+    
+    // Convert back to TOML string
+    let personalized_config = toml::to_string(&personalized)?;
+    
+    Ok(personalized_config)
+}
+
+/// Find machine alias by machine ID52
+fn find_machine_alias_by_id52(config: &toml::Value, machine_id52: &str) -> Result<String> {
+    // TOML parser creates nested structure: "machine" -> { "web01" -> { "id52" -> "value" } }
+    if let Some(machine_section) = config.get("machine") {
+        if let Some(machine_table) = machine_section.as_table() {
+            for (machine_alias, machine_config) in machine_table {
+                if let Some(machine_config_table) = machine_config.as_table() {
+                    if let Some(id52_value) = machine_config_table.get("id52") {
+                        if let Some(id52_str) = id52_value.as_str() {
+                            if id52_str == machine_id52 {
+                                return Ok(machine_alias.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    Err(eyre::eyre!("Machine ID52 {} not found in config", machine_id52))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_personalized_config_generation() {
+        let master_config = r#"
+[cluster-manager]
+id52 = "cluster123"
+cluster_name = "company"
+
+[machine.web01]
+id52 = "web01-id52"
+allow_from = "admins"
+
+[machine.db01]
+id52 = "db01-id52"
+allow_from = "devs"
+
+[group.admins]
+members = "laptop-id52"
+"#;
+
+        let result = generate_personalized_config(master_config, "web01-id52").unwrap();
+        
+        // Should contain cluster manager section
+        assert!(result.contains("[cluster-manager]"));
+        assert!(result.contains("cluster123"));
+        
+        // Should contain only web01 machine section
+        assert!(result.contains("[machine.web01]"));
+        assert!(result.contains("web01-id52"));
+        
+        // Should NOT contain db01 section
+        assert!(!result.contains("[machine.db01]"));
+        assert!(!result.contains("db01-id52"));
+        
+        println!("Generated personalized config:\n{}", result);
+    }
+
+    #[test]
+    fn test_machine_alias_lookup() {
+        let config_toml = r#"
+[machine.web01]
+id52 = "web01-id52"
+
+[machine.database]
+id52 = "db-id52"
+"#;
+        
+        let config: toml::Value = toml::from_str(config_toml).unwrap();
+        
+        let alias = find_machine_alias_by_id52(&config, "web01-id52").unwrap();
+        assert_eq!(alias, "web01");
+        
+        let alias = find_machine_alias_by_id52(&config, "db-id52").unwrap();
+        assert_eq!(alias, "database");
+        
+        let result = find_machine_alias_by_id52(&config, "unknown-id52");
+        assert!(result.is_err());
+    }
+}
