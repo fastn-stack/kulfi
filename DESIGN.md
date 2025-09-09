@@ -2122,3 +2122,45 @@ public_services = ["api"]               # These services don't get identity head
 4. **Complete service mesh**: TCP + HTTP forwarding with identity injection
 
 The design is now complete and captures the full vision of malai as a secure infrastructure platform.
+
+## P2P Entity Architecture (CRITICAL)
+
+### **One Entity, One Listener, Multi-Protocol:**
+Fundamental principle: Each entity has exactly one P2P listener handling all protocols.
+
+#### **Cluster Manager Entity:**
+- **Identity**: One fastn_id52 (cluster manager identity)
+- **Listener**: One fastn_p2p::server::listen per cluster manager
+- **Protocols**: ConfigDownload, ConfigUpload, ExecuteCommand  
+- **Startup**: Single listener spawned on daemon start
+
+#### **Machine Entity:**
+- **Identity**: One fastn_id52 (machine identity)  
+- **Listener**: One fastn_p2p::server::listen per machine
+- **Protocols**: ConfigUpdate, ExecuteCommand
+- **Startup**: Single listener spawned on daemon start
+
+### **Service Architecture:**
+```rust
+// CORRECT: One listener per entity
+malai daemon startup:
+  if cluster_manager_role:
+    spawn cluster_manager_listener(cm_identity, [ConfigDownload, ConfigUpload, ExecuteCommand])
+  if machine_role:  
+    spawn machine_listener(machine_identity, [ConfigUpdate, ExecuteCommand])
+  spawn service_proxy() // Local TCP/HTTP forwarding
+
+// Each listener handles ALL protocols for that entity
+fn handle_request(request):
+  match request.protocol():
+    ConfigUpdate -> handle_config_update()
+    ExecuteCommand -> handle_execute_command() 
+    ConfigDownload -> handle_config_download()
+    ConfigUpload -> handle_config_upload()
+```
+
+### **Critical Fix Needed:**
+Current implementation has **multiple listeners per entity** (config listener + remote access daemon).
+Must be **single listener per entity** with protocol dispatch.
+
+This fixes connection timeouts and simplifies service lifecycle.

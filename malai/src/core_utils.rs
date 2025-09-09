@@ -658,35 +658,43 @@ pub async fn show_detailed_status() -> Result<()> {
 
 /// Start services based on validated configurations
 async fn start_services_from_configs(configs: ValidatedConfigs) -> Result<()> {
-    // Start cluster managers
+    // Start unified cluster manager entities (one listener per cluster manager)
     for cluster_config in configs.cluster_configs {
-        println!("👑 Starting cluster manager for: {}", cluster_config.cluster_alias);
+        println!("👑 Starting cluster manager entity for: {}", cluster_config.cluster_alias);
         
         fastn_p2p::spawn(async move {
-            if let Err(e) = run_cluster_manager(cluster_config).await {
-                println!("❌ Cluster manager failed for {}: {}", e, "cluster");
+            if let Err(e) = run_cluster_manager_entity(cluster_config).await {
+                println!("❌ Cluster manager entity failed: {}", e);
             }
         });
     }
     
-    // Start remote access daemons  
+    // Start unified machine entities (one listener per machine - handles all protocols)
     for machine_config in configs.machine_configs {
-        println!("🖥️  Starting remote access daemon for: {}", machine_config.cluster_alias);
+        println!("🖥️  Starting machine entity for: {}", machine_config.cluster_alias);
         
         fastn_p2p::spawn(async move {
-            if let Err(e) = run_ssh_daemon(machine_config).await {
-                println!("❌ remote access daemon failed for {}: {}", e, "machine");
+            if let Err(e) = run_machine_entity(machine_config).await {
+                println!("❌ Machine entity failed: {}", e);
             }
         });
     }
     
-    // Start config listeners for machines waiting for config
+    // Start waiting machine entities (same unified listener as configured machines)
     for waiting_machine in configs.waiting_machines {
-        println!("📡 Starting config listener for: {}", waiting_machine.cluster_alias);
+        println!("📡 Starting waiting machine entity for: {}", waiting_machine.cluster_alias);
+        
+        // Convert to machine config format (empty content until config received)
+        let waiting_config = MachineConfig {
+            cluster_alias: waiting_machine.cluster_alias.clone(),
+            config_path: waiting_machine.cluster_dir.join("machine-config.toml"),
+            config_content: String::new(), // Empty until config received
+            machine_role: "waiting".to_string(),
+        };
         
         fastn_p2p::spawn(async move {
-            if let Err(e) = run_config_listener(waiting_machine).await {
-                println!("❌ Config listener failed for {}: {}", e, "waiting_machine");
+            if let Err(e) = run_machine_entity(waiting_config).await {
+                println!("❌ Waiting machine entity failed: {}", e);
             }
         });
     }
@@ -702,8 +710,8 @@ async fn start_services_from_configs(configs: ValidatedConfigs) -> Result<()> {
     Ok(())
 }
 
-/// Run cluster manager for a specific cluster
-async fn run_cluster_manager(cluster_config: ClusterConfig) -> Result<()> {
+/// Run unified cluster manager entity (single listener, multi-protocol)
+async fn run_cluster_manager_entity(cluster_config: ClusterConfig) -> Result<()> {
     println!("📋 Cluster manager starting for: {}", cluster_config.cluster_alias);
     
     let cluster_dir = cluster_config.config_path.parent().unwrap();
@@ -829,10 +837,11 @@ fn update_machine_state(
     Ok(())
 }
 
-/// Run remote access daemon (accepts SSH commands via P2P)
-async fn run_ssh_daemon(machine_config: MachineConfig) -> Result<()> {
+/// Run unified machine entity (single listener, multi-protocol)  
+async fn run_machine_entity(machine_config: MachineConfig) -> Result<()> {
     let cluster_alias = machine_config.cluster_alias.clone();
-    println!("🚪 Remote access daemon starting for: {}", cluster_alias);
+    println!("🖥️  Machine entity starting for: {}", cluster_alias);
+    println!("   📋 Role: {}", machine_config.machine_role);
     
     // Get machine identity
     let identity_path = machine_config.config_path.parent().unwrap().join("identity.key");
@@ -843,10 +852,10 @@ async fn run_ssh_daemon(machine_config: MachineConfig) -> Result<()> {
     let secret_key_hex = std::fs::read_to_string(&identity_path)?;
     let machine_secret = fastn_id52::SecretKey::from_str(secret_key_hex.trim())?;
     
-    println!("🆔 Remote access daemon ID52: {}", machine_secret.id52());
-    println!("📡 Listening for remote access requests...");
+    println!("🆔 Machine entity ID52: {}", machine_secret.id52());
+    println!("📡 Listening for ALL machine protocols: ConfigUpdate + ExecuteCommand");
     
-    // Start P2P listener for both config sync AND remote access
+    // Single P2P listener for ALL machine protocols
     let protocols = vec![
         MalaiProtocol::ConfigUpdate, 
         MalaiProtocol::ExecuteCommand
@@ -862,12 +871,12 @@ async fn run_ssh_daemon(machine_config: MachineConfig) -> Result<()> {
                 match request_result {
                     Some(Ok(request)) => {
                         let protocol = request.protocol().clone();
-                        println!("📨 Received P2P request: {}", protocol);
+                        println!("📨 Machine entity received: {}", protocol);
                         
                         let machine_config_clone = machine_config.clone();
                         fastn_p2p::spawn(async move {
-                            if let Err(e) = dispatch_protocol_request(request, machine_config_clone).await {
-                                println!("❌ Protocol request handling failed: {}", e);
+                            if let Err(e) = dispatch_machine_protocol_request(request, machine_config_clone).await {
+                                println!("❌ Machine protocol handling failed: {}", e);
                             }
                         });
                     }
@@ -875,13 +884,13 @@ async fn run_ssh_daemon(machine_config: MachineConfig) -> Result<()> {
                         println!("❌ P2P request error: {}", e);
                     }
                     None => {
-                        println!("📡 Remote access listener stream ended");
+                        println!("📡 Machine entity listener stream ended");
                         break;
                     }
                 }
             }
             _ = fastn_p2p::cancelled() => {
-                println!("🛑 Remote access daemon {} stopping gracefully", cluster_alias);
+                println!("🛑 Machine entity {} stopping gracefully", cluster_alias);
                 break;
             }
         }
@@ -908,6 +917,22 @@ async fn run_service_proxy() -> Result<()> {
     }
     
     Ok(())
+}
+
+/// Dispatch machine protocol request to appropriate handler  
+async fn dispatch_machine_protocol_request(
+    request: fastn_p2p::server::Request<MalaiProtocol>,
+    machine_config: MachineConfig,
+) -> Result<()> {
+    match request.protocol() {
+        MalaiProtocol::ConfigUpdate => {
+            let cluster_dir = machine_config.config_path.parent().unwrap().to_path_buf();
+            handle_config_update_protocol(request, cluster_dir).await
+        }
+        MalaiProtocol::ExecuteCommand => {
+            handle_execute_command_protocol(request, machine_config).await  
+        }
+    }
 }
 
 /// Run config listener for machine waiting for cluster manager config
