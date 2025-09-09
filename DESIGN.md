@@ -177,6 +177,56 @@ Role: Initiates SSH commands, accesses services via local forwarding
 4. **Service execution**: Remote machine proxies to local admin service
 5. **Response streaming**: Service response returned via P2P tunnel
 
+## Remote Cluster Configuration Management
+
+### **Config Edit Authorization:**
+The cluster manager can accept config edit commands from authorized machines:
+
+```toml
+[cluster-manager]
+id52 = "cluster-manager-id52"
+cluster_name = "company" 
+config_editors = "admins,devops-leads,emergency-laptop-id52"
+```
+
+### **Remote Config Commands:**
+```bash
+# Download current cluster config for editing
+malai config download company > company-config.toml
+
+# Edit config locally (any editor)
+vim company-config.toml
+
+# Upload updated config 
+malai config upload company-config.toml
+
+# View current config without downloading
+malai config show company
+
+# Validate config before uploading  
+malai config validate company-config.toml
+```
+
+### **Config Management Flow:**
+1. **Admin machine**: `malai config download company` → requests config via P2P
+2. **Cluster manager**: Validates requester in `config_editors`, sends current config
+3. **Admin edits**: Local file editing using standard tools
+4. **Admin uploads**: `malai config upload` → sends updated config via P2P
+5. **Cluster manager**: Validates sender, atomic config replacement, triggers distribution
+6. **All machines**: Receive updated personalized configs automatically
+
+### **Security Benefits:**
+- **Authorized editing**: Only specified machines can modify cluster config
+- **No SSH needed**: No need to SSH to cluster manager machine
+- **Atomic updates**: Config changes applied atomically across cluster
+- **Audit trail**: All config changes logged with sender identity
+- **Group support**: Use groups for team-based config editing permissions
+
+### **Mobile Admin Support:**
+- **Edit from mobile**: Admin can download, edit, and upload config from mobile device
+- **Emergency management**: Emergency config changes from any authorized device
+- **Offline editing**: Download config, edit offline, upload when convenient
+
 ### **Missing Design Elements - TO ADDRESS:**
 
 #### **Multi-Cluster Resolution:**
@@ -451,6 +501,7 @@ else:
 [cluster-manager]
 id52 = "cluster-manager-id52-here"
 cluster_name = "company"
+config_editors = "admins,devops-leads,emergency-laptop-id52"  # Who can remotely edit cluster config
 
 # Machine definitions
 [machine.web01]
