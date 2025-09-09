@@ -802,7 +802,8 @@ fn update_machine_state(
 
 /// Run remote access daemon (accepts SSH commands via P2P)
 async fn run_ssh_daemon(machine_config: MachineConfig) -> Result<()> {
-    println!("🚪 Remote access daemon starting for: {}", machine_config.cluster_alias);
+    let cluster_alias = machine_config.cluster_alias.clone();
+    println!("🚪 Remote access daemon starting for: {}", cluster_alias);
     
     // Get machine identity
     let identity_path = machine_config.config_path.parent().unwrap().join("identity.key");
@@ -834,8 +835,9 @@ async fn run_ssh_daemon(machine_config: MachineConfig) -> Result<()> {
                         let protocol = request.protocol().clone();
                         println!("📨 Received P2P request: {}", protocol);
                         
+                        let machine_config_clone = machine_config.clone();
                         fastn_p2p::spawn(async move {
-                            if let Err(e) = dispatch_protocol_request(request, machine_config.clone()).await {
+                            if let Err(e) = dispatch_protocol_request(request, machine_config_clone).await {
                                 println!("❌ Protocol request handling failed: {}", e);
                             }
                         });
@@ -850,7 +852,7 @@ async fn run_ssh_daemon(machine_config: MachineConfig) -> Result<()> {
                 }
             }
             _ = fastn_p2p::cancelled() => {
-                println!("🛑 Remote access daemon {} stopping gracefully", machine_config.cluster_alias);
+                println!("🛑 Remote access daemon {} stopping gracefully", cluster_alias);
                 break;
             }
         }
@@ -896,7 +898,7 @@ async fn run_config_listener(waiting_machine: WaitingMachine) -> Result<()> {
     println!("📡 Listening for config updates...");
     
     // Start P2P listener for config sync protocol only
-    let protocols = vec![ConfigSyncProtocol::ConfigUpdate];
+    let protocols = vec![MalaiProtocol::ConfigUpdate];
     
     use futures_util::stream::StreamExt;
     let request_stream = fastn_p2p::server::listen(machine_secret.clone(), &protocols)?;
@@ -911,7 +913,7 @@ async fn run_config_listener(waiting_machine: WaitingMachine) -> Result<()> {
                         
                         let cluster_dir = waiting_machine.cluster_dir.clone();
                         fastn_p2p::spawn(async move {
-                            if let Err(e) = handle_config_update(request, cluster_dir).await {
+                            if let Err(e) = handle_config_update_protocol(request, cluster_dir).await {
                                 println!("❌ Config update handling failed: {}", e);
                             }
                         });
@@ -951,7 +953,7 @@ async fn dispatch_protocol_request(
     }
 }
 
-/// Handle config update protocol
+/// Handle config update protocol  
 async fn handle_config_update_protocol(
     request: fastn_p2p::server::Request<MalaiProtocol>,
     cluster_dir: std::path::PathBuf,
@@ -1086,5 +1088,220 @@ struct RemoteAccessError {
 impl std::fmt::Display for RemoteAccessError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}: {}", self.error_type, self.message)
+    }
+}
+
+/// Generate personalized config for a specific machine
+pub fn generate_personalized_config(master_config: &str, machine_id52: &str) -> Result<String> {
+    // Parse master config
+    let master: toml::Value = toml::from_str(master_config)?;
+    
+    // Find which machine this ID52 corresponds to
+    let machine_alias = find_machine_alias_by_id52(&master, machine_id52)?;
+    
+    // Create personalized config with only relevant sections
+    let mut personalized = toml::Value::Table(toml::Table::new());
+    
+    // 1. Include cluster manager section (always needed)
+    if let Some(cluster_manager) = master.get("cluster-manager") {
+        personalized.as_table_mut().unwrap()
+            .insert("cluster-manager".to_string(), cluster_manager.clone());
+    }
+    
+    // 2. Include this specific machine section
+    if let Some(machine_section) = master.get("machine") {
+        if let Some(machine_table) = machine_section.as_table() {
+            if let Some(this_machine) = machine_table.get(&machine_alias) {
+                // Create machine table with just this machine
+                let mut machine_map = toml::Table::new();
+                machine_map.insert(machine_alias.clone(), this_machine.clone());
+                
+                personalized.as_table_mut().unwrap()
+                    .insert("machine".to_string(), toml::Value::Table(machine_map));
+            }
+        }
+    }
+    
+    // Convert back to TOML string
+    let personalized_config = toml::to_string(&personalized)?;
+    
+    Ok(personalized_config)
+}
+
+/// Find machine alias by machine ID52
+fn find_machine_alias_by_id52(config: &toml::Value, machine_id52: &str) -> Result<String> {
+    // TOML parser creates nested structure: "machine" -> { "web01" -> { "id52" -> "value" } }
+    if let Some(machine_section) = config.get("machine") {
+        if let Some(machine_table) = machine_section.as_table() {
+            for (machine_alias, machine_config) in machine_table {
+                if let Some(machine_config_table) = machine_config.as_table() {
+                    if let Some(id52_value) = machine_config_table.get("id52") {
+                        if let Some(id52_str) = id52_value.as_str() {
+                            if id52_str == machine_id52 {
+                                return Ok(machine_alias.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    Err(eyre::eyre!("Machine ID52 {} not found in config", machine_id52))
+}
+
+/// Send config to machine via P2P
+async fn send_config_to_machine_p2p(machine_id52: &str, personalized_config: &str) -> Result<()> {
+    println!("📡 Sending config to machine: {}", machine_id52);
+    
+    // Get cluster manager identity from MALAI_HOME
+    let malai_home = get_malai_home();
+    let identity_dir = malai_home.join("keys");
+    let identity_file = identity_dir.join("identity.key");
+    
+    if !identity_file.exists() {
+        return Err(eyre::eyre!("No cluster manager identity found"));
+    }
+    
+    let secret_key_hex = std::fs::read_to_string(&identity_file)?;
+    let cluster_manager_secret = fastn_id52::SecretKey::from_str(secret_key_hex.trim())?;
+    
+    // Convert machine ID52 string to PublicKey using FromStr
+    let machine_public_key = fastn_id52::PublicKey::from_str(machine_id52)?;
+    
+    // Create config sync request
+    let request = ConfigSyncRequest {
+        sender_id52: cluster_manager_secret.id52(),
+        config_content: personalized_config.to_string(), 
+        timestamp: chrono::Utc::now().to_rfc3339(),
+    };
+    
+    println!("📡 Sending config via fastn_p2p::call...");
+    
+    // Send config via fastn_p2p
+    match fastn_p2p::call::<MalaiProtocol, ConfigSyncRequest, ConfigSyncResponse, ConfigSyncError>(
+        cluster_manager_secret,
+        &machine_public_key,
+        MalaiProtocol::ConfigUpdate,
+        request,
+    ).await {
+        Ok(Ok(response)) => {
+            println!("   ✅ Config sent successfully: {}", response.message);
+            Ok(())
+        }
+        Ok(Err(error)) => {
+            Err(eyre::eyre!("Config sync error: {}", error.message))
+        }
+        Err(e) => {
+            Err(eyre::eyre!("P2P communication failed: {}", e))
+        }
+    }
+}
+
+/// Send remote access command via P2P
+pub async fn send_remote_access_command(machine_address: &str, command: &str, args: Vec<String>) -> Result<()> {
+    println!("🧪 Executing remote command...");
+    println!("📍 Target: {}", machine_address);
+    println!("💻 Command: {} {:?}", command, args);
+    
+    // Parse machine address to get machine alias and cluster
+    let parts: Vec<&str> = machine_address.split('.').collect();
+    if parts.len() < 2 {
+        return Err(eyre::eyre!("Invalid machine address format: {}", machine_address));
+    }
+    
+    let machine_alias = parts[0];
+    let cluster_alias = parts[1];
+    
+    // Find cluster config to get target machine ID52
+    let malai_home = get_malai_home();
+    let cluster_dir = malai_home.join("clusters").join(cluster_alias);
+    let cluster_config_path = cluster_dir.join("cluster-config.toml");
+    
+    if !cluster_config_path.exists() {
+        return Err(eyre::eyre!("No cluster config found for: {}", cluster_alias));
+    }
+    
+    // Parse cluster config to get target machine ID52  
+    let config_content = std::fs::read_to_string(&cluster_config_path)?;
+    let config: toml::Value = toml::from_str(&config_content)?;
+    
+    let target_machine_id52 = if let Some(machine_section) = config.get("machine") {
+        if let Some(machine_table) = machine_section.as_table() {
+            if let Some(target_machine) = machine_table.get(machine_alias) {
+                if let Some(target_table) = target_machine.as_table() {
+                    if let Some(id52_value) = target_table.get("id52") {
+                        id52_value.as_str().unwrap_or("").to_string()
+                    } else {
+                        return Err(eyre::eyre!("No id52 found for machine: {}", machine_alias));
+                    }
+                } else {
+                    return Err(eyre::eyre!("Invalid machine config format"));
+                }
+            } else {
+                return Err(eyre::eyre!("Machine {} not found in cluster {}", machine_alias, cluster_alias));
+            }
+        } else {
+            return Err(eyre::eyre!("Invalid config format"));
+        }
+    } else {
+        return Err(eyre::eyre!("No machines section in config"));
+    };
+    
+    println!("🎯 Target machine ID52: {}", target_machine_id52);
+    
+    // Get local identity (cluster manager uses keys/identity.key)
+    let identity_file = malai_home.join("keys").join("identity.key");
+    if !identity_file.exists() {
+        return Err(eyre::eyre!("No local identity found"));
+    }
+    
+    let secret_key_hex = std::fs::read_to_string(&identity_file)?;
+    let local_secret = fastn_id52::SecretKey::from_str(secret_key_hex.trim())?;
+    
+    // Convert target machine ID52 to public key
+    let target_public_key = fastn_id52::PublicKey::from_str(&target_machine_id52)?;
+    
+    // Create remote access request
+    let request = RemoteAccessRequest {
+        client_id52: local_secret.id52(),
+        machine_alias: machine_alias.to_string(),
+        command: command.to_string(),
+        args: args.clone(),
+        timestamp: chrono::Utc::now().to_rfc3339(),
+    };
+    
+    println!("📡 Sending remote access command via fastn_p2p::call...");
+    
+    // Send command via fastn_p2p
+    match fastn_p2p::call::<MalaiProtocol, RemoteAccessRequest, RemoteAccessResponse, RemoteAccessError>(
+        local_secret,
+        &target_public_key,
+        MalaiProtocol::ExecuteCommand,
+        request,
+    ).await {
+        Ok(Ok(response)) => {
+            // Display command output
+            if !response.stdout.is_empty() {
+                print!("{}", String::from_utf8_lossy(&response.stdout));
+            }
+            if !response.stderr.is_empty() {
+                eprint!("{}", String::from_utf8_lossy(&response.stderr));
+            }
+            
+            if response.exit_code == 0 {
+                println!("✅ Remote command executed successfully ({}ms)", response.execution_time_ms);
+            } else {
+                println!("❌ Remote command failed with exit code: {}", response.exit_code);
+            }
+            
+            Ok(())
+        }
+        Ok(Err(error)) => {
+            Err(eyre::eyre!("Remote access error: {}", error))
+        }
+        Err(e) => {
+            Err(eyre::eyre!("P2P communication failed: {}", e))
+        }
     }
 }
