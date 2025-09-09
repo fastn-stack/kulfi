@@ -634,7 +634,14 @@ async fn run_cluster_manager(cluster_config: ClusterConfig) -> Result<()> {
     println!("📋 Cluster manager starting for: {}", cluster_config.cluster_alias);
     
     let cluster_dir = cluster_config.config_path.parent().unwrap();
-    let mut last_config_hash = cluster_config.config_hash;
+    let mut last_config_hash = cluster_config.config_hash.clone();
+    
+    // Initial config distribution on startup
+    println!("📋 Initial config distribution for {}", cluster_config.cluster_alias);
+    match distribute_personalized_configs(&cluster_config.config_content, cluster_dir).await {
+        Ok(()) => println!("✅ Initial config distributed to all machines in {}", cluster_config.cluster_alias),
+        Err(e) => println!("❌ Initial config distribution failed for {}: {}", cluster_config.cluster_alias, e),
+    }
     
     loop {
         tokio::time::sleep(std::time::Duration::from_secs(5)).await;
@@ -683,12 +690,19 @@ async fn distribute_personalized_configs(master_config: &str, cluster_dir: &std:
                             
                             match generate_personalized_config(master_config, machine_id52) {
                                 Ok(personalized_config) => {
-                                    // TODO: Send personalized config via P2P
                                     let config_hash = calculate_config_hash(&personalized_config);
                                     println!("   📄 Personalized config hash: {}", config_hash);
                                     
-                                    // For now, just update state
-                                    update_machine_state(cluster_dir, machine_id52, machine_alias, &personalized_config, &config_hash)?;
+                                    // Send personalized config via P2P
+                                    match send_config_to_machine_p2p(machine_id52, &personalized_config).await {
+                                        Ok(()) => {
+                                            println!("   ✅ Config sent to {} via P2P", machine_alias);
+                                            update_machine_state(cluster_dir, machine_id52, machine_alias, &personalized_config, &config_hash)?;
+                                        }
+                                        Err(e) => {
+                                            println!("   ❌ P2P config send failed to {}: {}", machine_alias, e);
+                                        }
+                                    }
                                 }
                                 Err(e) => {
                                     println!("   ❌ Failed to generate config for {}: {}", machine_alias, e);
@@ -780,6 +794,19 @@ async fn run_service_proxy() -> Result<()> {
     }
     
     Ok(())
+}
+
+/// Send config to machine via P2P
+async fn send_config_to_machine_p2p(machine_id52: &str, personalized_config: &str) -> Result<()> {
+    println!("📡 Sending config to machine: {}", machine_id52);
+    
+    // TODO: Implement actual P2P config sending
+    // 1. Convert machine_id52 to fastn_id52::PublicKey
+    // 2. Create ConfigSyncRequest with personalized config
+    // 3. Use fastn_p2p::call() to send config
+    // 4. Handle response and update sync status
+    
+    todo!("Implement fastn_p2p::call for config distribution to {}", machine_id52);
 }
 
 /// Generate personalized config for a specific machine
