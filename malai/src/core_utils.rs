@@ -855,30 +855,40 @@ async fn run_machine_entity(machine_config: MachineConfig) -> Result<()> {
     println!("🆔 Machine entity ID52: {}", machine_secret.id52());
     println!("📡 Listening for ALL machine protocols: ConfigUpdate + ExecuteCommand");
     
-    // Single P2P listener for ALL machine protocols
+    // Single P2P listener for ALL machine protocols (using correct fastn_p2p macro)
     let protocols = vec![
         MalaiProtocol::ConfigUpdate, 
         MalaiProtocol::ExecuteCommand
     ];
     
     use futures_util::stream::StreamExt;
-    let request_stream = fastn_p2p::server::listen(machine_secret.clone(), &protocols)?;
-    let mut request_stream = std::pin::pin!(request_stream);
+    let mut request_stream = fastn_p2p::listen!(machine_secret.clone(), &protocols);
     
     loop {
         tokio::select! {
             request_result = request_stream.next() => {
                 match request_result {
                     Some(Ok(request)) => {
-                        let protocol = request.protocol().clone();
-                        println!("📨 Machine entity received: {}", protocol);
+                        println!("📨 Machine entity received: {}", request.protocol);
                         
+                        // Handle request using fastn-rig pattern (direct match + handle)
                         let machine_config_clone = machine_config.clone();
-                        fastn_p2p::spawn(async move {
-                            if let Err(e) = dispatch_machine_protocol_request(request, machine_config_clone).await {
-                                println!("❌ Machine protocol handling failed: {}", e);
+                        match request.protocol {
+                            MalaiProtocol::ConfigUpdate => {
+                                if let Err(e) = request.handle(|config_request: ConfigSyncRequest| async move {
+                                    handle_config_request(config_request, machine_config_clone).await
+                                }).await {
+                                    println!("❌ Config update failed: {}", e);
+                                }
                             }
-                        });
+                            MalaiProtocol::ExecuteCommand => {
+                                if let Err(e) = request.handle(|access_request: RemoteAccessRequest| async move {
+                                    handle_execute_request(access_request, machine_config_clone).await
+                                }).await {
+                                    println!("❌ Remote access failed: {}", e);
+                                }
+                            }
+                        }
                     }
                     Some(Err(e)) => {
                         println!("❌ P2P request error: {}", e);
@@ -919,18 +929,66 @@ async fn run_service_proxy() -> Result<()> {
     Ok(())
 }
 
-/// Dispatch machine protocol request to appropriate handler  
-async fn dispatch_machine_protocol_request(
-    request: fastn_p2p::server::Request<MalaiProtocol>,
-    machine_config: MachineConfig,
-) -> Result<()> {
-    match request.protocol() {
-        MalaiProtocol::ConfigUpdate => {
-            let cluster_dir = machine_config.config_path.parent().unwrap().to_path_buf();
-            handle_config_update_protocol(request, cluster_dir).await
+/// Handle config request (following fastn-rig pattern)
+async fn handle_config_request(
+    config_request: ConfigSyncRequest, 
+    machine_config: MachineConfig
+) -> Result<ConfigSyncResponse, ConfigSyncError> {
+    println!("📥 Config update from: {}", config_request.sender_id52);
+    
+    // Write received config to machine-config.toml
+    let machine_config_path = machine_config.config_path;
+    match std::fs::write(&machine_config_path, &config_request.config_content) {
+        Ok(_) => {
+            println!("💾 Saved machine config to: {}", machine_config_path.display());
+            Ok(ConfigSyncResponse {
+                success: true,
+                message: "Config received and saved successfully".to_string(),
+            })
         }
-        MalaiProtocol::ExecuteCommand => {
-            handle_execute_command_protocol(request, machine_config).await  
+        Err(e) => {
+            Err(ConfigSyncError {
+                message: format!("Failed to save config: {}", e),
+            })
+        }
+    }
+}
+
+/// Handle execute request (following fastn-rig pattern)
+async fn handle_execute_request(
+    access_request: RemoteAccessRequest,
+    machine_config: MachineConfig  
+) -> Result<RemoteAccessResponse, RemoteAccessError> {
+    println!("📥 Remote access request from: {}", access_request.client_id52);
+    println!("💻 Command: {} {:?}", access_request.command, access_request.args);
+    
+    // 1. Validate ACL permissions
+    if machine_config.config_content.is_empty() {
+        println!("❌ Machine has no config - cannot execute commands");
+        return Err(RemoteAccessError {
+            error_type: "no_config".to_string(),
+            message: "Machine waiting for config from cluster manager".to_string(),
+        });
+    }
+    
+    println!("✅ Permission granted (TODO: implement full ACL)");
+    
+    // 2. Execute command
+    match execute_command_safely(&access_request.command, &access_request.args).await {
+        Ok((stdout, stderr, exit_code)) => {
+            println!("✅ Command executed: exit_code={}", exit_code);
+            Ok(RemoteAccessResponse {
+                stdout,
+                stderr, 
+                exit_code,
+                execution_time_ms: 0,
+            })
+        }
+        Err(e) => {
+            Err(RemoteAccessError {
+                error_type: "execution_failed".to_string(),
+                message: format!("Command failed: {}", e),
+            })
         }
     }
 }
@@ -1486,4 +1544,17 @@ async fn execute_command_safely(command: &str, args: &[String]) -> Result<(Vec<u
             Err(eyre::eyre!("Failed to spawn command: {}", e))
         }
     }
+}
+
+/// Simplified permission validation (matches request.handle pattern)
+async fn validate_command_permission_simple(request: &RemoteAccessRequest, machine_config: &MachineConfig) -> Result<bool> {
+    // If machine_config is empty, machine doesn't have config yet
+    if machine_config.config_content.is_empty() {
+        println!("❌ Machine has no config - cannot execute commands");
+        return Ok(false);
+    }
+    
+    // Simple wildcard check for now (TODO: implement full ACL)
+    println!("✅ Wildcard permission granted (TODO: implement full ACL)");
+    Ok(true)
 }
