@@ -356,6 +356,7 @@ async fn load_and_validate_all_configs(malai_home: &PathBuf) -> Result<Validated
         return Ok(ValidatedConfigs {
             cluster_configs,
             machine_configs,
+            waiting_machines: Vec::new(),
         });
     }
     
@@ -839,6 +840,92 @@ async fn run_service_proxy() -> Result<()> {
     Ok(())
 }
 
+/// Run config listener for machine waiting for cluster manager config
+async fn run_config_listener(waiting_machine: WaitingMachine) -> Result<()> {
+    println!("📡 Config listener starting for: {}", waiting_machine.cluster_alias);
+    
+    // Get machine identity for this cluster
+    let identity_path = waiting_machine.cluster_dir.join("identity.key");
+    if !identity_path.exists() {
+        return Err(eyre::eyre!("No machine identity found"));
+    }
+    
+    let secret_key_hex = std::fs::read_to_string(&identity_path)?;
+    let machine_secret = fastn_id52::SecretKey::from_str(secret_key_hex.trim())?;
+    
+    println!("🆔 Machine ID52: {}", machine_secret.id52());
+    println!("📡 Listening for config updates...");
+    
+    // Start P2P listener for config sync protocol
+    let protocols = vec![ConfigSyncProtocol::ConfigUpdate];
+    
+    use futures_util::stream::StreamExt;
+    let request_stream = fastn_p2p::server::listen(machine_secret.clone(), &protocols)?;
+    let mut request_stream = std::pin::pin!(request_stream);
+    
+    loop {
+        tokio::select! {
+            request_result = request_stream.next() => {
+                match request_result {
+                    Some(Ok(request)) => {
+                        println!("📨 Received config update request");
+                        
+                        let cluster_dir = waiting_machine.cluster_dir.clone();
+                        fastn_p2p::spawn(async move {
+                            if let Err(e) = handle_config_update(request, cluster_dir).await {
+                                println!("❌ Config update handling failed: {}", e);
+                            }
+                        });
+                    }
+                    Some(Err(e)) => {
+                        println!("❌ P2P request error: {}", e);
+                    }
+                    None => {
+                        println!("📡 Config listener stream ended");
+                        break;
+                    }
+                }
+            }
+            _ = fastn_p2p::cancelled() => {
+                println!("🛑 Config listener {} stopping gracefully", waiting_machine.cluster_alias);
+                break;
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+/// Handle incoming config update
+async fn handle_config_update(
+    request: fastn_p2p::server::Request<ConfigSyncProtocol>,
+    cluster_dir: std::path::PathBuf,
+) -> Result<()> {
+    let (config_request, handle): (ConfigSyncRequest, _) = request.get_input().await?;
+    
+    println!("📥 Config update from: {}", config_request.sender_id52);
+    
+    // TODO: Verify sender is the expected cluster manager from cluster-info.toml
+    
+    // Write received config to machine-config.toml
+    let machine_config_path = cluster_dir.join("machine-config.toml");
+    std::fs::write(&machine_config_path, &config_request.config_content)?;
+    
+    println!("💾 Saved machine config to: {}", machine_config_path.display());
+    
+    // Send success response
+    let response = ConfigSyncResponse {
+        success: true,
+        message: "Config received and saved successfully".to_string(),
+    };
+    
+    handle.send::<ConfigSyncResponse, ConfigSyncError>(Ok(response)).await?;
+    
+    println!("✅ Config update processed successfully");
+    
+    Ok(())
+}
+
 /// Send config to machine via P2P
 async fn send_config_to_machine_p2p(machine_id52: &str, personalized_config: &str) -> Result<()> {
     println!("📡 Sending config to machine: {}", machine_id52);
@@ -855,34 +942,8 @@ async fn send_config_to_machine_p2p(machine_id52: &str, personalized_config: &st
     let secret_key_hex = std::fs::read_to_string(&identity_file)?;
     let cluster_manager_secret = fastn_id52::SecretKey::from_str(secret_key_hex.trim())?;
     
-    // Convert machine ID52 to public key
-    let machine_public_key = fastn_id52::PublicKey::from_id52(machine_id52)?;
-    
-    // Create config sync request
-    let request = ConfigSyncRequest {
-        sender_id52: cluster_manager_secret.id52(),
-        config_content: personalized_config.to_string(),
-        timestamp: chrono::Utc::now().to_rfc3339(),
-    };
-    
-    // Send via fastn_p2p
-    match fastn_p2p::call::<ConfigSyncProtocol, ConfigSyncRequest, ConfigSyncResponse, ConfigSyncError>(
-        cluster_manager_secret,
-        &machine_public_key,
-        ConfigSyncProtocol::ConfigUpdate,
-        request,
-    ).await {
-        Ok(Ok(response)) => {
-            println!("   ✅ Config sent successfully: {}", response.message);
-            Ok(())
-        }
-        Ok(Err(error)) => {
-            Err(eyre::eyre!("Config sync error: {}", error.message))
-        }
-        Err(e) => {
-            Err(eyre::eyre!("P2P communication failed: {}", e))
-        }
-    }
+    // TODO: Implement proper ID52 to PublicKey conversion and P2P config sending
+    todo!("Implement fastn_p2p::call for config distribution to machine {}", machine_id52)
 }
 
 /// Config sync protocol
