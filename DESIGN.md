@@ -68,46 +68,115 @@ malai machine init fifthtry.com ft  # Resolves to cluster manager ID52
 
 ## System Architecture
 
-malai runs as a **single unified process** that provides all functionality:
+malai consists of **separate processes** that run independently on different machines:
 
-### **Unified malai daemon Process:**
-- **Purpose**: All infrastructure functionality in one process
-- **Runs on**: Any machine (servers, laptops, mobile devices)  
-- **Auto-detects roles**: Scans MALAI_HOME for clusters and starts appropriate services
-- **Integrated services**: No separate agent processes needed
-
-### **Services Within Single Process:**
-
-#### **1. Cluster Manager(s)** (0 or more per MALAI_HOME)
-- **Triggered by**: Finding cluster-config.toml files
+### **1. Cluster Manager Process** (Separate machine/MALAI_HOME)
+- **Purpose**: Configuration management and distribution
+- **Runs on**: Dedicated machine (laptop, server, mobile device)
+- **MALAI_HOME**: Contains cluster-config.toml for managed clusters
+- **Role**: **P2P client only** - distributes config to machines
 - **Functions**:
   - Monitor cluster-config.toml for changes
-  - Distribute config updates via P2P to cluster machines
-  - Maintain state.json tracking per-machine sync status
-- **Mobile friendly**: Can run on iOS/Android, offline tolerance built-in
+  - Generate personalized configs for each machine
+  - Send configs via P2P to all cluster machines
+  - Maintain state.json with per-machine sync status
 
-#### **2. SSH Daemon** (0 or 1 per MALAI_HOME)
-- **Triggered by**: Finding machine-config.toml with SSH permissions
+### **2. Machine Process** (Separate machine/MALAI_HOME)  
+- **Purpose**: Accept SSH commands and provide services
+- **Runs on**: Server machines, laptops, any infrastructure
+- **MALAI_HOME**: Contains machine-config.toml (received from cluster manager)
+- **Role**: **P2P server** - accepts SSH requests and config updates
 - **Functions**:
-  - Listen for P2P SSH requests from cluster machines
-  - Execute authorized commands with permission validation
-  - Provide secure remote shell access
+  - Listen for P2P config updates from cluster manager
+  - Listen for P2P SSH requests from authorized machines
+  - Execute commands with permission validation
+  - **Follows ACL**: No special privileges, respects cluster permissions
 
-#### **3. Service Proxy** (Always runs)
-- **Always active**: Handles local service access
+### **3. Service Proxy** (Optional, per machine/MALAI_HOME)
+- **Purpose**: Local TCP/HTTP forwarding for service access
+- **Runs on**: Any machine that needs to access remote services  
+- **MALAI_HOME**: Contains services.toml with forwarding configuration
 - **Functions**:
-  - **HTTP server**: Port 80, routes by `subdomain.localhost` to remote services
-  - **TCP servers**: Listen on configured ports (3306, 6379), forward via P2P
-  - **Identity injection**: Add client ID52 headers to HTTP requests
-  - **Connection pooling**: Shared P2P connections across all clusters
+  - **HTTP server**: Port 80, routes by `subdomain.localhost`
+  - **TCP servers**: Forward configured ports via P2P
+  - **Identity injection**: Add client ID52 headers to HTTP
+  - **Connection pooling**: Efficient P2P connection reuse
+
+### **Deployment Model - Separate Machines/MALAI_HOME:**
+
+#### **Cluster Manager Machine:**
+```
+Machine: laptop.local (or mobile device)
+MALAI_HOME: /home/admin/.local/share/malai/
+├── clusters/company/cluster-config.toml  # Master config with all machines
+├── clusters/company/state.json          # Distribution tracking
+└── malai.lock
+
+Process: malai daemon (cluster manager only)
+Role: Distributes configs, follows ACL like any other machine
+```
+
+#### **Server Machine 1:**
+```  
+Machine: web01.company.com
+MALAI_HOME: /home/webuser/.local/share/malai/
+├── clusters/company/cluster-info.toml   # Cluster manager verification
+├── clusters/company/machine-config.toml # Received from cluster manager
+├── clusters/company/identity.key        # Machine's identity for company cluster
+└── malai.lock
+
+Process: malai daemon (SSH daemon + optional service proxy)
+Role: Accepts SSH commands, follows permissions in received config
+```
+
+#### **Server Machine 2:**
+```
+Machine: db01.company.com  
+MALAI_HOME: /home/dbuser/.local/share/malai/
+├── clusters/company/machine-config.toml # Different config than web01
+├── clusters/company/identity.key        # Different identity than web01
+└── malai.lock
+
+Process: malai daemon (SSH daemon only)
+Role: Database server, accepts SSH from authorized machines only
+```
+
+#### **Developer Laptop:**
+```
+Machine: dev-laptop.local
+MALAI_HOME: /home/developer/.local/share/malai/
+├── clusters/company/machine-config.toml # Client-only permissions
+├── services.toml                        # Local forwarding: mysql, admin interface
+└── malai.lock
+
+Process: malai daemon (service proxy for CLI commands)
+Role: Initiates SSH commands, accesses services via local forwarding
+```
+
+### **Key Architectural Principles:**
+
+#### **Separate Processes:**
+- **Cluster Manager**: Runs on admin's machine, distributes configs via P2P
+- **Machine Daemons**: Run on each server, accept SSH and config updates via P2P
+- **Service Proxy**: Optional on any machine for local service forwarding
+- **CLI Commands**: Talk to local daemon on same machine via Unix socket
+
+#### **No Special Privileges:**
+- **Cluster Manager**: Just another machine, follows ACL permissions
+- **No super user access**: CM cannot override machine permissions
+- **ACL enforcement**: All machines validate permissions independently
+- **Decentralized**: Machines operate independently, CM only distributes config
+
+#### **P2P Communication:**
+- **CM → Machines**: Config distribution (fastn_p2p::call)
+- **Machine → Machine**: SSH execution (fastn_p2p::call)  
+- **Any Machine → Services**: TCP/HTTP forwarding via local daemon
 
 ### CLI to Service Communication
 
-#### **Connection Pooling Architecture:**
-- **CLI commands**: `malai web01.company ps aux` → connect to local `malai daemon` via Unix socket
-- **Shared P2P connections**: `malai daemon` maintains fastn-p2p connections, CLI reuses them  
-- **Performance optimization**: No new iroh connection per CLI invocation
-- **Local protocol**: Custom protocol over Unix socket for CLI ↔ malai daemon communication
+#### **Local Connection Pooling:**
+- **CLI commands**: `malai web01.company ps aux` → connect to **local** `malai daemon` via Unix socket
+- **Local daemon**: Maintains P2P connections, CLI reuses them
 
 #### **CLI Communication Protocol:**
 ```

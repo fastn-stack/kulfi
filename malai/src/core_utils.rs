@@ -416,9 +416,33 @@ async fn load_and_validate_all_configs(malai_home: &PathBuf) -> Result<Validated
     println!("   📊 Cluster manager roles: {}", cluster_configs.len());
     println!("   📊 Machine roles: {}", machine_configs.len());
     
+    // Also check for machines waiting for config (cluster-info.toml without machine-config.toml)
+    let mut waiting_machines = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&clusters_dir) {
+        for entry in entries.flatten() {
+            if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                let cluster_alias = entry.file_name().to_string_lossy().to_string();
+                let cluster_dir = entry.path();
+                
+                let cluster_info_path = cluster_dir.join("cluster-info.toml");
+                let machine_config_path = cluster_dir.join("machine-config.toml");
+                
+                // Machine registered but no config received yet
+                if cluster_info_path.exists() && !machine_config_path.exists() {
+                    waiting_machines.push(WaitingMachine {
+                        cluster_alias: cluster_alias.clone(),
+                        cluster_dir: cluster_dir.clone(),
+                    });
+                    println!("   📋 Machine waiting for config in cluster: {}", cluster_alias);
+                }
+            }
+        }
+    }
+    
     Ok(ValidatedConfigs {
         cluster_configs,
         machine_configs,
+        waiting_machines,
     })
 }
 
@@ -427,6 +451,14 @@ async fn load_and_validate_all_configs(malai_home: &PathBuf) -> Result<Validated
 struct ValidatedConfigs {
     cluster_configs: Vec<ClusterConfig>,
     machine_configs: Vec<MachineConfig>,
+    waiting_machines: Vec<WaitingMachine>,
+}
+
+/// Machine waiting for config from cluster manager
+#[derive(Debug)]
+struct WaitingMachine {
+    cluster_alias: String,
+    cluster_dir: std::path::PathBuf,
 }
 
 /// Cluster manager configuration
@@ -618,6 +650,17 @@ async fn start_services_from_configs(configs: ValidatedConfigs) -> Result<()> {
         });
     }
     
+    // Start config listeners for machines waiting for config
+    for waiting_machine in configs.waiting_machines {
+        println!("📡 Starting config listener for: {}", waiting_machine.cluster_alias);
+        
+        fastn_p2p::spawn(async move {
+            if let Err(e) = run_config_listener(waiting_machine).await {
+                println!("❌ Config listener failed for {}: {}", e, "waiting_machine");
+            }
+        });
+    }
+    
     // Always start service proxy
     println!("📡 Starting service proxy for all clusters");
     fastn_p2p::spawn(async move {
@@ -800,13 +843,85 @@ async fn run_service_proxy() -> Result<()> {
 async fn send_config_to_machine_p2p(machine_id52: &str, personalized_config: &str) -> Result<()> {
     println!("📡 Sending config to machine: {}", machine_id52);
     
-    // TODO: Implement actual P2P config sending
-    // 1. Convert machine_id52 to fastn_id52::PublicKey
-    // 2. Create ConfigSyncRequest with personalized config
-    // 3. Use fastn_p2p::call() to send config
-    // 4. Handle response and update sync status
+    // Get cluster manager identity from MALAI_HOME
+    let malai_home = get_malai_home();
+    let identity_dir = malai_home.join("keys");
+    let identity_file = identity_dir.join("identity.key");
     
-    todo!("Implement fastn_p2p::call for config distribution to {}", machine_id52);
+    if !identity_file.exists() {
+        return Err(eyre::eyre!("No cluster manager identity found"));
+    }
+    
+    let secret_key_hex = std::fs::read_to_string(&identity_file)?;
+    let cluster_manager_secret = fastn_id52::SecretKey::from_str(secret_key_hex.trim())?;
+    
+    // Convert machine ID52 to public key
+    let machine_public_key = fastn_id52::PublicKey::from_id52(machine_id52)?;
+    
+    // Create config sync request
+    let request = ConfigSyncRequest {
+        sender_id52: cluster_manager_secret.id52(),
+        config_content: personalized_config.to_string(),
+        timestamp: chrono::Utc::now().to_rfc3339(),
+    };
+    
+    // Send via fastn_p2p
+    match fastn_p2p::call::<ConfigSyncProtocol, ConfigSyncRequest, ConfigSyncResponse, ConfigSyncError>(
+        cluster_manager_secret,
+        &machine_public_key,
+        ConfigSyncProtocol::ConfigUpdate,
+        request,
+    ).await {
+        Ok(Ok(response)) => {
+            println!("   ✅ Config sent successfully: {}", response.message);
+            Ok(())
+        }
+        Ok(Err(error)) => {
+            Err(eyre::eyre!("Config sync error: {}", error.message))
+        }
+        Err(e) => {
+            Err(eyre::eyre!("P2P communication failed: {}", e))
+        }
+    }
+}
+
+/// Config sync protocol
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+enum ConfigSyncProtocol {
+    ConfigUpdate,
+}
+
+impl std::fmt::Display for ConfigSyncProtocol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "malai-config-sync")
+    }
+}
+
+/// Config sync request
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct ConfigSyncRequest {
+    sender_id52: String,
+    config_content: String,
+    timestamp: String,
+}
+
+/// Config sync response
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct ConfigSyncResponse {
+    success: bool,
+    message: String,
+}
+
+/// Config sync error
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct ConfigSyncError {
+    message: String,
+}
+
+impl std::fmt::Display for ConfigSyncError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)
+    }
 }
 
 /// Generate personalized config for a specific machine
