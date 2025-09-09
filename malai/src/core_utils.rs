@@ -912,7 +912,8 @@ async fn run_service_proxy() -> Result<()> {
 
 /// Run config listener for machine waiting for cluster manager config
 async fn run_config_listener(waiting_machine: WaitingMachine) -> Result<()> {
-    println!("📡 Config listener starting for: {}", waiting_machine.cluster_alias);
+    let cluster_alias = waiting_machine.cluster_alias.clone();
+    println!("📡 Config listener starting for: {}", cluster_alias);
     
     // Get machine identity for this cluster
     let identity_path = waiting_machine.cluster_dir.join("identity.key");
@@ -926,8 +927,11 @@ async fn run_config_listener(waiting_machine: WaitingMachine) -> Result<()> {
     println!("🆔 Machine ID52: {}", machine_secret.id52());
     println!("📡 Listening for config updates...");
     
-    // Start P2P listener for config sync protocol only
-    let protocols = vec![MalaiProtocol::ConfigUpdate];
+    // Listen for both config updates AND remote access (machine should handle both)
+    let protocols = vec![
+        MalaiProtocol::ConfigUpdate, 
+        MalaiProtocol::ExecuteCommand
+    ];
     
     use futures_util::stream::StreamExt;
     let request_stream = fastn_p2p::server::listen(machine_secret.clone(), &protocols)?;
@@ -938,12 +942,31 @@ async fn run_config_listener(waiting_machine: WaitingMachine) -> Result<()> {
             request_result = request_stream.next() => {
                 match request_result {
                     Some(Ok(request)) => {
-                        println!("📨 Received config update request");
+                        let protocol = request.protocol().clone();
+                        println!("📨 Received P2P request: {}", protocol);
                         
                         let cluster_dir = waiting_machine.cluster_dir.clone();
+                        let cluster_alias_clone = cluster_alias.clone();
                         fastn_p2p::spawn(async move {
-                            if let Err(e) = handle_config_update_protocol(request, cluster_dir).await {
-                                println!("❌ Config update handling failed: {}", e);
+                            match protocol {
+                                MalaiProtocol::ConfigUpdate => {
+                                    if let Err(e) = handle_config_update_protocol(request, cluster_dir).await {
+                                        println!("❌ Config update handling failed: {}", e);
+                                    }
+                                }
+                                MalaiProtocol::ExecuteCommand => {
+                                    // Create empty machine config for waiting machine
+                                    let empty_machine_config = MachineConfig {
+                                        cluster_alias: cluster_alias_clone,
+                                        config_path: cluster_dir.join("machine-config.toml"),
+                                        config_content: String::new(), // Empty - will fail ACL check
+                                        machine_role: "waiting".to_string(),
+                                    };
+                                    
+                                    if let Err(e) = handle_execute_command_protocol(request, empty_machine_config).await {
+                                        println!("❌ Remote access handling failed: {}", e);
+                                    }
+                                }
                             }
                         });
                     }
@@ -957,7 +980,7 @@ async fn run_config_listener(waiting_machine: WaitingMachine) -> Result<()> {
                 }
             }
             _ = fastn_p2p::cancelled() => {
-                println!("🛑 Config listener {} stopping gracefully", waiting_machine.cluster_alias);
+                println!("🛑 Config listener {} stopping gracefully", cluster_alias);
                 break;
             }
         }
@@ -1361,6 +1384,12 @@ pub async fn send_remote_access_command(machine_address: &str, command: &str, ar
 
 /// Validate command permission using ACL
 async fn validate_command_permission(request: &RemoteAccessRequest, machine_config: &MachineConfig) -> Result<bool> {
+    // If machine_config is empty, machine doesn't have config yet
+    if machine_config.config_content.is_empty() {
+        println!("❌ Machine has no config - cannot execute commands");
+        return Ok(false);
+    }
+    
     // Parse machine config to check permissions
     let config_content = &machine_config.config_content;
     let config: toml::Value = toml::from_str(config_content)?;
