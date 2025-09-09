@@ -77,7 +77,7 @@ trap cleanup EXIT
 # Build malai binary
 header "Building malai binary"
 log "Building malai for testing..."
-if ! cargo build --bin malai --quiet; then
+if ! /Users/amitu/.cargo/bin/cargo build --bin malai --quiet; then
     error "Failed to build malai binary"
 fi
 success "malai binary built successfully"
@@ -124,15 +124,20 @@ run_bash_test() {
     
     # Test 3: Daemon Startup 
     log "Testing daemon startup..."
-    if ! timeout 5s $MALAI_BIN daemon --foreground > /tmp/daemon.log 2>&1; then
-        if [[ $? -eq 124 ]]; then
-            # Timeout is expected - daemon runs continuously
-            success "Daemon started and running (timeout expected)"
-        else
-            cat /tmp/daemon.log
-            error "Daemon failed to start"
-        fi
+    # Start daemon in background and test it starts properly
+    $MALAI_BIN daemon --foreground > /tmp/daemon.log 2>&1 &
+    DAEMON_PID=$!
+    sleep 3
+    
+    # Check if daemon is still running
+    if ! kill -0 $DAEMON_PID 2>/dev/null; then
+        cat /tmp/daemon.log
+        error "Daemon exited unexpectedly"
     fi
+    
+    # Kill daemon
+    kill $DAEMON_PID 2>/dev/null || true
+    wait $DAEMON_PID 2>/dev/null || true
     
     # Verify daemon validation passed
     if ! grep -q "All configurations validated successfully" /tmp/daemon.log; then
