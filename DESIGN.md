@@ -937,18 +937,20 @@ http://grafana.localhost             # Direct browser access to remote Grafana
 ```json
 {
   "cluster_alias": "company",
-  "cluster_config_hash": "abc123def456",
+  "master_config_hash": "abc123def456",
   "last_distribution": "2025-01-15T10:30:00Z",
   "machine_states": {
     "web01-machine-id52": {
       "machine_alias": "web01",
-      "last_config_hash": "abc123def456",
-      "last_sync": "2025-01-15T10:30:00Z",
+      "personalized_config": "...machine-specific TOML content...",
+      "personalized_config_hash": "machine789hash123",
+      "last_sync": "2025-01-15T10:30:00Z", 
       "sync_status": "success"
     },
     "db01-machine-id52": {
-      "machine_alias": "db01", 
-      "last_config_hash": "old456def789",
+      "machine_alias": "db01",
+      "personalized_config": "...machine-specific TOML content...",
+      "personalized_config_hash": "machine456hash789", 
       "last_sync": "2025-01-15T09:45:00Z",
       "sync_status": "pending"
     }
@@ -956,12 +958,56 @@ http://grafana.localhost             # Direct browser access to remote Grafana
 }
 ```
 
+### **Machine-Specific Config Generation:**
+1. **Extract machine section**: From master config, extract `[machine.web01]` and related sections
+2. **Include cluster info**: Add cluster manager ID52, cluster name for verification
+3. **Include dependencies**: Add referenced groups, services, commands for this machine
+4. **Generate hash**: Hash the personalized config content  
+5. **Store in state**: Cache personalized config and hash for each machine
+6. **Sync when changed**: Send personalized config when hash differs
+
 ### **Config Distribution Algorithm:**
-1. **Monitor config**: Watch cluster-config.toml for file changes
-2. **Calculate hash**: Hash current config content
-3. **Compare states**: Check which machines have outdated config hash
-4. **Distribute updates**: Send new config to machines with old hash via P2P
-5. **Update state**: Record successful distribution and new hash per machine
+1. **Monitor master config**: Watch cluster-config.toml for file changes
+2. **Generate personalized configs**: Create machine-specific config for each machine
+3. **Calculate hashes**: Hash each machine's personalized config content
+4. **Compare states**: Check which machines have outdated personalized config hash  
+5. **Distribute updates**: Send personalized config to machines with old hash via P2P
+6. **Update state**: Store personalized config and hash for each machine
+
+### **Personalized Config Example:**
+Master config contains all machines, but each machine receives only relevant sections:
+
+**Master config** (cluster manager):
+```toml
+[cluster_manager]
+id52 = "cluster123"
+cluster_name = "company"
+
+[machine.web01] 
+id52 = "web01-id52"
+allow_from = "admins"
+
+[machine.db01]
+id52 = "db01-id52" 
+allow_from = "admins,devs"
+
+[group.admins]
+members = "laptop-id52"
+```
+
+**Personalized config for web01** (sent to web01 machine):
+```toml
+[cluster_manager]
+id52 = "cluster123"
+cluster_name = "company"
+
+[machine.web01]  # Only this machine's section
+id52 = "web01-id52"
+allow_from = "admins"
+
+[group.admins]   # Referenced groups included
+members = "laptop-id52"
+```
 
 ### **Multi-Cluster State:**
 Each cluster directory has its own state.json:
