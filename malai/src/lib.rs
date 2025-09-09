@@ -7,6 +7,7 @@ extern crate self as malai;
 use chrono as _;
 use clap as _;
 use clap_verbosity_flag as _;
+use diffy as _;
 use dirs as _;
 use fastn_id52 as _;
 use file_guard as _;
