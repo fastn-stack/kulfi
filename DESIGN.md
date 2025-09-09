@@ -125,7 +125,7 @@ MALAI_HOME: /home/webuser/.local/share/malai/
 ├── clusters/company/identity.key        # Machine's identity for company cluster
 └── malai.lock
 
-Process: malai daemon (SSH daemon + optional service proxy)
+Process: malai daemon (remote access daemon + optional service proxy)
 Role: Accepts SSH commands, follows permissions in received config
 ```
 
@@ -137,7 +137,7 @@ MALAI_HOME: /home/dbuser/.local/share/malai/
 ├── clusters/company/identity.key        # Different identity than web01
 └── malai.lock
 
-Process: malai daemon (SSH daemon only)
+Process: malai daemon (remote access daemon only)
 Role: Database server, accepts SSH from authorized machines only
 ```
 
@@ -153,24 +153,64 @@ Process: malai daemon (service proxy for CLI commands)
 Role: Initiates SSH commands, accesses services via local forwarding
 ```
 
-### **Key Architectural Principles:**
+### **Cross-Machine Communication Flows:**
 
-#### **Separate Processes:**
-- **Cluster Manager**: Runs on admin's machine, distributes configs via P2P
-- **Machine Daemons**: Run on each server, accept SSH and config updates via P2P
-- **Service Proxy**: Optional on any machine for local service forwarding
-- **CLI Commands**: Talk to local daemon on same machine via Unix socket
+#### **Config Distribution Flow:**
+1. **Admin edits**: cluster-config.toml on cluster manager machine
+2. **CM detects change**: Hash comparison triggers distribution
+3. **CM generates**: Personalized config for each machine ID52 in master config
+4. **CM sends P2P**: fastn_p2p::call(machine_id52, personalized_config)
+5. **Machine receives**: P2P listener accepts config, validates sender
+6. **Machine saves**: machine-config.toml, triggers service restart
 
-#### **No Special Privileges:**
-- **Cluster Manager**: Just another machine, follows ACL permissions
-- **No super user access**: CM cannot override machine permissions
-- **ACL enforcement**: All machines validate permissions independently
-- **Decentralized**: Machines operate independently, CM only distributes config
+#### **SSH Execution Flow:**
+1. **CLI command**: `malai web01.company ps aux` on developer laptop
+2. **Local daemon**: Looks up web01.company in local clusters, finds target machine ID52
+3. **P2P call**: fastn_p2p::call(target_machine_id52, ssh_request) 
+4. **Target machine**: Receives request, validates permissions, executes command
+5. **Response**: Command output returned via P2P to initiating machine
 
-#### **P2P Communication:**
-- **CM → Machines**: Config distribution (fastn_p2p::call)
-- **Machine → Machine**: SSH execution (fastn_p2p::call)  
-- **Any Machine → Services**: TCP/HTTP forwarding via local daemon
+#### **Service Access Flow:**
+1. **Service request**: `curl admin.company.localhost` on developer laptop  
+2. **Local proxy**: Routes to admin service in company cluster
+3. **P2P forwarding**: fastn_p2p::call to machine hosting admin service
+4. **Service execution**: Remote machine proxies to local admin service
+5. **Response streaming**: Service response returned via P2P tunnel
+
+### **Missing Design Elements - TO ADDRESS:**
+
+#### **Multi-Cluster Resolution:**
+- **Gap**: How does `malai web01.company ps aux` know which local cluster "company" refers to?
+- **Solution needed**: Cluster alias → cluster ID52 resolution from local MALAI_HOME
+- **Implementation**: Check all clusters in MALAI_HOME/clusters/ for matching alias
+
+#### **Cluster Manager Discovery:**
+- **Gap**: How do machines find cluster manager to receive configs?  
+- **Current**: cluster-info.toml stores cluster manager ID52 after `malai machine init`
+- **Missing**: DNS TXT record resolution for domain-based cluster discovery
+
+#### **Config Authentication:**
+- **Gap**: How machines verify config comes from authorized cluster manager
+- **Current**: fastn_p2p provides sender ID52 verification automatically
+- **Missing**: Cross-reference sender ID52 with cluster-info.toml verification
+
+#### **Service Discovery:**
+- **Gap**: How service proxy finds which machine hosts each service
+- **Current**: Services defined in cluster configs with hosting machine specified
+- **Missing**: Service-to-machine resolution in service proxy implementation
+
+#### **CLI Process Resolution:**
+- **Gap**: How CLI commands route to appropriate local daemon  
+- **Current**: Unix socket to local daemon assumed
+- **Missing**: Multi-cluster CLI routing when machine participates in multiple clusters
+
+#### **Command Aliases:**
+- **Feature**: Global command aliases in $MALAI_HOME/aliases.toml
+- **Usage**: `malai web` → runs `malai web01.company ps aux`
+- **Benefits**: Ultra-short commands for frequently used operations
+- **Format**: `alias = "service.server.cluster command args"`
+- **Validation**: Aliases conflicting with subcommands (daemon, cluster, etc.) MUST fail validation
+- **Reserved names**: daemon, cluster, machine, info, status, service, identity, rescan
 
 ### CLI to Service Communication
 
@@ -728,7 +768,7 @@ malai machine init fifthtry.com ft                  # Using domain (if DNS confi
 malai daemon
 # Scans $MALAI_HOME/clusters/ and starts:
 # - Cluster manager for clusters where this machine is manager
-# - SSH daemon for clusters where this machine accepts SSH
+# - remote access daemon for clusters where this machine accepts SSH
 # - Client agent for connection pooling across all clusters
 # Environment: malai daemon -e
 
@@ -898,7 +938,7 @@ $MALAI_HOME/
 │       ├── cluster-config.toml      # If cluster manager
 │       ├── identity.key             # Machine identity
 │       └── state.json              # If cluster manager
-├── services.toml                    # Local services: aliases + port forwarding
+├── malai.toml                       # Local configuration: services, aliases, settings
 ├── malai.sock                       # CLI communication socket
 ├── malai.lock                       # Process lockfile (PID + timestamp)
 ├── malai.log                        # Single unified log file (all clusters)
@@ -936,14 +976,14 @@ role = "machine"                                   # cluster-manager, machine, o
 machine_alias = "dev-laptop-001"                  # This machine's alias in cluster
 ```
 
-**services.toml - Unified Local Services Configuration:**
+**malai.toml - Unified Local Configuration:**
 ```toml
-# SSH aliases for convenient access across all clusters
-[ssh]
-web = "web01.ft"                    # malai web top
-db = "db01.ft"                      # malai db pg_stat_activity  
-home = "home-server.personal"       # malai home htop
-monitoring = "grafana.ft"           # malai monitoring restart
+# Command aliases for convenient access  
+[aliases]
+web = "web01.ft ps aux"             # malai web → malai web01.ft ps aux
+db = "db01.ft backup"               # malai db → malai db01.ft backup
+logs = "web01.ft tail -f /var/log/nginx/access.log"
+deploy = "web01.ft deploy latest"
 
 # TCP port forwarding (agent listens on local ports, forwards via P2P)
 [tcp]
@@ -1106,7 +1146,7 @@ Self-daemonizing process that provides all infrastructure services:
 2. **Fail fast**: Exit immediately if any config has syntax errors or invalid references  
 3. **Atomic validation**: Either all configs are valid or daemon refuses to start
 4. **Only then daemonize**: Self-daemonize only after successful config validation
-5. **Start services**: Begin cluster managers + SSH daemon + service proxy
+5. **Start services**: Begin cluster managers + remote access daemon + service proxy
 
 #### **Config Validation Requirements:**
 - **TOML syntax**: All .toml files must parse correctly
@@ -1116,7 +1156,7 @@ Self-daemonizing process that provides all infrastructure services:
 - **Startup failure**: Log specific config errors and exit with non-zero status
 
 #### **Daemon Responsibilities (After Validation):**
-1. **Multi-role operation**: Runs cluster managers + SSH daemon + service proxy as needed
+1. **Multi-role operation**: Runs cluster managers + remote access daemon + service proxy as needed
 2. **CLI communication**: Provides Unix socket for CLI commands (connection pooling)  
 3. **Config management**: Responds to `malai rescan` for atomic config reloading
 4. **Service orchestration**: Coordinates all P2P services in single process
@@ -1415,7 +1455,7 @@ malai daemon &  # Starts cluster manager + client agent
 # On home server:
 malai machine init personal  # Contacts cluster, registers
 # Laptop admin adds machine to personal cluster config
-malai daemon &  # Starts SSH daemon + client agent
+malai daemon &  # Starts remote access daemon + client agent
 
 # Both machines now participate in 'personal' cluster
 ```
@@ -1443,7 +1483,7 @@ malai daemon  # Starts cluster manager
 # On each fastn server:
 malai machine init fifthtry.com ft  # Join via domain, use short alias
 # fastn-ops adds machine to cluster config
-malai daemon  # Starts SSH daemon
+malai daemon  # Starts remote access daemon
 
 # On developer laptops:
 malai machine init <cluster-manager-id52> ft  # Join via ID52, short alias
@@ -1476,7 +1516,7 @@ malai machine init abc123def456ghi789... ft          # Join fifthtry cluster (vi
 # Single unified start:
 malai daemon  # Automatically starts:
                  # - Cluster manager for 'personal'
-                 # - SSH daemon for 'company' and 'fastn-cloud'  
+                 # - remote access daemon for 'company' and 'fastn-cloud'  
                  # - Client agent for all three clusters
 ```
 
@@ -1921,7 +1961,7 @@ public_services = ["api"]               # These services don't get identity head
 1. **Cluster manager**: `malai cluster init personal` (manage personal cluster)
 2. **Join company**: `malai machine init company.example.com corp` (work cluster)  
 3. **Join fifthtry**: `malai machine init abc123...xyz789 ft` (client cluster)
-4. **Unified start**: `malai daemon` (starts cluster manager + SSH daemons + agent)
+4. **Unified start**: `malai daemon` (starts cluster manager + remote access daemons + agent)
 5. **Cross-cluster access**: `malai web01.ft systemctl status nginx`
 
 ### ** Capabilities:**
