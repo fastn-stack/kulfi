@@ -37,6 +37,7 @@ clap = { version = "4", features = ["derive", "env"] }
 clap-verbosity-flag = "3"
 colored = "3"
 data-encoding = "2.8"
+diffy = "0.4"
 directories = "6.0.0"
 dirs = "5"
 eyre = "0.6"

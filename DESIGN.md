@@ -231,24 +231,80 @@ malai config upload company-config.toml --force
    - **If mismatch**: Reject upload, return error "Config changed remotely, please re-download"
 7. **Distribution**: All machines receive updated personalized configs automatically
 
-### **Conflict Resolution:**
-```bash
-# Upload fails due to remote changes:
-❌ Upload failed: Config hash mismatch (config changed remotely)
-💡 Re-download and merge changes:
+### **Three-Way Merge Conflict Resolution:**
+When upload fails due to hash mismatch, malai provides intelligent conflict resolution:
 
-malai config download company  # Get latest version
-# Manually merge your changes with latest config
-malai config upload company-config.toml  # Upload with new hash
+```bash
+# Upload attempt with conflicts:
+malai config upload company-config.toml
+❌ Upload failed: Config hash mismatch (config changed remotely)
+
+# Automatic three-way merge using diffy crate:
+🔄 Attempting automatic merge...
+📋 Base version: <original config when downloaded>
+📋 Your changes: <your edited config>
+📋 Remote changes: <current remote config>
+
+# Three possible outcomes:
+
+# 1. AUTO-MERGE SUCCESS:
+✅ Automatic merge successful
+📄 Merged config saved to company-config.toml
+💡 Review merged changes and re-upload: malai config upload company-config.toml
+
+# 2. MERGE CONFLICTS:
+❌ Automatic merge failed - conflicts require manual resolution
+📄 Conflict markers added to company-config.toml:
+<<<<<<< Your changes
+[machine.web01]
+allow_from = "admins,developers"
+=======
+[machine.web01]  
+allow_from = "admins,security-team"
+>>>>>>> Remote changes
+
+💡 Resolve conflicts manually and re-upload
+
+# 3. FORCE OVERRIDE:
+malai config upload company-config.toml --force
+⚠️  WARNING: This will overwrite remote changes
+🔄 Uploading without hash validation...
+```
+
+### **Three-Way Merge Algorithm (diffy crate):**
+```rust
+use diffy::{merge, PatchOptions};
+
+// Three-way merge using diffy
+let merge_result = merge(
+    &original_config,    // Base version (when downloaded)
+    &your_config,        // Your edited version
+    &remote_config       // Current remote version
+);
+
+match merge_result {
+    Ok(merged) => {
+        // Clean merge - save and offer to upload
+        save_merged_config(&merged);
+    }
+    Err(conflicts) => {
+        // Add conflict markers for manual resolution
+        add_conflict_markers(&conflicts);
+    }
+}
 ```
 
 ### **Atomic Edit Safety:**
 ```bash  
 malai config edit company
 # 1. Downloads config + hash
-# 2. Opens $EDITOR with config
+# 2. Opens $EDITOR with config  
 # 3. On save, validates hash before upload
-# 4. If hash mismatch, shows diff and asks user to resolve
+# 4. If hash mismatch:
+#    a. Downloads latest remote version
+#    b. Attempts three-way merge using diffy
+#    c. Shows merge result or conflicts for manual resolution
+#    d. Asks user to review and confirm upload
 ```
 
 ### **Security Benefits:**

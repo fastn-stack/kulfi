@@ -18,6 +18,7 @@ clap-verbosity-flag.workspace = true
 clap.workspace = true
 chrono.workspace = true
 colored.workspace = true
+diffy.workspace = true
 dirs.workspace = true
 eyre.workspace = true
 file-guard.workspace = true
