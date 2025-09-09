@@ -137,6 +137,10 @@ async fn main() -> eyre::Result<()> {
             malai::show_cluster_info().await?;
             return Ok(());
         }
+        Some(Command::Status) => {
+            malai::show_detailed_status().await?;
+            return Ok(());
+        }
         Some(Command::Rescan { check }) => {
             if check {
                 println!("🔍 Checking configuration validity...");
@@ -398,6 +402,8 @@ pub enum Command {
     },
     #[clap(about = "Show cluster information for this machine")]
     Info,
+    #[clap(about = "Show detailed daemon and cluster status")]
+    Status,
     #[clap(about = "Reload configuration changes")]
     Rescan {
         #[arg(long, help = "Check config validity without applying changes")]
