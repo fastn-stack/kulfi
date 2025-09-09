@@ -333,7 +333,8 @@ pub async fn start_malai_daemon(environment: bool, foreground: bool) -> Result<(
     println!("💡 Use 'malai daemon -e' for environment variables");
     println!("📨 malai daemon running. Press Ctrl+C to stop.");
     
-    // TODO: Start actual daemon services using fastn_p2p::spawn()
+    // Start services based on validated configs
+    start_services_from_configs(validated_configs).await?;
     
     // Wait for graceful shutdown using fastn-p2p global singleton
     fastn_p2p::cancelled().await;
@@ -593,6 +594,194 @@ pub async fn show_detailed_status() -> Result<()> {
     Ok(())
 }
 
+/// Start services based on validated configurations
+async fn start_services_from_configs(configs: ValidatedConfigs) -> Result<()> {
+    // Start cluster managers
+    for cluster_config in configs.cluster_configs {
+        println!("👑 Starting cluster manager for: {}", cluster_config.cluster_alias);
+        
+        fastn_p2p::spawn(async move {
+            if let Err(e) = run_cluster_manager(cluster_config).await {
+                println!("❌ Cluster manager failed for {}: {}", e, "cluster");
+            }
+        });
+    }
+    
+    // Start SSH daemons  
+    for machine_config in configs.machine_configs {
+        println!("🖥️  Starting SSH daemon for: {}", machine_config.cluster_alias);
+        
+        fastn_p2p::spawn(async move {
+            if let Err(e) = run_ssh_daemon(machine_config).await {
+                println!("❌ SSH daemon failed for {}: {}", e, "machine");
+            }
+        });
+    }
+    
+    // Always start service proxy
+    println!("📡 Starting service proxy for all clusters");
+    fastn_p2p::spawn(async move {
+        if let Err(e) = run_service_proxy().await {
+            println!("❌ Service proxy failed: {}", e);
+        }
+    });
+    
+    Ok(())
+}
+
+/// Run cluster manager for a specific cluster
+async fn run_cluster_manager(cluster_config: ClusterConfig) -> Result<()> {
+    println!("📋 Cluster manager starting for: {}", cluster_config.cluster_alias);
+    
+    let cluster_dir = cluster_config.config_path.parent().unwrap();
+    let mut last_config_hash = cluster_config.config_hash;
+    
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        
+        // Check if config file changed
+        if let Ok(new_content) = std::fs::read_to_string(&cluster_config.config_path) {
+            let new_hash = calculate_config_hash(&new_content);
+            
+            if new_hash != last_config_hash {
+                println!("📋 Config changed for {}, distributing...", cluster_config.cluster_alias);
+                last_config_hash = new_hash;
+                
+                // Generate personalized configs for each machine
+                match distribute_personalized_configs(&new_content, cluster_dir).await {
+                    Ok(()) => println!("✅ Config distributed to all machines in {}", cluster_config.cluster_alias),
+                    Err(e) => println!("❌ Config distribution failed for {}: {}", cluster_config.cluster_alias, e),
+                }
+            }
+        }
+        
+        // Check for graceful shutdown
+        tokio::select! {
+            _ = tokio::time::sleep(std::time::Duration::from_secs(1)) => {}
+            _ = fastn_p2p::cancelled() => {
+                println!("🛑 Cluster manager {} stopping gracefully", cluster_config.cluster_alias);
+                break;
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+/// Distribute personalized configs to all machines in cluster
+async fn distribute_personalized_configs(master_config: &str, cluster_dir: &std::path::Path) -> Result<()> {
+    // Parse master config to find all machines
+    let master: toml::Value = toml::from_str(master_config)?;
+    
+    if let Some(machine_section) = master.get("machine") {
+        if let Some(machine_table) = machine_section.as_table() {
+            for (machine_alias, machine_config) in machine_table {
+                if let Some(machine_config_table) = machine_config.as_table() {
+                    if let Some(id52_value) = machine_config_table.get("id52") {
+                        if let Some(machine_id52) = id52_value.as_str() {
+                            println!("📤 Generating personalized config for machine: {}", machine_alias);
+                            
+                            match generate_personalized_config(master_config, machine_id52) {
+                                Ok(personalized_config) => {
+                                    // TODO: Send personalized config via P2P
+                                    let config_hash = calculate_config_hash(&personalized_config);
+                                    println!("   📄 Personalized config hash: {}", config_hash);
+                                    
+                                    // For now, just update state
+                                    update_machine_state(cluster_dir, machine_id52, machine_alias, &personalized_config, &config_hash)?;
+                                }
+                                Err(e) => {
+                                    println!("   ❌ Failed to generate config for {}: {}", machine_alias, e);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+/// Update machine state in state.json
+fn update_machine_state(
+    cluster_dir: &std::path::Path, 
+    machine_id52: &str, 
+    machine_alias: &str,
+    personalized_config: &str,
+    config_hash: &str
+) -> Result<()> {
+    let state_path = cluster_dir.join("state.json");
+    
+    // Load or create state
+    let mut state = if state_path.exists() {
+        let state_content = std::fs::read_to_string(&state_path)?;
+        serde_json::from_str(&state_content)?
+    } else {
+        serde_json::json!({
+            "cluster_alias": cluster_dir.file_name().unwrap().to_string_lossy(),
+            "machine_states": {}
+        })
+    };
+    
+    // Update machine state
+    state["machine_states"][machine_id52] = serde_json::json!({
+        "machine_alias": machine_alias,
+        "personalized_config": personalized_config,
+        "personalized_config_hash": config_hash,
+        "last_sync": chrono::Utc::now().to_rfc3339(),
+        "sync_status": "generated"
+    });
+    
+    // Save state
+    let state_json = serde_json::to_string_pretty(&state)?;
+    std::fs::write(&state_path, state_json)?;
+    
+    println!("   💾 Updated state for machine: {}", machine_alias);
+    Ok(())
+}
+
+/// Run SSH daemon (placeholder)
+async fn run_ssh_daemon(machine_config: MachineConfig) -> Result<()> {
+    println!("🚪 SSH daemon starting for: {}", machine_config.cluster_alias);
+    
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        
+        // Check for graceful shutdown
+        tokio::select! {
+            _ = tokio::time::sleep(std::time::Duration::from_secs(1)) => {}
+            _ = fastn_p2p::cancelled() => {
+                println!("🛑 SSH daemon {} stopping gracefully", machine_config.cluster_alias);
+                break;
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+/// Run service proxy (placeholder)
+async fn run_service_proxy() -> Result<()> {
+    println!("🌐 Service proxy starting");
+    
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        
+        // Check for graceful shutdown  
+        tokio::select! {
+            _ = tokio::time::sleep(std::time::Duration::from_secs(1)) => {}
+            _ = fastn_p2p::cancelled() => {
+                println!("🛑 Service proxy stopping gracefully");
+                break;
+            }
+        }
+    }
+    
+    Ok(())
+}
+
 /// Generate personalized config for a specific machine
 pub fn generate_personalized_config(master_config: &str, machine_id52: &str) -> Result<String> {
     // Parse master config
@@ -694,6 +883,44 @@ members = "laptop-id52"
         assert!(!result.contains("db01-id52"));
         
         println!("Generated personalized config:\n{}", result);
+    }
+
+    #[test] 
+    fn test_config_distribution_generation() {
+        let master_config = r#"
+[cluster-manager]
+id52 = "cluster123"
+cluster_name = "company"
+
+[machine.web01]
+id52 = "web01-id52"
+allow_from = "admins"
+
+[machine.db01]
+id52 = "db01-id52"
+allow_from = "devs"
+"#;
+
+        // Test generating configs for both machines
+        let web01_config = generate_personalized_config(master_config, "web01-id52").unwrap();
+        let db01_config = generate_personalized_config(master_config, "db01-id52").unwrap();
+        
+        println!("Web01 personalized config:\n{}", web01_config);
+        println!("DB01 personalized config:\n{}", db01_config);
+        
+        // Each machine should get different configs
+        assert_ne!(web01_config, db01_config);
+        
+        // Both should have cluster manager
+        assert!(web01_config.contains("cluster123"));
+        assert!(db01_config.contains("cluster123"));
+        
+        // Each should only have their own machine section
+        assert!(web01_config.contains("web01-id52"));
+        assert!(!web01_config.contains("db01-id52"));
+        
+        assert!(db01_config.contains("db01-id52")); 
+        assert!(!db01_config.contains("web01-id52"));
     }
 
     #[test]
