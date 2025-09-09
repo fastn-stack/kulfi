@@ -189,31 +189,67 @@ cluster_name = "company"
 config_editors = "admins,devops-leads,emergency-laptop-id52"
 ```
 
-### **Remote Config Commands:**
+### **Version-Controlled Config Commands:**
 ```bash
-# Download current cluster config for editing
-malai config download company > company-config.toml
+# Download current cluster config with version hash
+malai config download company
+# Outputs: 
+# - company-config.toml (config content)
+# - .company-config.hash (version hash for upload)
 
-# Edit config locally (any editor)
+# Edit config locally (any editor)  
 vim company-config.toml
 
-# Upload updated config 
+# Upload with version check (requires matching hash)
 malai config upload company-config.toml
+# Reads .company-config.hash, validates server hash matches before upload
+# Fails if config changed remotely since download
+
+# Atomic edit (download → edit → upload in single operation)
+malai config edit company
+# Downloads config + hash, opens $EDITOR, uploads on save
+# Minimizes conflict window but still does hash validation
 
 # View current config without downloading
 malai config show company
 
-# Validate config before uploading  
+# Validate config syntax before upload  
 malai config validate company-config.toml
+
+# Force upload (bypass hash check - dangerous)
+malai config upload company-config.toml --force
 ```
 
-### **Config Management Flow:**
-1. **Admin machine**: `malai config download company` → requests config via P2P
-2. **Cluster manager**: Validates requester in `config_editors`, sends current config
-3. **Admin edits**: Local file editing using standard tools
-4. **Admin uploads**: `malai config upload` → sends updated config via P2P
-5. **Cluster manager**: Validates sender, atomic config replacement, triggers distribution
-6. **All machines**: Receive updated personalized configs automatically
+### **Version-Controlled Config Management Flow:**
+1. **Admin downloads**: `malai config download company` → P2P request to cluster manager
+2. **Cluster manager**: Validates requester in `config_editors`, sends config + current hash
+3. **Admin receives**: company-config.toml + .company-config.hash files created locally
+4. **Admin edits**: Local file editing using standard tools (vim, nano, etc.)
+5. **Admin uploads**: `malai config upload company-config.toml` → P2P request with original hash
+6. **Hash validation**: Cluster manager compares original hash with current hash
+   - **If match**: Accept upload, replace config atomically, trigger distribution
+   - **If mismatch**: Reject upload, return error "Config changed remotely, please re-download"
+7. **Distribution**: All machines receive updated personalized configs automatically
+
+### **Conflict Resolution:**
+```bash
+# Upload fails due to remote changes:
+❌ Upload failed: Config hash mismatch (config changed remotely)
+💡 Re-download and merge changes:
+
+malai config download company  # Get latest version
+# Manually merge your changes with latest config
+malai config upload company-config.toml  # Upload with new hash
+```
+
+### **Atomic Edit Safety:**
+```bash  
+malai config edit company
+# 1. Downloads config + hash
+# 2. Opens $EDITOR with config
+# 3. On save, validates hash before upload
+# 4. If hash mismatch, shows diff and asks user to resolve
+```
 
 ### **Security Benefits:**
 - **Authorized editing**: Only specified machines can modify cluster config

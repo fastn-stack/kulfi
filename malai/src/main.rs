@@ -190,6 +190,35 @@ async fn main() -> eyre::Result<()> {
                 }
             }
         }
+        Some(Command::Config { config_command }) => {
+            match config_command {
+                ConfigCommand::Download { cluster } => {
+                    println!("📥 Downloading config for cluster: {}", cluster);
+                    todo!("Implement config download with version hash");
+                }
+                ConfigCommand::Upload { file, force } => {
+                    if force {
+                        println!("⚠️  Force uploading config: {}", file);
+                        todo!("Implement force config upload (bypass hash check)");
+                    } else {
+                        println!("📤 Uploading config: {}", file);
+                        todo!("Implement config upload with hash validation");
+                    }
+                }
+                ConfigCommand::Edit { cluster } => {
+                    println!("✏️  Editing config for cluster: {}", cluster);
+                    todo!("Implement atomic config edit with $EDITOR");
+                }
+                ConfigCommand::Show { cluster } => {
+                    println!("📋 Showing config for cluster: {}", cluster);
+                    todo!("Implement config show command");
+                }
+                ConfigCommand::Validate { file } => {
+                    println!("✅ Validating config: {}", file);
+                    todo!("Implement config validation command");
+                }
+            }
+        }
         Some(Command::External(args)) => {
             // Handle direct SSH syntax: malai <machine> <command>
             if args.len() >= 1 {
@@ -414,6 +443,11 @@ pub enum Command {
         #[command(subcommand)]
         service_command: ServiceCommand,
     },
+    #[clap(about = "Remote cluster config management commands")]
+    Config {
+        #[command(subcommand)]
+        config_command: ConfigCommand,
+    },
     #[clap(about = "Identity management commands")]
     Identity {
         #[command(subcommand)]
@@ -486,6 +520,37 @@ pub enum IdentityCommand {
     Delete {
         #[arg(help = "Identity name")]
         name: String,
+    },
+}
+
+#[derive(clap::Subcommand, Debug)]
+pub enum ConfigCommand {
+    #[clap(about = "Download cluster config for editing")]
+    Download {
+        #[arg(help = "Cluster alias")]
+        cluster: String,
+    },
+    #[clap(about = "Upload edited cluster config")]  
+    Upload {
+        #[arg(help = "Config file path")]
+        file: String,
+        #[arg(long, help = "Force upload (bypass hash check)")]
+        force: bool,
+    },
+    #[clap(about = "Edit cluster config with $EDITOR")]
+    Edit {
+        #[arg(help = "Cluster alias")]
+        cluster: String,
+    },
+    #[clap(about = "Show current cluster config")]
+    Show {
+        #[arg(help = "Cluster alias")]
+        cluster: String,
+    },
+    #[clap(about = "Validate config file syntax")]
+    Validate {
+        #[arg(help = "Config file path")]
+        file: String,
     },
 }
 
