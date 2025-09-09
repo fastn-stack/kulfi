@@ -325,8 +325,9 @@ pub async fn start_malai_daemon(environment: bool, foreground: bool) -> Result<(
         println!("📋 Running in foreground mode");
     }
     
-    // Scan and report configurations
-    scan_and_report_configs(&malai_home).await?;
+    // Load and validate ALL configs before daemonizing
+    let validated_configs = load_and_validate_all_configs(&malai_home).await?;
+    println!("✅ All configurations validated successfully");
     
     println!("✅ malai daemon started");
     println!("💡 Use 'malai daemon -e' for environment variables");
@@ -339,6 +340,168 @@ pub async fn start_malai_daemon(environment: bool, foreground: bool) -> Result<(
     
     println!("👋 malai daemon stopped gracefully");
     Ok(())
+}
+
+/// Load and validate all configurations in MALAI_HOME
+async fn load_and_validate_all_configs(malai_home: &PathBuf) -> Result<ValidatedConfigs> {
+    println!("🔍 Loading and validating all configurations...");
+    
+    let clusters_dir = malai_home.join("clusters");
+    let mut cluster_configs = Vec::new();
+    let mut machine_configs = Vec::new();
+    
+    if !clusters_dir.exists() {
+        println!("📂 No clusters directory - daemon will run with no clusters");
+        return Ok(ValidatedConfigs {
+            cluster_configs,
+            machine_configs,
+        });
+    }
+    
+    // Scan all cluster directories
+    if let Ok(entries) = std::fs::read_dir(&clusters_dir) {
+        for entry in entries.flatten() {
+            if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                let cluster_alias = entry.file_name().to_string_lossy().to_string();
+                let cluster_dir = entry.path();
+                
+                println!("📋 Validating cluster: {}", cluster_alias);
+                
+                // Check for cluster-config.toml (cluster manager role)
+                let config_path = cluster_dir.join("cluster-config.toml");
+                if config_path.exists() {
+                    match validate_cluster_config(&config_path, &cluster_alias).await {
+                        Ok(config) => {
+                            cluster_configs.push(config);
+                            println!("   ✅ cluster-config.toml validated");
+                        }
+                        Err(e) => {
+                            println!("   ❌ cluster-config.toml validation failed: {}", e);
+                            return Err(eyre::eyre!("Invalid cluster config for {}: {}", cluster_alias, e));
+                        }
+                    }
+                }
+                
+                // Check for machine-config.toml (machine role)  
+                let machine_config_path = cluster_dir.join("machine-config.toml");
+                if machine_config_path.exists() {
+                    match validate_machine_config(&machine_config_path, &cluster_alias).await {
+                        Ok(config) => {
+                            machine_configs.push(config);
+                            println!("   ✅ machine-config.toml validated");
+                        }
+                        Err(e) => {
+                            println!("   ❌ machine-config.toml validation failed: {}", e);
+                            return Err(eyre::eyre!("Invalid machine config for {}: {}", cluster_alias, e));
+                        }
+                    }
+                }
+                
+                // Validate identity.key if present
+                let identity_path = cluster_dir.join("identity.key");
+                if identity_path.exists() {
+                    if let Err(e) = validate_identity_file(&identity_path) {
+                        println!("   ❌ identity.key validation failed: {}", e);
+                        return Err(eyre::eyre!("Invalid identity for {}: {}", cluster_alias, e));
+                    } else {
+                        println!("   ✅ identity.key validated");
+                    }
+                }
+            }
+        }
+    }
+    
+    println!("✅ Configuration validation complete:");
+    println!("   📊 Cluster manager roles: {}", cluster_configs.len());
+    println!("   📊 Machine roles: {}", machine_configs.len());
+    
+    Ok(ValidatedConfigs {
+        cluster_configs,
+        machine_configs,
+    })
+}
+
+/// Validated configuration structure
+#[derive(Debug)]
+struct ValidatedConfigs {
+    cluster_configs: Vec<ClusterConfig>,
+    machine_configs: Vec<MachineConfig>,
+}
+
+/// Cluster manager configuration
+#[derive(Debug)]  
+struct ClusterConfig {
+    cluster_alias: String,
+    config_path: std::path::PathBuf,
+    config_content: String,
+    config_hash: String,
+}
+
+/// Machine configuration
+#[derive(Debug)]
+struct MachineConfig {
+    cluster_alias: String,  
+    config_path: std::path::PathBuf,
+    config_content: String,
+    machine_role: String, // "ssh-daemon" or "client-only"
+}
+
+/// Validate cluster config file
+async fn validate_cluster_config(config_path: &std::path::Path, cluster_alias: &str) -> Result<ClusterConfig> {
+    let config_content = std::fs::read_to_string(config_path)?;
+    
+    // Basic TOML syntax validation
+    let _parsed: toml::Value = toml::from_str(&config_content)
+        .map_err(|e| eyre::eyre!("TOML syntax error: {}", e))?;
+    
+    // TODO: Add semantic validation (machine refs, groups, etc.)
+    
+    let config_hash = calculate_config_hash(&config_content);
+    
+    Ok(ClusterConfig {
+        cluster_alias: cluster_alias.to_string(),
+        config_path: config_path.to_path_buf(),
+        config_content,
+        config_hash,
+    })
+}
+
+/// Validate machine config file
+async fn validate_machine_config(config_path: &std::path::Path, cluster_alias: &str) -> Result<MachineConfig> {
+    let config_content = std::fs::read_to_string(config_path)?;
+    
+    // Basic TOML syntax validation
+    let _parsed: toml::Value = toml::from_str(&config_content)
+        .map_err(|e| eyre::eyre!("TOML syntax error: {}", e))?;
+    
+    // TODO: Determine machine role from config
+    let machine_role = "client-only".to_string(); // Placeholder
+    
+    Ok(MachineConfig {
+        cluster_alias: cluster_alias.to_string(),
+        config_path: config_path.to_path_buf(),
+        config_content,
+        machine_role,
+    })
+}
+
+/// Validate identity key file
+fn validate_identity_file(identity_path: &std::path::Path) -> Result<()> {
+    let key_content = std::fs::read_to_string(identity_path)?;
+    let _secret_key = fastn_id52::SecretKey::from_str(key_content.trim())
+        .map_err(|e| eyre::eyre!("Invalid secret key format: {}", e))?;
+    
+    Ok(())
+}
+
+/// Calculate config hash for change detection
+fn calculate_config_hash(content: &str) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    
+    let mut hasher = DefaultHasher::new();
+    content.hash(&mut hasher);
+    format!("{:x}", hasher.finish())
 }
 
 /// Scan MALAI_HOME and report configurations  
@@ -362,6 +525,69 @@ async fn scan_and_report_configs(malai_home: &PathBuf) -> Result<()> {
         }).count();
         
         println!("📊 Found {} cluster directories", cluster_count);
+    }
+    
+    Ok(())
+}
+
+/// Show detailed daemon and cluster status
+pub async fn show_detailed_status() -> Result<()> {
+    let malai_home = get_malai_home();
+    
+    println!("📊 malai Status");
+    println!("═══════════════════════════════════════");
+    println!("📁 MALAI_HOME: {}", malai_home.display());
+    
+    // Check daemon status
+    let lockfile_path = malai_home.join("malai.lock");
+    if lockfile_path.exists() {
+        println!("🔒 Daemon: RUNNING (lockfile exists)");
+    } else {
+        println!("💤 Daemon: NOT RUNNING");
+    }
+    
+    // Load and show all configs
+    match load_and_validate_all_configs(&malai_home).await {
+        Ok(configs) => {
+            println!("\n🏗️  Cluster Configurations:");
+            if configs.cluster_configs.is_empty() {
+                println!("   ❌ No cluster manager roles");
+            } else {
+                for cluster_config in &configs.cluster_configs {
+                    println!("   👑 {} (Cluster Manager)", cluster_config.cluster_alias);
+                    println!("      📄 Config: {}", cluster_config.config_path.display());
+                    println!("      🔢 Hash: {}", cluster_config.config_hash);
+                    
+                    // Count machines in cluster
+                    let machine_count = cluster_config.config_content.lines()
+                        .filter(|line| line.trim().starts_with("[machine.") && !line.trim().starts_with('#'))
+                        .count();
+                    println!("      📊 Machines: {}", machine_count);
+                }
+            }
+            
+            println!("\n🖥️  Machine Configurations:");
+            if configs.machine_configs.is_empty() {
+                println!("   ❌ No machine roles");
+            } else {
+                for machine_config in &configs.machine_configs {
+                    println!("   🖥️  {} ({})", machine_config.cluster_alias, machine_config.machine_role);
+                    println!("      📄 Config: {}", machine_config.config_path.display());
+                }
+            }
+            
+            println!("\n📡 Services:");
+            let services_path = malai_home.join("services.toml");
+            if services_path.exists() {
+                println!("   📄 services.toml found");
+                // TODO: Parse and show service configurations
+            } else {
+                println!("   ❌ No services.toml (no local service forwarding)");
+            }
+        }
+        Err(e) => {
+            println!("❌ Configuration validation failed: {}", e);
+        }
     }
     
     Ok(())

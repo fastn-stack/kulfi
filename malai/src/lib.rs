@@ -46,7 +46,7 @@ pub use keygen::keygen;
 pub use run::run;
 pub use core_utils::{
     create_cluster, init_cluster, init_machine_for_cluster, 
-    init_machine_for_cluster_with_alias, show_cluster_info,
+    init_machine_for_cluster_with_alias, show_cluster_info, show_detailed_status,
     start_malai_daemon
 };
 pub use tcp_bridge::tcp_bridge;
