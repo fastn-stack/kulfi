@@ -56,7 +56,7 @@ pub use core_utils::{
 // pub use server::run_malai_server;
 pub use simple_server::{test_simple_server, run_simple_malai_server};
 pub use malai_server::{run_malai_server, send_config, send_command};
-pub use config_manager::{validate_config_file, check_all_configs, reload_daemon_config};
+pub use config_manager::{validate_config_file, check_all_configs, reload_daemon_config, scan_cluster_roles, ClusterRole};
 pub use tcp_bridge::tcp_bridge;
 
 #[cfg(feature = "ui")]

@@ -130,3 +130,85 @@ pub async fn reload_daemon_config() -> Result<()> {
     
     Ok(())
 }
+/// Role detection for cluster directory
+#[derive(Debug, Clone, PartialEq)]
+pub enum ClusterRole {
+    ClusterManager,  // cluster.toml exists, machine.toml missing
+    Machine,         // machine.toml exists, cluster.toml missing  
+    Waiting,         // neither file exists
+}
+
+/// Detect role for cluster directory (with error checking)
+pub fn detect_cluster_role(cluster_dir: &std::path::Path) -> Result<ClusterRole> {
+    let cluster_config = cluster_dir.join("cluster.toml");
+    let machine_config = cluster_dir.join("machine.toml");
+    
+    let has_cluster = cluster_config.exists();
+    let has_machine = machine_config.exists();
+    
+    match (has_cluster, has_machine) {
+        (true, true) => {
+            Err(eyre::eyre!(
+                "CONFIGURATION ERROR: Both cluster.toml and machine.toml exist in {}\n\
+                 This is not supported. Each cluster directory must have exactly one config:\n\
+                 - cluster.toml: For cluster manager role\n\
+                 - machine.toml: For machine role\n\
+                 Remove one of the files to fix this error.",
+                cluster_dir.display()
+            ))
+        }
+        (true, false) => {
+            println!("   👑 Cluster Manager role detected");
+            Ok(ClusterRole::ClusterManager)
+        }
+        (false, true) => {
+            println!("   🖥️  Machine role detected");
+            Ok(ClusterRole::Machine)
+        }
+        (false, false) => {
+            println!("   📋 Waiting for configuration");
+            Ok(ClusterRole::Waiting)
+        }
+    }
+}
+
+/// Scan all clusters and detect roles (with validation)
+pub async fn scan_cluster_roles() -> Result<Vec<(String, fastn_id52::SecretKey, ClusterRole)>> {
+    let malai_home = crate::core_utils::get_malai_home();
+    let clusters_dir = malai_home.join("clusters");
+    
+    if !clusters_dir.exists() {
+        println!("📂 No clusters directory");
+        return Ok(Vec::new());
+    }
+    
+    let mut cluster_identities = Vec::new();
+    
+    if let Ok(entries) = std::fs::read_dir(&clusters_dir) {
+        for entry in entries.flatten() {
+            if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                let cluster_alias = entry.file_name().to_string_lossy().to_string();
+                let cluster_dir = entry.path();
+                
+                println!("\n📋 Scanning cluster: {}", cluster_alias);
+                
+                // Detect role (will crash if both configs exist)
+                let role = detect_cluster_role(&cluster_dir)?;
+                
+                // Load identity for this cluster
+                let identity_path = cluster_dir.join("identity.key");
+                if identity_path.exists() {
+                    let key_content = std::fs::read_to_string(&identity_path)?;
+                    let identity = fastn_id52::SecretKey::from_str(key_content.trim())?;
+                    
+                    println!("   🔑 Identity: {}", identity.id52());
+                    cluster_identities.push((cluster_alias, identity, role));
+                } else {
+                    println!("   ❌ No identity.key found");
+                }
+            }
+        }
+    }
+    
+    Ok(cluster_identities)
+}
