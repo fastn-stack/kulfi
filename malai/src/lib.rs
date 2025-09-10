@@ -50,9 +50,8 @@ pub use http_proxy_remote::http_proxy_remote;
 pub use keygen::keygen;
 pub use run::run;
 pub use core_utils::{
-    create_cluster, init_cluster, show_cluster_info, show_detailed_status
-    // Temporarily disabled broken functions
-    // start_malai_daemon, send_remote_access_command
+    init_cluster, show_cluster_info, show_detailed_status
+    // Removed: create_cluster (dead code), start_malai_daemon (replaced by daemon::start_real_daemon)
 };
 // pub use server::run_malai_server;
 pub use simple_server::{test_simple_server, run_simple_malai_server};
