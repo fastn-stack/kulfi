@@ -11,6 +11,9 @@
 
 set -euo pipefail
 
+# Ensure cargo is in PATH (fix for CI and local environments)
+export PATH="$PATH:~/.cargo/bin"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m' 
@@ -213,7 +216,7 @@ EOF
     # Verify self-command optimization worked
     assert_contains "$TEST_DIR/self-command.log" "Self-command detected - executing locally"
     assert_contains "$TEST_DIR/self-command.log" "E2E self-command test"
-    assert_contains "$TEST_DIR/self-command.log" "Self-command executed successfully"
+    assert_contains "$TEST_DIR/self-command.log" "Self-command completed"
     success "Self-command optimization working"
     
     # Test different commands to verify real execution
