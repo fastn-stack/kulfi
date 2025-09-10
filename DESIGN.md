@@ -1067,17 +1067,16 @@ eval $(malai daemon -e)  # Agent auto-detects role and starts appropriate servic
 ```
 $MALAI_HOME/
 ├── clusters/
-│   ├── company/                     # Cluster 1 - This device is cluster manager + machine
+│   ├── company/                     # Cluster 1 - This device is cluster manager
 │   │   ├── cluster.toml            # → Cluster manager role (master config)
-│   │   ├── machine.toml            # → Machine role (optional - received config)
-│   │   ├── identity.key            # → Identity for company cluster
+│   │   ├── cluster.private-key     # → Private key for cluster manager role
 │   │   └── state.json              # → Config distribution tracking (cluster manager only)
 │   ├── personal/                    # Cluster 2 - This device is machine only
 │   │   ├── machine.toml            # → Machine role (received from CM)
-│   │   └── identity.key            # → Different identity for personal cluster
+│   │   └── machine.private-key     # → Private key for machine role
 │   └── client-work/                 # Cluster 3 - This device is cluster manager only  
 │       ├── cluster.toml            # → Cluster manager role
-│       ├── identity.key            # → Another unique identity
+│       ├── cluster.private-key     # → Private key for cluster manager role
 │       └── state.json              # → Config distribution tracking
 ├── malai.toml                       # Local services: aliases, TCP/HTTP forwarding
 ├── malai.sock                       # CLI communication socket
@@ -1113,8 +1112,9 @@ When cluster manager acts as machine (common single-cluster scenario):
 
 ### **File Name Conventions:**
 - `cluster.toml`: Master cluster config (cluster manager role)
-- `machine.toml`: Machine-specific config (machine role, received via P2P)  
-- `identity.key`: Unique P2P identity for this cluster
+- `cluster.private-key`: Private key for cluster manager role
+- `machine.toml`: Machine-specific config (machine role, received via P2P)
+- `machine.private-key`: Private key for machine role  
 - `state.json`: Config distribution tracking (cluster manager only)
 
 ## Real-World Deployment Scenarios
