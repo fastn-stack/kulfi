@@ -209,10 +209,13 @@ allow_from = "*"
         Some(Command::Rescan { check }) => {
             if check {
                 println!("🔍 Checking configuration validity...");
-                todo!("Implement config validation check");
+                malai::check_all_configs().await?;
+                return Ok(());
             } else {
                 println!("🔄 Rescanning and applying configuration changes...");
-                todo!("Implement atomic config rescan");
+                malai::check_all_configs().await?;
+                malai::reload_daemon_config().await?;
+                return Ok(());
             }
         }
         Some(Command::Service { service_command }) => {

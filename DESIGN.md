@@ -1063,38 +1063,101 @@ export MALAI_HOME=/path/to/custom/malai/data
 eval $(malai daemon -e)  # Agent auto-detects role and starts appropriate services
 ```
 
-**Complete MALAI_HOME Structure:**
+**Complete MALAI_HOME Structure (Multi-Role, Multi-Cluster):**
 ```
 $MALAI_HOME/
 ├── clusters/
-│   ├── company/                     # Local alias for cluster
-│   │   ├── cluster-config.toml      # Full cluster config (if cluster manager)
-│   │   ├── machine-config.toml      # Machine-specific config (if regular machine)
-│   │   ├── cluster-info.toml        # Cluster details and registration
-│   │   ├── identity.key             # This machine's identity for this cluster
-│   │   └── state.json              # Config distribution state (cluster manager only)
-│   ├── ft/                          # Local alias for fifthtry.com cluster  
-│   │   ├── cluster-info.toml        # Contains cluster_id52, domain, role
-│   │   ├── machine-config.toml      # Received from cluster manager
-│   │   └── identity.key             # Machine identity for this cluster
-│   └── personal/                    # Personal cluster alias
-│       ├── cluster-config.toml      # If cluster manager
-│       ├── identity.key             # Machine identity
-│       └── state.json              # If cluster manager
-├── malai.toml                       # Local configuration: services, aliases, settings
+│   ├── company/                     # Cluster 1 - This device is cluster manager + machine
+│   │   ├── cluster.toml            # → Cluster manager role (master config)
+│   │   ├── machine.toml            # → Machine role (optional - received config)
+│   │   ├── identity.key            # → Identity for company cluster
+│   │   └── state.json              # → Config distribution tracking (cluster manager only)
+│   ├── personal/                    # Cluster 2 - This device is machine only
+│   │   ├── machine.toml            # → Machine role (received from CM)
+│   │   └── identity.key            # → Different identity for personal cluster
+│   └── client-work/                 # Cluster 3 - This device is cluster manager only  
+│       ├── cluster.toml            # → Cluster manager role
+│       ├── identity.key            # → Another unique identity
+│       └── state.json              # → Config distribution tracking
+├── malai.toml                       # Local services: aliases, TCP/HTTP forwarding
 ├── malai.sock                       # CLI communication socket
-├── malai.lock                       # Process lockfile (PID + timestamp)
-├── malai.log                        # Single unified log file (all clusters)
-└── keys/
-    └── default-identity.key         # Default identity for new clusters
+├── malai.lock                       # Process lockfile
+└── malai.log                        # Unified log file (all clusters)
 ```
 
-**Cluster Directory Files:**
-- `cluster-config.toml`: Full cluster config (only on cluster manager machines)
-- `machine-config.toml`: Machine-specific config received from cluster manager
-- `cluster-info.toml`: Registration info (cluster_id52, domain, role, machine_alias)
-- `identity.key`: This machine's private key for this specific cluster
-- `state.json`: Config distribution tracking (only on cluster manager machines)
+**Role Detection Rules:**
+- `cluster.toml` exists → **Cluster Manager** (manages this cluster)
+- `machine.toml` exists → **Machine** (receives config from cluster manager)  
+- Both exist → **Cluster Manager + Machine** (dual role in same cluster)
+- Neither exists → **Waiting** (machine not yet configured)
+
+**Configuration Sources:**
+- **Cluster Manager as Machine**: Reads `cluster.toml` directly for ACL (no config sync needed)
+- **Remote Machine**: Reads `machine.toml` (received via P2P from cluster manager)
+- **Dual Role**: Cluster manager functionality + machine ACL from `cluster.toml`
+
+## Single malai Daemon Architecture
+
+### **One Daemon, Multiple Identities:**
+- **Single malai daemon process** handles all clusters simultaneously
+- **One P2P listener per cluster identity** (one fastn_p2p::listen! per identity.key)
+- **Role detection per cluster**: Each cluster directory defines roles independently
+- **Unified protocol handling**: Same protocols (ConfigUpdate, ExecuteCommand) for all identities
+
+### **Cluster Manager Self-Operation:**
+When cluster manager acts as machine (common single-cluster scenario):
+- **No config sync**: Reads `cluster.toml` directly for ACL validation
+- **Self-command optimization**: Direct file access instead of P2P
+- **Same interface**: `malai web01.company ps aux` works whether self or remote
+- **Unified ACL**: Same permission checking code for self and remote operations
+
+### **File Name Conventions:**
+- `cluster.toml`: Master cluster config (cluster manager role)
+- `machine.toml`: Machine-specific config (machine role, received via P2P)  
+- `identity.key`: Unique P2P identity for this cluster
+- `state.json`: Config distribution tracking (cluster manager only)
+
+## Real-World Deployment Scenarios
+
+### **Scenario 1: Personal Single-Cluster Setup**
+```
+Device: Personal laptop
+$MALAI_HOME/clusters/personal/cluster.toml     # Cluster manager role
+$MALAI_HOME/clusters/personal/identity.key     # One identity for personal cluster
+
+Behavior: 
+- Cluster manager: Manages personal cluster config
+- Machine: Executes commands (reads ACL from cluster.toml directly)  
+- No config sync needed: Same file serves both roles
+```
+
+### **Scenario 2: Multi-Cluster Power User**  
+```
+Device: Developer laptop  
+$MALAI_HOME/clusters/personal/cluster.toml     # CM of personal cluster
+$MALAI_HOME/clusters/personal/identity.key     # Identity 1
+$MALAI_HOME/clusters/company/machine.toml      # Machine in company cluster  
+$MALAI_HOME/clusters/company/identity.key      # Identity 2
+$MALAI_HOME/clusters/client/machine.toml       # Machine in client cluster
+$MALAI_HOME/clusters/client/identity.key       # Identity 3
+
+Behavior:
+- Three P2P listeners (one per identity)
+- Cluster manager of personal, machine in company+client
+- Same daemon handles all roles simultaneously
+```
+
+### **Scenario 3: Dedicated Server**
+```
+Device: Production server
+$MALAI_HOME/clusters/company/machine.toml      # Machine only
+$MALAI_HOME/clusters/company/identity.key      # One identity
+
+Behavior:
+- One P2P listener for company cluster
+- Machine role only (receives config from remote cluster manager)
+- Executes commands based on received machine.toml permissions
+```
 
 **Logging Strategy:**
 - **Single log file**: `$MALAI_HOME/malai.log` for all clusters and services

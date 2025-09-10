@@ -1,7 +1,0 @@
-[cluster_manager]
-id52 = "lhirqk1234glj8jc1kbaj5ib2edd79q7a9f6prcpr1paaorebijg"
-cluster_name = "test"
-
-[machine.server1]
-id52 = "um4q9a02gdp08319ub75nb9pqmgq9hgh8k5jj58u1ltpsour5000"  
-allow_from = "*"
