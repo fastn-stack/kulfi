@@ -58,32 +58,32 @@ pub async fn check_all_configs() -> Result<()> {
                 
                 println!("\n📋 Cluster: {}", cluster_alias);
                 
-                // Check cluster-config.toml
-                let cluster_config = cluster_dir.join("cluster-config.toml");
+                // Check cluster.toml
+                let cluster_config = cluster_dir.join("cluster.toml");
                 if cluster_config.exists() {
                     total_configs += 1;
                     match validate_config_file(cluster_config.to_str().unwrap()) {
                         Ok(_) => {
-                            println!("   ✅ cluster-config.toml valid");
+                            println!("   ✅ cluster.toml valid");
                             valid_configs += 1;
                         }
                         Err(e) => {
-                            println!("   ❌ cluster-config.toml invalid: {}", e);
+                            println!("   ❌ cluster.toml invalid: {}", e);
                         }
                     }
                 }
                 
-                // Check machine-config.toml
-                let machine_config = cluster_dir.join("machine-config.toml");
+                // Check machine.toml
+                let machine_config = cluster_dir.join("machine.toml");
                 if machine_config.exists() {
                     total_configs += 1;
                     match validate_config_file(machine_config.to_str().unwrap()) {
                         Ok(_) => {
-                            println!("   ✅ machine-config.toml valid");
+                            println!("   ✅ machine.toml valid");
                             valid_configs += 1;
                         }
                         Err(e) => {
-                            println!("   ❌ machine-config.toml invalid: {}", e);
+                            println!("   ❌ machine.toml invalid: {}", e);
                         }
                     }
                 }

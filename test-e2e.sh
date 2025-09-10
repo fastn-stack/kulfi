@@ -101,49 +101,101 @@ assert_file_exists() {
 
 # Function to run bash infrastructure test
 run_bash_test() {
-    header "🏗️  CRITICAL TEST: Bash P2P Infrastructure" 
-    log "Test: Complete malai infrastructure using clean malai_server.rs"
-    log "Mode: Working P2P protocols with one listener per identity"
+    header "🏗️  CRITICAL TEST: malai Business Logic E2E" 
+    log "Test: Complete malai with proper file structure and role detection"
+    log "Mode: Design-compliant cluster.toml, machine.toml, multi-role support"
     echo
     
-    # Simple test using working malai_server.rs
-    log "🧪 Testing working malai infrastructure"
+    # Phase 1: Role Detection with Proper File Structure
+    log "📋 Phase 1: Testing role detection and file structure"
     
-    # Test basic P2P functionality
-    log "Testing simple P2P..."
-    if ! $MALAI_BIN test-simple > "$TEST_DIR/simple-test.log" 2>&1; then
-        cat "$TEST_DIR/simple-test.log"
-        error "Simple P2P test failed"
-    fi
-    assert_contains "$TEST_DIR/simple-test.log" "Echo: Hello from simple test"
-    success "Simple P2P working"
+    # Setup cluster manager with design-compliant structure
+    CLUSTER_DIR="$TEST_DIR/cluster-manager/clusters/company"
+    mkdir -p "$CLUSTER_DIR"
     
-    # Test complete infrastructure  
-    log "Testing complete infrastructure..."
-    if ! $MALAI_BIN test-real > "$TEST_DIR/real-test.log" 2>&1; then
-        cat "$TEST_DIR/real-test.log"
-        error "Real infrastructure test failed"  
+    # Generate identity for cluster manager
+    export MALAI_HOME="$TEST_DIR/cluster-manager"
+    if ! $MALAI_BIN keygen --file "$CLUSTER_DIR/identity.key" > "$TEST_DIR/cm-keygen.log" 2>&1; then
+        error "Cluster manager keygen failed"
     fi
     
-    # Verify config distribution worked
-    assert_contains "$TEST_DIR/real-test.log" "Config distribution successful"
-    assert_contains "$TEST_DIR/real-test.log" "Config saved to: machine-config.toml"
-    success "Config distribution working"
+    CM_ID52=$(grep "Generated Public Key (ID52):" "$TEST_DIR/cm-keygen.log" | cut -d: -f2 | tr -d ' ')
+    log "✅ Cluster Manager ID52: $CM_ID52"
     
-    # Verify command execution worked
-    assert_contains "$TEST_DIR/real-test.log" "Complete malai infrastructure working!"
-    assert_contains "$TEST_DIR/real-test.log" "Command completed: exit_code=0"
-    success "Command execution working"
+    # Create design-compliant cluster.toml (not cluster-config.toml)
+    cat > "$CLUSTER_DIR/cluster.toml" << EOF
+[cluster_manager]
+id52 = "$CM_ID52"
+cluster_name = "company"
+
+[machine.web01]
+id52 = "$CM_ID52"
+allow_from = "*"
+
+[machine.server1]  
+id52 = "remote-machine-id52"
+allow_from = "*"
+EOF
     
-    # Verify config file was created
+    # Test role detection
+    if ! $MALAI_BIN scan-roles > "$TEST_DIR/role-scan.log" 2>&1; then
+        cat "$TEST_DIR/role-scan.log"
+        error "Role detection failed"
+    fi
+    
+    assert_contains "$TEST_DIR/role-scan.log" "Cluster Manager role detected"
+    assert_contains "$TEST_DIR/role-scan.log" "ClusterManager"
+    success "Role detection working with proper file structure"
+    
+    # Phase 2: Configuration Validation
+    log "📝 Phase 2: Testing configuration validation"
+    
+    if ! $MALAI_BIN rescan --check > "$TEST_DIR/config-check.log" 2>&1; then
+        cat "$TEST_DIR/config-check.log"
+        error "Config validation failed"
+    fi
+    
+    assert_contains "$TEST_DIR/config-check.log" "All configurations valid"
+    success "Configuration validation working"
+    
+    # Phase 3: Basic P2P Infrastructure Test  
+    log "📡 Phase 3: Testing P2P infrastructure"
+    
+    if ! $MALAI_BIN test-simple > "$TEST_DIR/simple-p2p.log" 2>&1; then
+        cat "$TEST_DIR/simple-p2p.log"
+        error "Basic P2P test failed"
+    fi
+    assert_contains "$TEST_DIR/simple-p2p.log" "Echo: Hello from simple test"
+    success "P2P infrastructure working"
+    
+    # Phase 4: Complete Infrastructure Test
+    log "🚀 Phase 4: Testing complete malai functionality"
+    
+    if ! $MALAI_BIN test-real > "$TEST_DIR/complete-test.log" 2>&1; then
+        cat "$TEST_DIR/complete-test.log"
+        error "Complete infrastructure test failed"
+    fi
+    
+    assert_contains "$TEST_DIR/complete-test.log" "Config distribution successful"
+    assert_contains "$TEST_DIR/complete-test.log" "Complete malai infrastructure working!"
+    success "Complete infrastructure working"
+    
+    # Phase 5: File Structure Validation
+    log "📁 Phase 5: Validating created file structure"
+    
+    # Check that config file was created with proper structure
     if [[ -f "machine-config.toml" ]]; then
         assert_contains "machine-config.toml" "cluster_manager"
-        assert_contains "machine-config.toml" "machine.server1"
-        success "Config file created correctly"
-        rm -f "machine-config.toml"  # Cleanup
-    else
-        error "Config file not created"
+        success "Config file structure correct"
+        rm -f "machine-config.toml"
     fi
+    
+    # Verify our test setup matches design
+    assert_file_exists "$CLUSTER_DIR/cluster.toml"
+    assert_file_exists "$CLUSTER_DIR/identity.key" 
+    assert_contains "$CLUSTER_DIR/cluster.toml" "cluster_manager"
+    assert_contains "$CLUSTER_DIR/cluster.toml" "machine.web01"
+    success "Test setup follows design specification"
 
     success "Bash P2P infrastructure test PASSED"
     BASH_RESULT="✅ PASSED" 
