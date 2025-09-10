@@ -40,70 +40,82 @@ malai db01.corp backup-database
 mysql -h localhost:3306  # Direct database access via forwarding
 ```
 
-## Core Features
+## Current Features (Working Now)
 
 ### 🔐 **P2P Security**
 - **Cryptographic identity**: Each machine has unique ID52 identifier
 - **Closed network**: Only cluster members can connect
 - **Direct verification**: Uses cryptographic verification instead of passwords
-- **No certificate authorities**: Direct public key verification
 
-### 🌐 **Multi-Cluster Support**  
-- **Multiple clusters**: Connect to different infrastructure clusters
-- **Role flexibility**: Can manage some clusters, participate in others
-- **Independent operation**: Machines work when cluster manager offline
+### 📡 **Remote Command Execution**
+- **Command execution**: `malai web01.company ps aux` works via P2P
+- **Self-commands**: Cluster manager commands execute locally (optimized)
+- **Basic permissions**: Access control via cluster configuration
+- **Real execution**: Commands actually run on target machines
 
-### 📡 **Remote Access**
-- **Command execution**: `malai web01.company ps aux` 
-- **Permission system**: Basic access control with cluster configuration
-- **Real execution**: Commands run on target machines via P2P
+### 🌐 **Multi-Cluster Foundation**  
+- **Multiple clusters**: Architecture supports different clusters per device
+- **Role detection**: Automatic cluster manager vs machine role detection
+- **Configuration**: TOML-based cluster configuration with validation
 
-### ⚡ **Simple Interface**
-- **Familiar syntax**: Similar to SSH for ease of use
-- **Configuration files**: TOML-based cluster configuration
-- **Role detection**: Automatic detection of cluster manager vs machine roles
+## Planned Features (Future Releases)
 
-## Architecture
+### 📡 **Service Mesh** (Next Priority)
+- **HTTP forwarding**: `curl admin.company.localhost` → remote admin interfaces
+- **TCP forwarding**: `mysql -h localhost:3306` → remote database connections
+- **Identity injection**: HTTP services receive client identity headers
+- **Browser access**: Direct browser access to remote web interfaces
 
-malai operates as three integrated services:
+### 🔧 **Enhanced Management**
+- **Remote configuration**: Download/edit/upload cluster configs
+- **Command aliases**: `malai web` shortcuts for common operations
+- **Advanced permissions**: Group-based access control
+- **Automatic joining**: Streamlined machine onboarding process
 
-1. **Cluster Manager**: Configuration distribution and cluster coordination
-2. **SSH Daemon**: Accept remote commands on authorized machines
-3. **Client Agent**: Local TCP/HTTP proxy for transparent service access
+## Current Architecture
 
-A single `malai daemon` command auto-detects roles and starts appropriate services.
+malai runs as a single daemon process that:
 
-## Real-World Examples
+1. **Detects roles**: Scans cluster configurations to determine cluster manager vs machine roles
+2. **Starts P2P listeners**: One listener per cluster identity for communication
+3. **Handles protocols**: ConfigUpdate (config distribution) and ExecuteCommand (remote execution)
 
-### DevOps Engineer
+## Current Usage Examples
+
+### Basic Cluster Setup
 ```bash
-# Morning routine:
-malai daemon  # Auto-daemonizes  # Starts all services for all clusters
+# Initialize cluster
+malai cluster init company
+malai daemon --foreground  # Start daemon
 
-# Server management:
-malai web ps aux                    # Check web server processes
-malai db backup                     # Run database backup
-malai cache restart                 # Restart Redis cache
-
-# Monitoring access:
-open http://grafana.company.localhost    # Grafana dashboard  
-open http://logs.company.localhost       # Log analysis tools
+# Execute commands (works now)
+malai web01.company echo "Hello remote infrastructure"
+malai web01.company whoami
+malai web01.company ps aux
 ```
 
-### Mobile Infrastructure Management
+### Status and Management
 ```bash
-# Initialize from mobile device (iPhone/Android malai app):
-malai cluster init company
-# Edit cluster config in mobile app UI
-malai daemon  # Distribute config to all servers
+# Check cluster status
+malai scan-roles              # Show detected roles
+malai status                  # Detailed daemon and cluster info
+malai rescan --check         # Validate all configurations
+```
 
-# Daily infrastructure management from mobile:
-malai web01.company systemctl status nginx
-malai db01.company backup-database
-open http://grafana.company.localhost  # Mobile browser → server monitoring
+## Planned Usage (Service Mesh - Next Release)
 
-# Servers continue operating when mobile cluster manager goes offline
-# Configuration changes sync when mobile comes back online
+### Database Access
+```bash
+# TCP forwarding (planned)
+mysql -h localhost:3306      # → Forward to remote MySQL via P2P
+redis-cli -p 6379           # → Forward to remote Redis via P2P
+```
+
+### Web Interface Access  
+```bash
+# HTTP forwarding (planned)
+curl admin.company.localhost          # → Remote admin interface
+open http://grafana.company.localhost # → Remote monitoring dashboard
 ```
 
 ## Daemon Usage
@@ -131,19 +143,22 @@ malai daemon  # Detaches from terminal, survives shell close
 
 ## Installation
 
+Currently available for development and testing:
+
 ```bash
-curl -fsSL https://malai.sh/install.sh | sh
+git clone https://github.com/fastn-stack/kulfi.git
+cd kulfi
+cargo build --bin malai
 ```
 
 ## Documentation
 
-- **[DESIGN.md](DESIGN.md)**: Complete technical design and architecture
-- **[malai.sh](https://malai.sh)**: Website with tutorials and examples
-- **[CONTRIBUTING.md](CONTRIBUTING.md)**: How to contribute to the project
+- **[DESIGN.md](DESIGN.md)**: Technical design and architecture
+- **[test-e2e.sh](test-e2e.sh)**: End-to-end testing script
 
 ---
 
-**Built on [fastn-p2p](https://github.com/fastn-stack/fastn) • Secured by cryptographic verification • No central servers required**
+**Built on [fastn-p2p](https://github.com/fastn-stack/fastn) • Uses cryptographic verification • Early development stage**
 
 ## Legacy Single-Service Mode
 
