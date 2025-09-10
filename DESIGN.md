@@ -2227,3 +2227,61 @@ Current implementation has **multiple listeners per entity** (config listener + 
 Must be **single listener per entity** with protocol dispatch.
 
 This fixes connection timeouts and simplifies service lifecycle.
+
+## MVP Release Plan
+
+### **🎯 MVP Features (Release Blockers)**
+
+#### **✅ IMPLEMENTED (Ready)**
+1. **P2P Infrastructure**: ConfigUpdate + ExecuteCommand protocols working end-to-end
+2. **Role Detection**: cluster.toml vs machine.toml with configuration error handling
+3. **File Structure**: Design-compliant clusters/ directory with identity per cluster
+4. **Config Validation**: `malai rescan --check` comprehensive TOML validation
+5. **Basic Command Execution**: Real remote command execution via P2P
+6. **E2E Testing**: Comprehensive business logic testing with proper file structure
+
+#### **❌ NOT IMPLEMENTED (MVP Blockers)**
+1. **Real malai daemon**: Single daemon with multi-identity P2P listeners
+2. **Multi-cluster daemon startup**: One daemon handles all cluster identities simultaneously  
+3. **Basic ACL system**: Group expansion and permission validation (simple implementation)
+
+### **🚀 Post-MVP Features (Next Releases)**
+
+#### **Release 2: Configuration Management**
+1. **Remote config editing**: Download/upload/edit with hash validation and three-way merge
+2. **Command aliases**: Global aliases in malai.toml for convenient access
+
+#### **Release 3: Service Mesh**
+1. **TCP forwarding**: `mysql -h localhost:3306` → remote MySQL via P2P
+2. **HTTP forwarding**: `curl admin.company.localhost` → remote admin interface
+
+#### **Release 4: Performance & Advanced Features**  
+1. **CLI → daemon socket communication**: Connection pooling optimization
+2. **Self-command optimization**: Cluster manager bypass P2P for self-operations
+3. **Advanced ACL**: Complex group hierarchies and command-specific permissions
+4. **Identity management**: Rich identity commands replacing keygen
+
+### **🎯 MVP Success Criteria**
+
+**User can:**
+1. **Setup cluster**: `malai cluster init company` → working cluster manager  
+2. **Start daemon**: `malai daemon` handles all clusters and identities
+3. **Join machines**: Machine gets config via P2P, accepts commands
+4. **Execute commands**: `malai web01.company ps aux` works remotely with basic ACL
+5. **Multi-cluster**: Same device participates in multiple clusters with different identities
+
+**Technical requirements:**
+- Single `malai daemon` handles all clusters and identities
+- Real P2P communication between devices (proven working)
+- Basic security with ACL validation  
+- Clean, maintainable code organization
+
+### **🚫 Explicitly NOT in MVP**
+- Connection pooling via CLI sockets (optimization for later)
+- Service mesh (TCP/HTTP forwarding)  
+- Advanced ACL features (complex group hierarchies)
+- Self-command optimization (efficiency improvement)
+- Remote config management (separate release)
+- Command aliases (convenience feature)
+
+**MVP Focus**: Core distributed infrastructure functionality for real-world usage.
