@@ -195,8 +195,13 @@ pub async fn scan_cluster_roles() -> Result<Vec<(String, fastn_id52::SecretKey, 
                 // Detect role (will crash if both configs exist)
                 let role = detect_cluster_role(&cluster_dir)?;
                 
-                // Load identity for this cluster
-                let identity_path = cluster_dir.join("identity.key");
+                // Load identity based on role (design-compliant)
+                let identity_path = match role {
+                    ClusterRole::ClusterManager => cluster_dir.join("cluster.private-key"),
+                    ClusterRole::Machine => cluster_dir.join("machine.private-key"),
+                    ClusterRole::Waiting => cluster_dir.join("identity.key"), // Generic for waiting
+                };
+                
                 if identity_path.exists() {
                     let key_content = std::fs::read_to_string(&identity_path)?;
                     let identity = fastn_id52::SecretKey::from_str(key_content.trim())?;
@@ -204,7 +209,7 @@ pub async fn scan_cluster_roles() -> Result<Vec<(String, fastn_id52::SecretKey, 
                     println!("   🔑 Identity: {}", identity.id52());
                     cluster_identities.push((cluster_alias, identity, role));
                 } else {
-                    println!("   ❌ No identity.key found");
+                    println!("   ❌ No private key found for role: {:?}", role);
                 }
             }
         }

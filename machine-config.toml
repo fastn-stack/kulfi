@@ -1,7 +1,7 @@
 [cluster_manager]
-id52 = "a9umtua7bvp6211aotdkljg5njhrf9tfnudcekko13egu504ofdg"
+id52 = "jjb73kp7d1aahojm29poivl2aoor6sc1d9onla721t2a1d3qbj70"
 cluster_name = "test"
 
 [machine.server1]
-id52 = "s52mgm42k7p96ptus84c4pnm6oesorqa4hbilj8d6c9ncleavvvg"  
+id52 = "kp0uajmji5rueu3sds6g2st856n0v57rbaqpjb9uas30iic22m6g"  
 allow_from = "*"

@@ -35,22 +35,20 @@ pub async fn init_cluster(cluster_name: String) -> Result<()> {
     // Ensure cluster directory exists
     std::fs::create_dir_all(&cluster_dir)?;
     
-    // Generate or read existing cluster manager identity
-    let identity_dir = malai_home.join("keys");
-    std::fs::create_dir_all(&identity_dir)?;
-    
-    let identity_file = identity_dir.join("identity.key");
-    let (cluster_manager_id52, cluster_manager_secret) = if identity_file.exists() {
-        // Read existing identity
-        let secret_key_hex = std::fs::read_to_string(&identity_file)?;
+    // Generate cluster manager identity (design-compliant: cluster.private-key)
+    let cluster_private_key_file = cluster_dir.join("cluster.private-key");
+    let (cluster_manager_id52, _cluster_manager_secret) = if cluster_private_key_file.exists() {
+        // Read existing cluster manager identity
+        let secret_key_hex = std::fs::read_to_string(&cluster_private_key_file)?;
         let secret_key = fastn_id52::SecretKey::from_str(&secret_key_hex.trim())?;
         let id52 = secret_key.id52();
         (id52, secret_key)
     } else {
-        // Generate new identity
-        let (id52, secret_key) = { let secret_key = fastn_id52::SecretKey::generate(); (secret_key.id52(), secret_key) };
-        // Save to file
-        std::fs::write(&identity_file, secret_key.to_string())?;
+        // Generate new cluster manager identity
+        let secret_key = fastn_id52::SecretKey::generate();
+        let id52 = secret_key.id52();
+        // Save to cluster.private-key (design-compliant)
+        std::fs::write(&cluster_private_key_file, secret_key.to_string())?;
         (id52, secret_key)
     };
     
@@ -95,7 +93,7 @@ use_keyring = true
         cluster_name
     );
     
-    let config_path = cluster_dir.join("cluster-config.toml");
+    let config_path = cluster_dir.join("cluster.toml");
     std::fs::write(&config_path, cluster_config)?;
     
     println!("✅ Cluster configuration created at: {}", config_path.display());
