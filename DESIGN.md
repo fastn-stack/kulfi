@@ -2031,7 +2031,7 @@ The MALAI_HOME approach gives us everything we need for robust end-to-end testin
 - [ ] **Failed authentication handling**: Lockout after failed attempts
 
 ### **Security Implementation Status:**
-- ✅ **Cryptographically secure foundation**: fastn-p2p provides enterprise-grade authentication
+- ✅ **Cryptographically secure foundation**: fastn-p2p provides authentication
 - 🟡 **Application-level security needed**: Command validation and input sanitization required
 - 🎯 **Security model**: Stronger than OpenSSH (no certificate authorities needed, direct cryptographic verification)
 
@@ -2042,7 +2042,7 @@ The malai SSH system builds on fastn-p2p's cryptographic foundation:
 
 - **Automatic Identity Verification**: Every P2P call cryptographically verifies both sender and receiver
 - **End-to-End Encryption**: All communication channels encrypted by default
-- **No Certificate Authorities**: Direct public key verification (stronger than traditional CA model)
+- **No Certificate Authorities**: Direct public key verification
 - **Session Security**: fastn-p2p handles connection security and prevents replay attacks
 
 ### **Application Security Requirements:**
@@ -2062,7 +2062,7 @@ While fastn-p2p handles transport security, malai SSH must implement:
 - **Automatic key rotation**: P2P layer can handle key updates
 - **Perfect forward secrecy**: Each session uses fresh cryptographic material
 
-The foundation is cryptographically stronger than OpenSSH - we just need application-level input validation.
+The foundation uses cryptographic verification - application-level input validation is still needed.
 
 ## Strategic Design Insight: malai SSH IS Complete malai
 

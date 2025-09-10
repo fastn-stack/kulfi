@@ -1,8 +1,6 @@
-# malai: Secure P2P Infrastructure Platform
+# malai: P2P Infrastructure Platform
 
-**Enterprise-grade remote access and service mesh with zero-configuration security.**
-
-malai provides secure remote access to your machines and services using peer-to-peer networking. No central servers, no certificate authorities, no complex configuration - just cryptographically secure access to your infrastructure.
+malai provides remote access to your machines and services using peer-to-peer networking. It aims to simplify infrastructure management by eliminating central servers and certificate authorities.
 
 ---
 
@@ -13,24 +11,16 @@ malai provides secure remote access to your machines and services using peer-to-
 ```bash
 # On your laptop (cluster manager):
 malai cluster init personal
-# Outputs: "Cluster created with ID: abc123def456ghi789..."
-malai daemon  # Auto-daemonizes
+malai daemon --foreground  # Start daemon
 
-# On your home server (copy the cluster manager ID52 from above):  
-malai machine init abc123def456ghi789... personal  # Cluster manager ID52 + local alias
-# Outputs: "Machine created with ID: xyz789abc123def456..."
+# Currently, machine joining requires manual setup:
+# 1. Generate machine identity on target machine
+# 2. Add machine ID to cluster configuration
+# 3. Start daemon on target machine
 
-# Back on laptop, add machine to cluster config:
-# Edit ~/.local/share/malai/ssh/clusters/personal/cluster-config.toml
-# Add: [machine.home-server] id52 = "xyz789abc123def456..." allow_from = "*"
-
-# On home server, start services:
-malai daemon  # Auto-daemonizes
-
-# Now enjoy natural remote access from laptop:
-malai home-server.personal htop
-malai home-server.personal docker ps
-open http://admin.personal.localhost  # Direct browser access to admin service in personal cluster
+# Remote command execution:
+malai web01.personal ps aux    # Execute command on remote machine
+malai web01.personal whoami    # Self-commands work via local optimization
 ```
 
 ### Enterprise Cluster Setup
@@ -52,30 +42,26 @@ mysql -h localhost:3306  # Direct database access via forwarding
 
 ## Core Features
 
-### 🔐 **Zero-Configuration Security**
-- **Cryptographic identity**: Each machine has unique ID52 (stronger than SSH keys)
-- **Closed network**: Only cluster members can connect (unknown machines rejected)
-- **No passwords**: Cryptographic verification replaces password authentication
+### 🔐 **P2P Security**
+- **Cryptographic identity**: Each machine has unique ID52 identifier
+- **Closed network**: Only cluster members can connect
+- **Direct verification**: Uses cryptographic verification instead of passwords
 - **No certificate authorities**: Direct public key verification
 
-### 🌐 **Multi-Cluster Management**  
-- **Multiple clusters**: Personal, work, client clusters from single device
-- **Mobile cluster manager**: Manage infrastructure from iPhone/Android malai app
-- **Role flexibility**: Cluster manager of one, machine in others
-- **Offline tolerance**: Servers operate independently when cluster manager offline
-- **Local aliases**: `malai web top` instead of `malai web01.fifthtry.com top`
+### 🌐 **Multi-Cluster Support**  
+- **Multiple clusters**: Connect to different infrastructure clusters
+- **Role flexibility**: Can manage some clusters, participate in others
+- **Independent operation**: Machines work when cluster manager offline
 
-### 📡 **Identity-Aware Service Mesh**
-- **Transparent TCP forwarding**: `mysql -h localhost:3306` → remote database
-- **Browser-native HTTP**: `http://admin.localhost` → remote admin interface  
-- **Automatic identity injection**: HTTP services receive client ID52 headers
-- **Protocol agnostic**: HTTP, TCP, or any protocol
+### 📡 **Remote Access**
+- **Command execution**: `malai web01.company ps aux` 
+- **Permission system**: Basic access control with cluster configuration
+- **Real execution**: Commands run on target machines via P2P
 
-### ⚡ **Natural Remote Access**
-- **SSH-like syntax**: `malai web01.company ps aux` (no quotes needed)
-- **Interactive shells**: `malai web01.company` for full shell access
-- **Command aliases**: `restart-nginx` → `sudo systemctl restart nginx`
-- **Permission system**: Hierarchical groups with fine-grained access control
+### ⚡ **Simple Interface**
+- **Familiar syntax**: Similar to SSH for ease of use
+- **Configuration files**: TOML-based cluster configuration
+- **Role detection**: Automatic detection of cluster manager vs machine roles
 
 ## Architecture
 
