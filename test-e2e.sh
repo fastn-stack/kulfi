@@ -113,9 +113,9 @@ run_bash_test() {
     CLUSTER_DIR="$TEST_DIR/cluster-manager/clusters/company"
     mkdir -p "$CLUSTER_DIR"
     
-    # Generate identity for cluster manager
+    # Generate identity for cluster manager (design-compliant)
     export MALAI_HOME="$TEST_DIR/cluster-manager"
-    if ! $MALAI_BIN keygen --file "$CLUSTER_DIR/identity.key" > "$TEST_DIR/cm-keygen.log" 2>&1; then
+    if ! $MALAI_BIN keygen --file "$CLUSTER_DIR/cluster.private-key" > "$TEST_DIR/cm-keygen.log" 2>&1; then
         error "Cluster manager keygen failed"
     fi
     
@@ -238,9 +238,9 @@ EOF
     kill $DAEMON_PID 2>/dev/null || true
     wait $DAEMON_PID 2>/dev/null || true
     
-    # Verify proper file structure was maintained
+    # Verify proper file structure was maintained  
     assert_file_exists "$CLUSTER_DIR/cluster.toml"
-    assert_file_exists "$CLUSTER_DIR/identity.key" 
+    assert_file_exists "$CLUSTER_DIR/cluster.private-key"
     assert_contains "$CLUSTER_DIR/cluster.toml" "cluster_manager"
     assert_contains "$CLUSTER_DIR/cluster.toml" "machine.web01"
     success "File structure maintained correctly"
