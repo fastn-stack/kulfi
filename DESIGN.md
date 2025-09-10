@@ -1086,15 +1086,15 @@ $MALAI_HOME/
 ```
 
 **Role Detection Rules:**
-- `cluster.toml` exists → **Cluster Manager** (manages this cluster)
-- `machine.toml` exists → **Machine** (receives config from cluster manager)  
-- Both exist → **Cluster Manager + Machine** (dual role in same cluster)
+- `cluster.toml` exists, `machine.toml` missing → **Cluster Manager** (reads cluster.toml for ACL)
+- `machine.toml` exists, `cluster.toml` missing → **Machine** (received config from CM)  
+- **Both exist → CONFIGURATION ERROR** (daemon must crash with clear error)
 - Neither exists → **Waiting** (machine not yet configured)
 
 **Configuration Sources:**
-- **Cluster Manager as Machine**: Reads `cluster.toml` directly for ACL (no config sync needed)
+- **Cluster Manager**: Reads `cluster.toml` directly for ACL (acts as machine using cluster config)
 - **Remote Machine**: Reads `machine.toml` (received via P2P from cluster manager)
-- **Dual Role**: Cluster manager functionality + machine ACL from `cluster.toml`
+- **Invalid State**: Both files present → daemon crashes with error message
 
 ## Single malai Daemon Architecture
 
