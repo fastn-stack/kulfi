@@ -12,18 +12,20 @@
 
 ### **❌ NOT IMPLEMENTED (MVP Blockers)**
 1. **Real malai daemon**: Single daemon with multi-identity P2P listeners
-2. **Multi-cluster daemon startup**: One daemon handles all cluster identities simultaneously
-3. **Config management**: Remote config download/upload/edit commands with hash validation
-4. **Command aliases**: Global aliases in malai.toml (`malai web` → `malai web01.company ps aux`)
-5. **Basic ACL system**: Group expansion and permission validation (simple implementation)
+2. **Multi-cluster daemon startup**: One daemon handles all cluster identities simultaneously  
+3. **Basic ACL system**: Group expansion and permission validation (simple implementation)
 
 ## 🚀 Post-MVP Features (Next Releases)
 
-### **Release 2: Service Mesh**
+### **Release 2: Configuration Management**
+1. **Remote config editing**: Download/upload/edit with hash validation and three-way merge
+2. **Command aliases**: Global aliases in malai.toml for convenient access
+
+### **Release 3: Service Mesh**
 1. **TCP forwarding**: `mysql -h localhost:3306` → remote MySQL via P2P
 2. **HTTP forwarding**: `curl admin.company.localhost` → remote admin interface
 
-### **Release 3: Advanced Features**  
+### **Release 4: Performance & Advanced Features**  
 1. **CLI → daemon socket communication**: Connection pooling optimization
 2. **Self-command optimization**: Cluster manager bypass P2P for self-operations
 3. **Advanced ACL**: Complex group hierarchies and command-specific permissions
@@ -73,12 +75,11 @@ logs = "web01.company tail -f /var/log/nginx/access.log"
 ## 🎯 MVP Success Criteria
 
 **User can:**
-1. **Setup cluster**: `malai cluster init company` → working cluster manager
-2. **Join machines**: Machine gets config via P2P, accepts commands  
-3. **Execute commands**: `malai web01.company ps aux` works remotely
-4. **Manage config**: Download, edit, upload cluster config remotely
-5. **Use aliases**: `malai web` executes predefined commands
-6. **Multi-cluster**: Same device participates in multiple clusters
+1. **Setup cluster**: `malai cluster init company` → working cluster manager  
+2. **Start daemon**: `malai daemon` handles all clusters and identities
+3. **Join machines**: Machine gets config via P2P, accepts commands
+4. **Execute commands**: `malai web01.company ps aux` works remotely with basic ACL
+5. **Multi-cluster**: Same device participates in multiple clusters with different identities
 
 **Technical requirements:**
 - Single `malai daemon` handles all clusters and identities
