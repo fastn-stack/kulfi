@@ -321,8 +321,8 @@ allow_from = "*"
                 if args.len() >= 2 {
                     let command = &args[1];
                     let cmd_args: Vec<String> = args[2..].iter().map(|s| s.to_string()).collect();
-                    // Direct P2P for MVP (daemon socket communication is post-MVP)
-                    if let Err(e) = execute_direct_command(machine, command, cmd_args).await {
+                    // Direct CLI mode - works without daemon (MVP primary mode)
+                    if let Err(e) = malai::execute_direct_command(machine, command, cmd_args).await {
                         println!("❌ Command failed: {}", e);
                     }
                 } else {
@@ -658,5 +658,6 @@ pub enum ConfigCommand {
         file: String,
     },
 }
+
 
 

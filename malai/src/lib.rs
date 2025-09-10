@@ -36,7 +36,8 @@ mod config_manager;  // Config validation and reload utilities
 mod malai_server;  // Real malai server - clean and readable
 mod daemon;  // Real malai daemon - MVP implementation
 mod simple_server;  // Ultra-simple server for testing
-// mod core;  // Temporarily disabled - fixing module reorganization
+mod cli;  // Direct CLI execution mode
+// mod core;  // Old SSH module with compilation issues
 mod core_utils;  // Core malai utilities
 mod tcp_bridge;
 
@@ -57,6 +58,7 @@ pub use core_utils::{
 pub use simple_server::{test_simple_server, run_simple_malai_server};
 pub use malai_server::{run_malai_server, send_config, send_command};
 pub use daemon::start_real_daemon;
+pub use cli::execute_direct_command;
 pub use config_manager::{validate_config_file, check_all_configs, reload_daemon_config, scan_cluster_roles, ClusterRole};
 pub use tcp_bridge::tcp_bridge;
 
