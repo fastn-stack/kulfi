@@ -99,11 +99,11 @@ assert_file_exists() {
     fi
 }
 
-# Function to run bash infrastructure test
+# Function to run comprehensive malai infrastructure test
 run_bash_test() {
-    header "🏗️  CRITICAL TEST: malai Business Logic E2E" 
-    log "Test: Complete malai with proper file structure and role detection"
-    log "Mode: Design-compliant cluster.toml, machine.toml, multi-role support"
+    header "🏗️  CRITICAL TEST: Complete malai Infrastructure" 
+    log "Test: Real daemon + CLI integration + self-commands + P2P"
+    log "Mode: Multi-identity daemon with comprehensive workflow testing"
     echo
     
     # Phase 1: Role Detection with Proper File Structure
@@ -180,22 +180,70 @@ EOF
     assert_contains "$TEST_DIR/complete-test.log" "Complete malai infrastructure working!"
     success "Complete infrastructure working"
     
-    # Phase 5: File Structure Validation
-    log "📁 Phase 5: Validating created file structure"
+    # Phase 5: Real Daemon Testing
+    log "🚀 Phase 5: Testing real malai daemon with MALAI_HOME"
     
-    # Check that config file was created with proper structure
-    if [[ -f "machine-config.toml" ]]; then
-        assert_contains "machine-config.toml" "cluster_manager"
-        success "Config file structure correct"
-        rm -f "machine-config.toml"
+    # Start real daemon in background
+    log "Starting real daemon..."
+    $MALAI_BIN daemon --foreground > "$TEST_DIR/daemon.log" 2>&1 &
+    DAEMON_PID=$!
+    sleep 3
+    
+    # Verify daemon started successfully
+    if ! kill -0 $DAEMON_PID 2>/dev/null; then
+        cat "$TEST_DIR/daemon.log"
+        error "Real daemon failed to start"
     fi
     
-    # Verify our test setup matches design
+    # Verify daemon output shows correct startup
+    assert_contains "$TEST_DIR/daemon.log" "Cluster Manager role detected"
+    assert_contains "$TEST_DIR/daemon.log" "malai daemon started - all cluster listeners active"
+    success "Real daemon startup working"
+    
+    # Phase 6: CLI Integration Testing
+    log "💻 Phase 6: Testing CLI commands with real daemon"
+    
+    # Test self-command execution (cluster manager executing on itself)
+    if ! $MALAI_BIN web01.company echo "E2E self-command test" > "$TEST_DIR/self-command.log" 2>&1; then
+        cat "$TEST_DIR/self-command.log"
+        kill $DAEMON_PID 2>/dev/null || true
+        error "Self-command execution failed"
+    fi
+    
+    # Verify self-command optimization worked
+    assert_contains "$TEST_DIR/self-command.log" "Self-command detected - executing locally"
+    assert_contains "$TEST_DIR/self-command.log" "E2E self-command test"
+    assert_contains "$TEST_DIR/self-command.log" "Self-command executed successfully"
+    success "Self-command optimization working"
+    
+    # Test different commands to verify real execution
+    if ! $MALAI_BIN web01.company whoami > "$TEST_DIR/whoami.log" 2>&1; then
+        cat "$TEST_DIR/whoami.log"
+        kill $DAEMON_PID 2>/dev/null || true
+        error "Whoami command failed"
+    fi
+    
+    # Verify real command output
+    if ! grep -q "$(whoami)" "$TEST_DIR/whoami.log"; then
+        cat "$TEST_DIR/whoami.log"
+        kill $DAEMON_PID 2>/dev/null || true
+        error "Did not get real command output"
+    fi
+    success "Real command execution verified"
+    
+    # Phase 7: File Structure and Role Validation
+    log "📁 Phase 7: Validating complete file structure"
+    
+    # Kill daemon gracefully
+    kill $DAEMON_PID 2>/dev/null || true
+    wait $DAEMON_PID 2>/dev/null || true
+    
+    # Verify proper file structure was maintained
     assert_file_exists "$CLUSTER_DIR/cluster.toml"
     assert_file_exists "$CLUSTER_DIR/identity.key" 
     assert_contains "$CLUSTER_DIR/cluster.toml" "cluster_manager"
     assert_contains "$CLUSTER_DIR/cluster.toml" "machine.web01"
-    success "Test setup follows design specification"
+    success "File structure maintained correctly"
 
     success "Bash P2P infrastructure test PASSED"
     BASH_RESULT="✅ PASSED" 

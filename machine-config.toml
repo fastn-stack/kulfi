@@ -1,0 +1,7 @@
+[cluster_manager]
+id52 = "a9umtua7bvp6211aotdkljg5njhrf9tfnudcekko13egu504ofdg"
+cluster_name = "test"
+
+[machine.server1]
+id52 = "s52mgm42k7p96ptus84c4pnm6oesorqa4hbilj8d6c9ncleavvvg"  
+allow_from = "*"
