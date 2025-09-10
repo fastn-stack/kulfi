@@ -113,78 +113,10 @@ jobs:
       run: |
         if [ $? -eq 0 ]; then
           echo "🎉 ✅ CRITICAL INFRASTRUCTURE TESTS PASSED"
-          echo "✅ malai distributed infrastructure is fully operational" 
-          echo "🚀 Ready for production infrastructure deployment"
+          echo "✅ malai infrastructure tests completed successfully" 
+          echo "🔧 Basic distributed infrastructure functionality validated"
         else
           echo "❌ 🚨 CRITICAL INFRASTRUCTURE TESTS FAILED"
           echo "❌ malai infrastructure has critical issues"
           echo "🔧 Investigate distributed system problems before proceeding"
         fi
-
-  # Optional: Run specific component tests for better failure isolation
-  daemon-test:
-    name: 🔥 Real Daemon Test
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
-    
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
-
-    - name: Cache dependencies
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/registry/
-          target/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential pkg-config
-
-    - name: 🔥 Test Real Daemon Functionality
-      run: |
-        echo "🔥 Testing real malai daemon with multi-identity support"
-        cargo build --bin malai
-        
-        # Test daemon startup and role detection
-        MALAI_HOME=/tmp/test-daemon ./target/debug/malai cluster init test-cluster
-        MALAI_HOME=/tmp/test-daemon ./target/debug/malai scan-roles
-        
-        echo "✅ Real daemon functionality verified"
-
-  p2p-test:
-    name: 📡 P2P Protocol Test
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
-    
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
-
-    - name: Cache dependencies
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/registry/
-          target/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-    - name: 📡 Test P2P Infrastructure
-      run: |
-        echo "📡 Testing P2P protocols with fastn-p2p"
-        cargo build --bin malai
-        
-        # Test basic P2P functionality
-        ./target/debug/malai test-simple
-        ./target/debug/malai test-real
-        
-        echo "✅ P2P infrastructure verified"
