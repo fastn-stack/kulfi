@@ -32,6 +32,8 @@ mod http_proxy;
 mod http_proxy_remote;
 mod keygen;
 mod run;
+mod malai_server;  // Real malai server - clean and readable
+mod simple_server;  // Ultra-simple server for testing
 // mod core;  // Temporarily disabled - fixing module reorganization
 mod core_utils;  // Core malai utilities
 mod tcp_bridge;
@@ -46,10 +48,13 @@ pub use http_proxy_remote::http_proxy_remote;
 pub use keygen::keygen;
 pub use run::run;
 pub use core_utils::{
-    create_cluster, init_cluster, init_machine_for_cluster, 
-    init_machine_for_cluster_with_alias, send_remote_access_command, show_cluster_info, show_detailed_status,
-    start_malai_daemon
+    create_cluster, init_cluster, show_cluster_info, show_detailed_status
+    // Temporarily disabled broken functions
+    // start_malai_daemon, send_remote_access_command
 };
+// pub use server::run_malai_server;
+pub use simple_server::{test_simple_server, run_simple_malai_server};
+pub use malai_server::{run_malai_server, send_config, send_command};
 pub use tcp_bridge::tcp_bridge;
 
 #[cfg(feature = "ui")]
