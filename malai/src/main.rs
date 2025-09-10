@@ -321,8 +321,10 @@ allow_from = "*"
                 if args.len() >= 2 {
                     let command = &args[1];
                     let cmd_args: Vec<String> = args[2..].iter().map(|s| s.to_string()).collect();
-                    println!("💬 Sending command to daemon: {} {} {:?}", machine, command, cmd_args);
-                    todo!("Implement CLI → daemon socket communication");
+                    // Direct P2P for MVP (daemon socket communication is post-MVP)
+                    if let Err(e) = execute_direct_command(machine, command, cmd_args).await {
+                        println!("❌ Command failed: {}", e);
+                    }
                 } else {
                     // Interactive shell
                     println!("Starting shell on machine '{}'", machine);

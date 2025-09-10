@@ -6,11 +6,11 @@ inset: $ds.spaces.inset-square.zero
 
 -- ds.column:
 
--- hero.hero: Share your dev server (and more) over P2P
+-- hero.hero: P2P Infrastructure Platform
 
-Malai lets you share localhost over peer-to-peer with zero config. Expose
-HTTP/TCP servers instantly with the world. Open source, no cloud needed, and
-SSH support is on the way.
+malai provides distributed infrastructure management using peer-to-peer 
+networking. Execute commands on remote machines, organize infrastructure 
+into clusters, and manage distributed systems without central servers.
 
 -- end: ds.column
 
