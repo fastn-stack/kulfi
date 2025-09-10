@@ -124,14 +124,15 @@ async fn main() -> eyre::Result<()> {
         Some(Command::Machine { machine_command }) => {
             match machine_command {
                 MachineCommand::Init { cluster_manager, cluster_alias } => {
-                    malai::init_machine_for_cluster_with_alias(cluster_manager.clone(), cluster_alias.clone()).await?;
+                    println!("Machine init temporarily disabled");
+                    todo!("Fix machine init after simple server working");
                     return Ok(());
                 }
             }
         }
         Some(Command::Daemon { environment, foreground }) => {
-            malai::start_malai_daemon(environment, foreground).await?;
-            return Ok(());
+            println!("Daemon command temporarily disabled - use test-simple");
+            todo!("Fix daemon command after clean server working");
         }
         Some(Command::Info) => {
             malai::show_cluster_info().await?;
@@ -139,6 +140,70 @@ async fn main() -> eyre::Result<()> {
         }
         Some(Command::Status) => {
             malai::show_detailed_status().await?;
+            return Ok(());
+        }
+        Some(Command::TestSimple) => {
+            malai::test_simple_server().await?;
+            return Ok(());
+        }
+        Some(Command::StartServer) => {
+            let identity = fastn_id52::SecretKey::generate();
+            println!("🔥 Starting real malai server with identity: {}", identity.id52());
+            malai::run_malai_server(identity).await?;
+            return Ok(());
+        }
+        Some(Command::TestReal) => {
+            println!("🧪 Testing complete malai infrastructure...");
+            
+            // Generate cluster manager and machine identities
+            let cluster_manager_key = fastn_id52::SecretKey::generate();  
+            let machine_key = fastn_id52::SecretKey::generate();
+            
+            let cm_id52 = cluster_manager_key.id52();
+            let machine_id52 = machine_key.id52();
+            
+            println!("🔑 Cluster Manager: {}", cm_id52);
+            println!("🔑 Machine: {}", machine_id52);
+            
+            // Start machine server (waits for config)
+            fastn_p2p::spawn(async move {
+                if let Err(e) = malai::run_malai_server(machine_key).await {
+                    println!("❌ Machine server failed: {}", e);
+                }
+            });
+            
+            // Wait for machine to start
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            
+            // Test 1: Config distribution
+            println!("📤 Step 1: Testing config distribution...");
+            let sample_config = format!(r#"[cluster_manager]
+id52 = "{}"
+cluster_name = "test"
+
+[machine.server1]
+id52 = "{}"  
+allow_from = "*"
+"#, cm_id52, machine_id52);
+            
+            if let Err(e) = malai::send_config(cluster_manager_key.clone(), &machine_id52, &sample_config).await {
+                println!("❌ Config distribution failed: {}", e);
+                return Ok(());
+            }
+            
+            println!("✅ Config distribution successful");
+            
+            // Wait for config to be processed
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            
+            // Test 2: Command execution (should work after config)
+            println!("📤 Step 2: Testing command execution...");
+            if let Err(e) = malai::send_command(cluster_manager_key, &machine_id52, "echo", vec!["Complete malai infrastructure working!".to_string()]).await {
+                println!("❌ Command execution failed: {}", e);
+                return Ok(());
+            }
+            
+            println!("🎉 Complete malai infrastructure test successful!");
             return Ok(());
         }
         Some(Command::Rescan { check }) => {
@@ -226,7 +291,8 @@ async fn main() -> eyre::Result<()> {
                 if args.len() >= 2 {
                     let command = &args[1];
                     let cmd_args: Vec<String> = args[2..].iter().map(|s| s.to_string()).collect();
-                    malai::send_remote_access_command(machine, command, cmd_args).await?;
+                    println!("Remote access temporarily disabled - use test-simple");
+                    todo!("Fix remote access after clean server working");
                 } else {
                     // Interactive shell
                     println!("Starting shell on machine '{}'", machine);
@@ -432,6 +498,12 @@ pub enum Command {
     Info,
     #[clap(about = "Show detailed daemon and cluster status")]
     Status,
+    #[clap(about = "Test simple P2P server")]
+    TestSimple,
+    #[clap(about = "Start real malai server")]
+    StartServer,
+    #[clap(about = "Test real malai P2P")]
+    TestReal,
     #[clap(about = "Reload configuration changes")]
     Rescan {
         #[arg(long, help = "Check config validity without applying changes")]
