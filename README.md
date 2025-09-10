@@ -72,13 +72,19 @@ mysql -h localhost:3306  # Direct database access via forwarding
 - **Advanced permissions**: Group-based access control
 - **Automatic joining**: Streamlined machine onboarding process
 
-## Current Architecture
+## Architecture
 
-malai runs as a single daemon process that:
+### **Two Usage Modes**
 
-1. **Detects roles**: Scans cluster configurations to determine cluster manager vs machine roles
-2. **Starts P2P listeners**: One listener per cluster identity for communication
-3. **Handles protocols**: ConfigUpdate (config distribution) and ExecuteCommand (remote execution)
+**Direct Mode** (Default):
+- CLI commands work without running daemon
+- Creates fresh P2P connection for each command
+- Reads cluster config and identity directly from MALAI_HOME
+
+**Daemon Mode** (Optional optimization):  
+- `malai daemon` provides connection reuse for better performance
+- CLI commands use pooled connections when daemon available
+- Falls back to direct mode when daemon not running
 
 ## Current Usage Examples
 

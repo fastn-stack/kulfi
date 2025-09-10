@@ -354,11 +354,20 @@ malai config edit company
 - **Validation**: Aliases conflicting with subcommands (daemon, cluster, etc.) MUST fail validation
 - **Reserved names**: daemon, cluster, machine, info, status, service, identity, rescan
 
-### CLI to Service Communication
+### CLI Execution Modes
 
-#### **Local Connection Pooling:**
-- **CLI commands**: `malai web01.company ps aux` → connect to **local** `malai daemon` via Unix socket
-- **Local daemon**: Maintains P2P connections, CLI reuses them
+#### **Direct Mode (MVP - Primary Mode):**
+- **CLI commands work independently**: No daemon required for basic functionality
+- **Fresh P2P connections**: Each command creates new fastn_p2p connection to target
+- **MALAI_HOME-based**: CLI reads cluster configs and identities directly from filesystem
+- **Machine auto-selection**: Automatically picks local machine identity for target cluster
+- **Self-command optimization**: Local execution when targeting same identity
+
+#### **Daemon Mode (Post-MVP - Performance Optimization):**
+- **Optional daemon**: `malai daemon` provides connection pooling for better performance  
+- **CLI → daemon socket**: Commands sent to daemon via Unix socket when available
+- **Pooled connections**: Daemon maintains P2P connections, CLI reuses them
+- **Fallback**: Falls back to direct mode when daemon not running
 
 #### **CLI Communication Protocol:**
 ```
@@ -2277,11 +2286,10 @@ This fixes connection timeouts and simplifies service lifecycle.
 - Clean, maintainable code organization
 
 ### **🚫 Explicitly NOT in MVP**
-- Connection pooling via CLI sockets (optimization for later)
-- Service mesh (TCP/HTTP forwarding)  
-- Advanced ACL features (complex group hierarchies)
-- Self-command optimization (efficiency improvement)
-- Remote config management (separate release)
-- Command aliases (convenience feature)
+- **CLI → daemon socket communication** (performance optimization for Release 4)
+- **Service mesh** (TCP/HTTP forwarding - Release 3)  
+- **Advanced ACL features** (complex group hierarchies - Release 4)
+- **Remote config management** (Release 2)
+- **Command aliases** (Release 2)
 
-**MVP Focus**: Core distributed infrastructure functionality for real-world usage.
+**MVP Focus**: Direct CLI mode - commands work without daemon requirement for resilience and simplicity.
