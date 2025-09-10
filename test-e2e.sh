@@ -77,7 +77,7 @@ mkdir -p "$TEST_DIR"/{cluster-manager,machine1}
 
 header "🔨 Building malai binary"
 log "Building malai for infrastructure testing..."
-if ! /Users/amitu/.cargo/bin/cargo build --bin malai --quiet; then
+if ! cargo build --bin malai --quiet; then
     error "Failed to build malai binary"
 fi
 success "malai binary built"
