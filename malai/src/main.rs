@@ -131,8 +131,21 @@ async fn main() -> eyre::Result<()> {
             }
         }
         Some(Command::Daemon { environment, foreground }) => {
-            println!("Daemon command temporarily disabled - use test-simple");
-            todo!("Fix daemon command after clean server working");
+            if environment {
+                // Print environment variables  
+                let malai_home = if let Ok(home) = std::env::var("MALAI_HOME") {
+                    std::path::PathBuf::from(home)
+                } else {
+                    dirs::data_dir().unwrap_or_default().join("malai")
+                };
+                println!("MALAI_HOME={}", malai_home.display());
+                println!("MALAI_DAEMON_SOCK={}", malai_home.join("malai.sock").display());
+                return Ok(());
+            }
+            
+            // Start real daemon
+            malai::start_real_daemon(foreground).await?;
+            return Ok(());
         }
         Some(Command::Info) => {
             malai::show_cluster_info().await?;
