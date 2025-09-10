@@ -206,6 +206,20 @@ allow_from = "*"
             println!("🎉 Complete malai infrastructure test successful!");
             return Ok(());
         }
+        Some(Command::ScanRoles) => {
+            println!("🔍 Scanning cluster roles...");
+            let roles = malai::scan_cluster_roles().await?;
+            
+            if roles.is_empty() {
+                println!("❌ No clusters found");
+            } else {
+                println!("\n📊 Summary:");
+                for (alias, identity, role) in roles {
+                    println!("   {} ({}): {:?}", alias, &identity.id52()[..8], role);
+                }
+            }
+            return Ok(());
+        }
         Some(Command::Rescan { check }) => {
             if check {
                 println!("🔍 Checking configuration validity...");
@@ -507,6 +521,8 @@ pub enum Command {
     StartServer,
     #[clap(about = "Test real malai P2P")]
     TestReal,
+    #[clap(about = "Scan and show cluster roles")]
+    ScanRoles,
     #[clap(about = "Reload configuration changes")]
     Rescan {
         #[arg(long, help = "Check config validity without applying changes")]
