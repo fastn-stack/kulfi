@@ -954,10 +954,11 @@ The daemon rescans configurations selectively to avoid disrupting stable cluster
 - **Resilient operation**: If one cluster config is broken, other clusters continue operating
 - **Minimal disruption**: Only reload listeners for clusters with actual changes
 
-#### **Automatic Rescan Triggers**
+#### **Explicit Rescan Triggers**
 1. **Init Commands**: `malai cluster init` and `malai machine init` trigger selective rescan of only the new/modified cluster
 2. **Manual Rescan**: `malai rescan [cluster-name]` allows selective or full rescan
-3. **File System Watching**: Daemon watches for config file changes (future enhancement)
+
+**Note**: File system watching is explicitly NOT implemented. Users must explicitly trigger rescans to maintain control over when configuration changes take effect. This prevents issues with work-in-progress configs and provides clear debugging semantics.
 
 #### **Rescan Behavior**
 ```bash

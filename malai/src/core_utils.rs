@@ -100,6 +100,14 @@ use_keyring = true
     println!("Cluster created with ID: {}", cluster_manager_id52);
     println!("Cluster name: {}", cluster_name);
     
+    // Trigger selective rescan for the new cluster
+    println!("🔄 Triggering daemon rescan for new cluster...");
+    if let Err(e) = crate::config_manager::reload_daemon_config_selective(cluster_name).await {
+        println!("⚠️  Daemon rescan failed: {}", e);
+        println!("💡 Run 'malai rescan {}' manually or restart daemon", 
+                 cluster_dir.file_name().unwrap().to_string_lossy());
+    }
+    
     Ok(())
 }
 
