@@ -487,13 +487,21 @@ spacing: $ds.spaces.vertical-gap.large
 
 -- ds.heading-medium: Coming Soon
 
--- coming-feature: 🌐 Service Mesh
+-- coming-feature: 🔐 Secure Cluster Management
 
-HTTP and TCP forwarding with identity injection. Access remote services via localhost.
+Invite key system for safe cluster joining without exposing root keys. Plus key rotation and enhanced permissions.
 
--- coming-feature: 🔧 Enhanced Management
+-- coming-feature: 🌐 Service Mesh 
 
-Remote configuration, command aliases, and streamlined machine onboarding.
+HTTP and TCP forwarding with identity injection. Access remote services via localhost transparently.
+
+-- coming-feature: 🌐 Always-On HTTP Proxy
+
+Control all devices' internet routing via CLI. P2P encrypted proxy tunnels for privacy chains.
+
+-- coming-feature: 🔄 On-Demand Process Management
+
+Dynamic service startup when first request arrives. Resource-efficient Django, nginx, etc. that run only when needed.
 
 -- end: ds.column
 
@@ -507,13 +515,21 @@ spacing: $ds.spaces.vertical-gap.large
 
 -- ds.heading-medium: Coming Soon
 
--- coming-feature: 🌐 Service Mesh
+-- coming-feature: 🔐 Secure Cluster Management
 
-HTTP and TCP forwarding with identity injection. Access remote services via localhost.
+Invite key system for safe cluster joining without exposing root keys. Plus key rotation and enhanced permissions.
 
--- coming-feature: 🔧 Enhanced Management
+-- coming-feature: 🌐 Service Mesh 
 
-Remote configuration, command aliases, and streamlined machine onboarding.
+HTTP and TCP forwarding with identity injection. Access remote services via localhost transparently.
+
+-- coming-feature: 🌐 Always-On HTTP Proxy
+
+Control all devices' internet routing via CLI. P2P encrypted proxy tunnels for privacy chains.
+
+-- coming-feature: 🔄 On-Demand Process Management
+
+Dynamic service startup when first request arrives. Resource-efficient Django, nginx, etc. that run only when needed.
 
 -- end: ds.column
 
