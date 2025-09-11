@@ -1,0 +1,344 @@
+-- import: malai.sh/components/page as p
+
+-- p.doc-page: Installation and Deployment
+
+Complete installation guide for malai P2P infrastructure.
+From development setup to production deployment.
+
+-- ds.heading-large: Installation and Deployment
+
+Install and deploy malai for different environments and use cases:
+
+- [Quick Installation](/doc/installation/#quick-install)
+- [Development Setup](/doc/installation/#development)  
+- [Production Deployment](/doc/installation/#production)
+- [System Requirements](/doc/installation/#requirements)
+- [Configuration Guide](/doc/installation/#configuration)
+
+-- ds.heading-medium: Quick Installation
+id: quick-install
+
+Get malai running in under 2 minutes:
+
+-- ds.code:
+lang: bash
+
+# Install malai (macOS/Linux)
+curl -fsSL https://malai.sh/install.sh | sh
+
+# Add to PATH  
+echo 'export PATH="$PATH:~/.malai/bin"' >> ~/.bashrc
+source ~/.bashrc
+
+# Create your first cluster
+malai cluster init personal
+
+# Start daemon
+malai daemon
+
+# Test it works
+malai status
+
+-- ds.heading-medium: Development Setup
+id: development
+
+For developing with malai or contributing to the project:
+
+-- ds.heading-small: Build from Source
+
+-- ds.code:
+lang: bash
+
+# Clone repository
+git clone https://github.com/fastn-stack/kulfi.git
+cd kulfi
+
+# Build malai binary
+cargo build --bin malai
+
+# Test build works
+./target/debug/malai --version
+
+-- ds.heading-small: Development Workflow
+
+-- ds.code:
+lang: bash
+
+# Create development environment
+export MALAI_HOME=~/.malai-dev
+malai cluster init dev-cluster
+
+# Run daemon in foreground for debugging
+malai daemon --foreground
+
+# In another terminal, test functionality
+malai status
+malai web01.dev-cluster echo "development test"
+
+-- ds.heading-medium: Production Deployment
+id: production
+
+Deploy malai for production infrastructure management:
+
+-- ds.heading-small: Server Setup
+
+-- ds.code:
+lang: bash
+
+# Create malai user and directories
+sudo useradd -r -d /opt/malai -s /bin/false malai
+sudo mkdir -p /opt/malai
+sudo chown malai:malai /opt/malai
+
+# Install malai binary
+sudo curl -fsSL https://malai.sh/install.sh | sudo sh
+sudo mv ~/.malai/bin/malai /usr/local/bin/malai
+sudo chmod +x /usr/local/bin/malai
+
+-- ds.heading-small: Cluster Manager Setup
+
+On your primary cluster management server:
+
+-- ds.code:
+lang: bash
+
+# Initialize production cluster
+sudo -u malai env MALAI_HOME=/opt/malai malai cluster init production
+
+# Note the cluster manager ID52 for sharing with machines
+sudo -u malai env MALAI_HOME=/opt/malai malai scan-roles
+
+-- ds.heading-small: Machine Setup
+
+On each server joining the cluster:
+
+-- ds.code:
+lang: bash
+
+# Join production cluster
+sudo -u malai env MALAI_HOME=/opt/malai malai machine init <cluster-manager-id52> production
+
+# The output will show machine details to add to cluster config
+
+-- ds.heading-small: Systemd Service Configuration
+
+Create production systemd service:
+
+-- ds.code:
+lang: bash
+
+# Create service file
+sudo tee /etc/systemd/system/malai.service << 'EOF'
+[Unit]
+Description=malai P2P Infrastructure Daemon
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=malai
+Group=malai
+Environment=MALAI_HOME=/opt/malai
+Environment=RUST_LOG=malai=info
+ExecStart=/usr/local/bin/malai daemon --foreground
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/malai
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable and start service
+sudo systemctl daemon-reload
+sudo systemctl enable malai
+sudo systemctl start malai
+
+# Check status
+sudo systemctl status malai
+
+-- ds.heading-medium: System Requirements
+id: requirements
+
+-- ds.heading-small: Hardware Requirements
+
+**Minimum:**
+- CPU: 1 core
+- RAM: 512 MB
+- Disk: 100 MB for malai + space for logs
+- Network: Internet connectivity for P2P
+
+**Recommended for Production:**
+- CPU: 2+ cores  
+- RAM: 2+ GB
+- Disk: 10+ GB for logs and state
+- Network: Stable internet connection
+
+-- ds.heading-small: Operating System Support
+
+**Fully Supported:**
+- Linux (Ubuntu 20.04+, RHEL 8+, Debian 11+)
+- macOS (10.15+)
+
+**Planned Support:**
+- Windows (Release 2)
+- Docker containers
+- Kubernetes deployments
+
+-- ds.heading-small: Network Requirements
+
+**Outbound Connections:**
+- P2P networking requires outbound internet access
+- Default ports: Dynamic (fastn-p2p handles NAT traversal)
+- No inbound firewall rules required
+
+**Internal Communication:**
+- Unix socket for daemon-CLI communication (local only)
+- No network ports exposed by default
+
+-- ds.heading-medium: Configuration Guide
+id: configuration
+
+-- ds.heading-small: Environment Variables
+
+-- ds.code:
+lang: bash
+
+# Required: malai data directory
+export MALAI_HOME=/opt/malai
+
+# Optional: Detailed logging
+export RUST_LOG=malai=info
+
+# Optional: Custom binary location
+export PATH="$PATH:/usr/local/bin"
+
+-- ds.heading-small: File Permissions
+
+Secure file permissions for production:
+
+-- ds.code:
+lang: bash
+
+# Set secure permissions for malai directory
+sudo chown -R malai:malai /opt/malai
+sudo chmod 700 /opt/malai
+sudo chmod 600 /opt/malai/clusters/*/cluster.private-key
+sudo chmod 644 /opt/malai/clusters/*/cluster.toml
+
+-- ds.heading-small: Log Management
+
+Configure log rotation for production:
+
+-- ds.code:
+lang: bash
+
+# Create logrotate configuration
+sudo tee /etc/logrotate.d/malai << 'EOF'
+/var/log/malai/*.log {
+    daily
+    rotate 30
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 644 malai malai
+    postrotate
+        systemctl reload malai
+    endscript
+}
+EOF
+
+-- ds.heading-small: Monitoring Setup
+
+Set up basic monitoring:
+
+-- ds.code:
+lang: bash
+
+# Health check script
+sudo tee /usr/local/bin/malai-healthcheck << 'EOF'
+#!/bin/bash
+sudo -u malai env MALAI_HOME=/opt/malai malai status | grep -q "RUNNING ✅"
+EOF
+sudo chmod +x /usr/local/bin/malai-healthcheck
+
+# Test health check
+/usr/local/bin/malai-healthcheck && echo "Healthy" || echo "Unhealthy"
+
+-- ds.heading-medium: Security Considerations
+
+-- ds.heading-small: Private Key Protection
+
+**CRITICAL**: Protect cluster manager private keys:
+
+-- ds.code:
+lang: bash
+
+# Backup private keys securely
+sudo tar -czf /secure/backup/malai-keys-$(date +%Y%m%d).tar.gz \
+  /opt/malai/clusters/*/cluster.private-key
+
+# Verify backup
+sudo tar -tzf /secure/backup/malai-keys-$(date +%Y%m%d).tar.gz
+
+-- ds.markdown:
+
+**Security Best Practices:**
+- **Private Key Backup**: Regular encrypted backups of cluster.private-key files
+- **Access Control**: Only cluster admin should access cluster manager private keys  
+- **File Permissions**: 600 for private keys, 700 for malai directories
+- **User Isolation**: Run daemon as dedicated malai user, not root
+
+-- ds.heading-small: Network Security
+
+-- ds.code:
+lang: bash
+
+# No inbound firewall rules needed (P2P handles NAT traversal)
+# Optional: Restrict outbound if needed
+sudo iptables -A OUTPUT -m owner --uid-owner malai -j ACCEPT
+
+-- ds.markdown:
+
+**Network Security Features:**
+- **No Open Ports**: malai doesn't listen on network ports (only Unix socket)
+- **P2P Encryption**: All cluster communication is encrypted end-to-end
+- **Identity-Based**: Only authorized machines can join clusters
+- **NAT Traversal**: Works behind firewalls and NAT without configuration
+
+-- ds.heading-medium: Upgrading malai
+
+-- ds.heading-small: Binary Updates
+
+-- ds.code:
+lang: bash
+
+# Stop daemon
+sudo systemctl stop malai
+
+# Update binary
+sudo curl -fsSL https://malai.sh/install.sh | sudo sh
+sudo mv ~/.malai/bin/malai /usr/local/bin/malai
+
+# Start daemon  
+sudo systemctl start malai
+
+# Verify upgrade
+malai --version
+sudo systemctl status malai
+
+-- ds.markdown:
+
+**Upgrade Safety:**
+- Configuration files are forward compatible
+- Daemon automatically validates configs on startup
+- No breaking changes within major versions
+- Always backup before upgrading
