@@ -1,31 +1,19 @@
-//! Machine initialization with DNS support
+//! Machine initialization with security-first design
 
 use eyre::Result;
 
-/// Initialize machine with DNS support for cluster manager resolution
-pub async fn init_machine_with_dns_support(cluster_manager: String, cluster_alias: String) -> Result<()> {
+/// Initialize machine for cluster (direct ID52 only, no DNS for security)
+pub async fn init_machine_for_cluster(cluster_manager: String, cluster_alias: String) -> Result<()> {
     println!("🏗️  Initializing machine for cluster...");
     println!("🎯 Cluster: {} (alias: {})", cluster_manager, cluster_alias);
     
-    // Resolve cluster manager ID52 (supports both domain and direct ID52)
-    let cluster_manager_id52 = if cluster_manager.contains('.') {
-        println!("🌐 Resolving cluster manager via DNS: {}", cluster_manager);
-        match fastn_id52::PublicKey::resolve(&cluster_manager, "malai").await {
-            Ok(public_key) => {
-                println!("✅ DNS resolution successful");
-                public_key.id52()
-            }
-            Err(e) => {
-                println!("❌ DNS resolution failed: {}", e);
-                println!("💡 Ensure domain has TXT record: {} TXT \"malai=<cluster-manager-id52>\"", cluster_manager);
-                return Err(eyre::eyre!("DNS resolution failed for {}: {}", cluster_manager, e));
-            }
-        }
-    } else {
-        // Direct ID52
-        println!("🆔 Using direct cluster manager ID52");
-        cluster_manager.clone()
-    };
+    // Use cluster manager ID52 directly (DNS removed for security)
+    if cluster_manager.contains('.') {
+        return Err(eyre::eyre!("Domain names not supported for security reasons. Use cluster manager ID52 directly."));
+    }
+    
+    println!("🆔 Using cluster manager ID52: {}", cluster_manager);
+    let cluster_manager_id52 = cluster_manager.clone();
     
     println!("📝 Cluster manager ID52: {}", cluster_manager_id52);
     
@@ -78,14 +66,3 @@ domain = "{}"
     Ok(())
 }
 
-/// Resolve cluster manager ID52 from domain or direct ID52 (using fastn-id52 DNS)
-pub async fn resolve_cluster_manager_id52(cluster_identifier: &str) -> Result<String> {
-    if cluster_identifier.contains('.') {
-        // Domain name - use fastn-id52 DNS resolution
-        let public_key = fastn_id52::PublicKey::resolve(cluster_identifier, "malai").await?;
-        Ok(public_key.id52())
-    } else {
-        // Direct ID52
-        Ok(cluster_identifier.to_string())
-    }
-}
