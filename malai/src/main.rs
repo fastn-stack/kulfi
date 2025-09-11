@@ -124,7 +124,7 @@ async fn main() -> eyre::Result<()> {
         Some(Command::Machine { machine_command }) => {
             match machine_command {
                 MachineCommand::Init { cluster_manager, cluster_alias } => {
-                    if let Err(e) = malai::init_machine_with_dns_support(cluster_manager.clone(), cluster_alias.clone()).await {
+                    if let Err(e) = malai::init_machine_for_cluster(cluster_manager.clone(), cluster_alias.clone()).await {
                         println!("❌ Machine initialization failed: {}", e);
                     }
                     return Ok(());
@@ -230,22 +230,6 @@ allow_from = "*"
                 println!("\n📊 Summary:");
                 for (alias, identity, role) in roles {
                     println!("   {} ({}): {:?}", alias, &identity.id52()[..8], role);
-                }
-            }
-            return Ok(());
-        }
-        Some(Command::Id52 { domain }) => {
-            println!("🌐 Resolving cluster manager ID52 for domain: {}", domain);
-            
-            match fastn_id52::PublicKey::resolve(&domain, "malai").await {
-                Ok(public_key) => {
-                    println!("✅ Resolved cluster manager ID52: {}", public_key.id52());
-                    println!("📋 Use this for machine init:");
-                    println!("   malai machine init {} <cluster-alias>", public_key.id52());
-                }
-                Err(e) => {
-                    println!("❌ DNS resolution failed: {}", e);
-                    println!("💡 Ensure domain has TXT record: {} TXT \"malai=<cluster-manager-id52>\"", domain);
                 }
             }
             return Ok(());
@@ -555,11 +539,6 @@ pub enum Command {
     TestReal,
     #[clap(about = "Scan and show cluster roles")]
     ScanRoles,
-    #[clap(about = "Resolve domain to cluster manager ID52 (debug helper)")]
-    Id52 {
-        #[arg(help = "Domain name to resolve")]
-        domain: String,
-    },
     #[clap(about = "Reload configuration changes")]
     Rescan {
         #[arg(long, help = "Check config validity without applying changes")]

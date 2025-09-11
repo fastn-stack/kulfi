@@ -59,7 +59,7 @@ kulfi-utils = { path = "kulfi-utils" }
 kulfi-id52 = { path = "kulfi-id52" }
 fastn-p2p = { git = "https://github.com/fastn-stack/fastn.git", rev = "d50fff5fe7bc4f81f34db71f381b7c47a9a812f7" }
 fastn-net = { git = "https://github.com/fastn-stack/fastn.git", rev = "d50fff5fe7bc4f81f34db71f381b7c47a9a812f7" }
-fastn-id52 = { git = "https://github.com/fastn-stack/fastn.git", rev = "d50fff5fe7bc4f81f34db71f381b7c47a9a812f7", features = ["dns"] }
+fastn-id52 = { git = "https://github.com/fastn-stack/fastn.git", rev = "d50fff5fe7bc4f81f34db71f381b7c47a9a812f7" }
 mime_guess = "2"
 percent-encoding = "2"
 reqwest = { version = "0.12", default-features = false, features = [
