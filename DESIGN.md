@@ -2533,3 +2533,20 @@ This solves the real-world problem of painful proxy configuration on multiple de
 - **Command aliases** (Release 2)
 
 **MVP Focus**: Direct CLI mode - commands work without daemon requirement for resilience and simplicity.
+
+## Considered and Rejected Features
+
+### **DNS TXT Record Support (Rejected - Security Concerns)**
+
+**Feature**: Allow machines to join clusters using domain names instead of ID52s.
+```bash
+# Proposed (rejected):
+malai machine init company.example.com corp  # DNS lookup for cluster manager ID52
+
+# Current (secure):  
+malai machine init abc123def456... corp      # Direct ID52 sharing
+```
+
+**Rejection Reason**: DNS TXT records would expose cluster manager ID52 publicly, creating attack surface where adversaries could discover cluster managers to target. Security risk outweighs convenience benefit.
+
+**Secure Alternative**: Invite key system (Release 2) provides public sharing without exposing cluster root ID52.
