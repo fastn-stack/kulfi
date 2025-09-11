@@ -69,6 +69,7 @@ mysql -h localhost:3306  # Direct database access via forwarding
 ### 📡 **Service Mesh** (Release 3)
 - **HTTP forwarding**: `curl admin.company.localhost` → remote admin interfaces
 - **TCP forwarding**: `mysql -h localhost:3306` → remote database connections
+- **HTTP proxy chains**: Privacy through P2P encrypted proxy tunnels
 - **Identity injection**: HTTP services receive client identity headers
 - **Browser access**: Direct browser access to remote web interfaces
 
