@@ -18,25 +18,64 @@ malai organizes machines into clusters. Each cluster has:
 - **Cluster Manager**: A designated server that manages cluster configuration and coordinates member communication
 - **Unique Identity**: Each cluster is identified by the cluster manager's id52
 - **Domain Aliases**: Optional domain-based aliases for easier identification
-- **DNS Integration**: Cluster manager id52 can be stored in DNS TXT records for domain-based discovery
+- **Secure Joining**: Machines join clusters via cluster manager ID52 or invite keys
 
 Machines can belong to multiple clusters simultaneously, each with their own id52 keypair.
 
 ## Cluster Identification and Aliases
 
 ### **Cluster Contact Methods:**
-When joining a cluster, you need to contact the cluster manager. Two methods:
+When joining a cluster, you use invite keys instead of exposing cluster manager ID52:
 
-1. **Direct ID52**: Use cluster manager's full ID52 (always works)
+1. **Invite Key**: Use disposable invite key (recommended)
    ```bash
-   malai machine init abc123def456ghi789jkl012mno345pqr678stu901vwx234 ft
+   malai machine init 789xyz123def456ghi company
+   # Invite key resolves to actual cluster manager internally
    ```
 
-2. **Domain Name**: Use domain with DNS TXT record (if configured)
+2. **Direct ID52**: Use cluster manager's full ID52 (fallback)
    ```bash
-   malai machine init fifthtry.com ft
-   # DNS lookup: TXT record for fifthtry.com contains cluster manager ID52
+   malai machine init abc123def456ghi789jkl012mno345pqr678stu901vwx234 company
+   # Direct access to cluster manager (less secure - ID52 exposed)
    ```
+
+## Cluster Security Architecture
+
+### **Three-Tier Key System:**
+
+#### **1. Cluster Root Key (Hidden)**
+- **Purpose**: True cluster identity, never shared publicly
+- **Visibility**: Hidden in MALAI_HOME config files, not shown in daily usage
+- **Rotation**: `malai cluster rotate-key` generates new root key  
+- **Cleanup**: `malai cluster delete-old-key` removes compromised keys
+
+#### **2. Invite Keys (Public)**
+- **Purpose**: Safe-to-share keys for joining cluster
+- **Creation**: `malai cluster create-invite --alias "conference-2025"`
+- **Revocation**: `malai cluster revoke-invite <invite-key>`
+- **Security**: Compromised invite keys don't expose cluster root
+
+#### **3. Multiple Identities → One Cluster**
+- **Invite keys are aliases**: Multiple invite keys point to same cluster root
+- **Post-join discovery**: After joining via invite, machine learns cluster root key
+- **Day-to-day usage**: Users never see root key in normal operations
+- **Root key obscurity**: Security through hiding cluster root from public view
+
+### **Key Rotation Security:**
+```bash
+# Rotate cluster root key (security incident response):
+malai cluster rotate-key
+# 1. Generates new cluster root key
+# 2. Contacts all machines with new key  
+# 3. Machines update configs to use new root key
+# 4. Old key still maintained for transitioning machines
+
+# Delete compromised old key:
+malai cluster delete-old-key <old-key>
+# 1. Stop listening on old key
+# 2. Continue using old key in client mode to update remaining machines  
+# 3. Gradual migration to new key
+```
 
 ### **Two-Level Alias System:**
 
@@ -58,13 +97,40 @@ Edit `$MALAI_HOME/aliases.toml` for ultra-short machine access:
 2. **Check cluster.machine**: `web01.ft` → resolve cluster and machine
 3. **Direct ID52**: `abc123...xyz789` → direct machine contact
 
-### **DNS Integration (Optional):**
-For domains with DNS access:
+### **Invite Key System (Recommended Security Model):**
+
+#### **Invite Key Benefits:**
+- **Security**: Real cluster manager ID52 stays private
+- **Revocable**: Disable compromised invite keys without cluster disruption
+- **Public sharing**: Safe to share at conferences, public forums
+- **Multiple invites**: Different invite keys for different purposes
+
+#### **Invite Key Management:**
 ```bash
-# Set TXT record: fifthtry.com TXT "malai-ssh=abc123def456..."
-# Then machines can join via domain:
-malai machine init fifthtry.com ft  # Resolves to cluster manager ID52
+# Cluster manager creates invite keys:
+malai cluster create-invite company --alias "conference-2025"
+# Outputs: 789xyz123def456ghi (safe to share publicly)
+
+# Share invite key publicly:
+"Join our cluster: malai machine init 789xyz123def456ghi company"
+
+# Revoke invite key when needed:
+malai cluster revoke-invite 789xyz123def456ghi
+
+# List active invites:
+malai cluster list-invites
 ```
+
+#### **Implementation Requirements:**
+- **invite.toml**: Maps invite keys to actual cluster manager ID52
+- **Revocation system**: Disable invite keys in cluster config
+- **P2P routing**: Invite keys forward to real cluster manager
+- **Security audit**: Track invite key usage and revocation
+
+#### **Development Estimate: 3-4 hours**
+- Invite key generation and mapping: 2 hours
+- P2P routing for invite keys: 1-2 hours  
+- Revocation and management commands: 1 hour
 
 ## System Architecture
 
@@ -329,7 +395,7 @@ malai config edit company
 #### **Cluster Manager Discovery:**
 - **Gap**: How do machines find cluster manager to receive configs?  
 - **Current**: cluster-info.toml stores cluster manager ID52 after `malai machine init`
-- **Missing**: DNS TXT record resolution for domain-based cluster discovery
+- **Alternative**: Invite key system for secure cluster discovery (Release 2)
 
 #### **Config Authentication:**
 - **Gap**: How machines verify config comes from authorized cluster manager
@@ -362,6 +428,27 @@ malai config edit company
 - **MALAI_HOME-based**: CLI reads cluster configs and identities directly from filesystem
 - **Machine auto-selection**: Automatically picks local machine identity for target cluster
 - **Self-command optimization**: Local execution when targeting same identity
+
+**Implementation Details:**
+```rust
+// Machine auto-selection logic:
+1. Parse: malai web01.company ps aux → machine="web01", cluster="company"
+2. Find cluster dir: $MALAI_HOME/clusters/company/
+3. Auto-select identity:
+   - If cluster.private-key exists → use cluster manager identity
+   - If machine.private-key exists → use machine identity  
+   - If both exist → configuration error (crash)
+   - If neither → no identity error
+4. Read config: cluster.toml OR machine.toml (whichever exists)
+5. Find target: Look up web01 machine ID52 in config
+6. Execute: Self-command (local) OR P2P call (remote)
+```
+
+**Resilience Benefits:**
+- Works without daemon dependency (survives daemon crashes)
+- No socket configuration needed
+- No connection pooling complexity
+- Simple troubleshooting (direct file/network operations)
 
 #### **Daemon Mode (Post-MVP - Performance Optimization):**
 - **Optional daemon**: `malai daemon` provides connection pooling for better performance  
@@ -502,7 +589,7 @@ open http://logs.company.localhost     # Mobile browser → log analysis
 ### Machine Addressing
 Each machine has multiple addressing options:
 
-- **Domain-based**: `machine-alias.cluster-domain.com` (when domain is available)
+- **Alias-based**: `machine-alias.cluster-alias` (using local cluster aliases)
 - **ID-based**: `machine-alias.cluster-id52` (always works)
 - **Full ID**: `machine-id52.cluster-id52` (direct addressing)
 
@@ -527,10 +614,8 @@ For HTTP services, the complete URL format is:
 
 #### **URL Parsing Rules:**
 Agent parses `subdomain.localhost` requests as:
-1. **Simple**: `admin.company.localhost` → service=admin, cluster=company
-2. **Domain cluster**: `api.mycompany.com.localhost` → service=api, cluster=mycompany.com  
-3. **ID52 cluster**: `grafana.abc123def456.localhost` → service=grafana, cluster=abc123def456
-4. **Complex domain**: `api.aws.mycompany.com.localhost` → service=api, cluster=aws.mycompany.com
+1. **Simple alias**: `admin.company.localhost` → service=admin, cluster=company (local alias)
+2. **ID52 cluster**: `grafana.abc123def456.localhost` → service=grafana, cluster=abc123def456
 
 #### **Service Resolution:**
 1. Parse subdomain: extract service name and cluster identifier
@@ -894,7 +979,7 @@ malai web01.cluster-id52 systemctl status nginx
 ### Cluster Registration Security
 - Machines store verified cluster manager ID52 in `cluster-info.toml`
 - All config updates must come from verified cluster manager
-- DNS TXT record integration for automatic cluster manager discovery
+- Invite key system for secure cluster manager discovery
 - Cryptographic proof required for cluster manager verification
 
 ## Command Reference
@@ -907,10 +992,10 @@ malai cluster init <cluster-alias>
 # Creates: $MALAI_HOME/clusters/company/ with cluster manager config
 
 # Join existing cluster as machine (contacts cluster manager)
-malai machine init <cluster-id52-or-domain> <local-alias>
+malai machine init <cluster-id52-or-invite-key> <local-alias>
 # Examples:
 malai machine init abc123def456ghi789... company     # Using cluster manager ID52
-malai machine init fifthtry.com ft                  # Using domain (if DNS configured)
+malai machine init invite123def456 ft           # Using invite key (secure)
 # Creates: $MALAI_HOME/clusters/ft/ with machine config and registration
 ```
 
@@ -1078,8 +1163,14 @@ $MALAI_HOME/
 ├── clusters/
 │   ├── company/                     # Cluster 1 - This device is cluster manager
 │   │   ├── cluster.toml            # → Cluster manager role (master config)
-│   │   ├── cluster.private-key     # → Private key for cluster manager role
-│   │   └── state.json              # → Config distribution tracking (cluster manager only)
+│   │   ├── cluster.private-key     # → Cluster root private key (or keyring if available)
+│   │   ├── invites/                # → Invite keys for secure cluster joining
+│   │   │   ├── 789xyz123def.private-key # → Individual invite key  
+│   │   │   └── 456abc789ghi.private-key # → Another invite key
+│   │   ├── invites.toml            # → Invite key metadata and aliases
+│   │   ├── old-keys/               # → Rotated keys during transition
+│   │   │   └── cluster.private-key.1   # → Previous root key (migration)
+│   │   └── state.json              # → Config distribution tracking
 │   ├── personal/                    # Cluster 2 - This device is machine only
 │   │   ├── machine.toml            # → Machine role (received from CM)
 │   │   └── machine.private-key     # → Private key for machine role
@@ -1121,10 +1212,33 @@ When cluster manager acts as machine (common single-cluster scenario):
 
 ### **File Name Conventions:**
 - `cluster.toml`: Master cluster config (cluster manager role)
-- `cluster.private-key`: Private key for cluster manager role
+- `cluster.private-key`: Cluster root private key (filesystem fallback - prefer keyring)
+- `invites/`: Directory containing individual invite private keys
+- `invites.toml`: Invite key metadata, aliases, and expiration tracking
 - `machine.toml`: Machine-specific config (machine role, received via P2P)
-- `machine.private-key`: Private key for machine role  
+- `machine.private-key`: Private key for machine role (filesystem fallback)
+- `old-keys/`: Directory for rotated keys during transition
 - `state.json`: Config distribution tracking (cluster manager only)
+
+**Key Storage Preference:**
+1. **Keyring (preferred)**: Store private keys in system keyring when available
+2. **Filesystem (fallback)**: Store in .private-key files when keyring unavailable
+3. **No .public-key files needed**: Public keys derived from private keys
+
+**invites.toml Structure:**
+```toml
+# Active invite keys for cluster joining
+[invite."invite789xyz123def456"]
+alias = "conference-2025"
+created = "2025-01-15T10:30:00Z"
+expires = "2025-02-15T10:30:00Z"  # Optional expiration
+created_by = "admin-laptop-id52"
+
+[invite."invite456abc789def"]  
+alias = "partners-q1"
+created = "2025-01-10T09:00:00Z"
+# No expiration = permanent until revoked
+```
 
 ## Real-World Deployment Scenarios
 
@@ -1696,7 +1810,7 @@ malai cluster init ft
 malai daemon  # Starts cluster manager
 
 # On each fastn server:
-malai machine init fifthtry.com ft  # Join via domain, use short alias
+malai machine init <cluster-manager-id52> ft  # Join via ID52, use short alias
 # fastn-ops adds machine to cluster config
 malai daemon  # Starts remote access daemon
 
@@ -1725,7 +1839,7 @@ curl grafana.monitoring.ft/dashboard
 ```bash
 # Initialize participation in multiple clusters:
 malai cluster init personal                           # Create personal cluster (cluster manager)
-malai machine init company.example.com company       # Join company cluster (via domain)
+malai machine init <cluster-manager-id52> company    # Join company cluster (via ID52)
 malai machine init abc123def456ghi789... ft          # Join fifthtry cluster (via ID52, alias "ft")
 
 # Single unified start:
@@ -2031,7 +2145,7 @@ The MALAI_HOME approach gives us everything we need for robust end-to-end testin
 - [ ] **Username validation**: Prevent privilege escalation via username field
 - [ ] **Group loop detection**: Prevent infinite recursion in group expansion
 - [ ] **Config content validation**: Validate TOML structure and permissions
-- [ ] **DNS TXT integration**: Automatic cluster manager discovery
+- [ ] **Invite key system**: Secure cluster manager discovery
 
 **MEDIUM:**
 - [ ] **Rate limiting**: Prevent SSH command flooding attacks
@@ -2174,7 +2288,7 @@ public_services = ["api"]               # These services don't get identity head
 
 ### **Multi-Cluster Power User Workflow:**
 1. **Cluster manager**: `malai cluster init personal` (manage personal cluster)
-2. **Join company**: `malai machine init company.example.com corp` (work cluster)  
+2. **Join company**: `malai machine init <company-cluster-id52> corp` (work cluster)  
 3. **Join fifthtry**: `malai machine init abc123...xyz789 ft` (client cluster)
 4. **Unified start**: `malai daemon` (starts cluster manager + remote access daemons + agent)
 5. **Cross-cluster access**: `malai web01.ft systemctl status nginx`
@@ -2249,20 +2363,144 @@ This fixes connection timeouts and simplifies service lifecycle.
 5. **Basic Command Execution**: Real remote command execution via P2P
 6. **E2E Testing**: Comprehensive business logic testing with proper file structure
 
-#### **❌ NOT IMPLEMENTED (MVP Blockers)**
-1. **Real malai daemon**: Single daemon with multi-identity P2P listeners
-2. **Multi-cluster daemon startup**: One daemon handles all cluster identities simultaneously  
-3. **Basic ACL system**: Group expansion and permission validation (simple implementation)
+#### **✅ IMPLEMENTED (MVP Ready)**
+1. **Real malai daemon**: Single daemon with multi-identity P2P listeners ✅
+2. **Multi-cluster daemon startup**: One daemon handles all cluster identities simultaneously ✅  
+3. **Basic ACL system**: Group expansion and permission validation (simple implementation) ✅
+4. **Direct CLI mode**: Commands work without daemon dependency ✅
+
+### **❌ NOT IMPLEMENTED (Moved to Post-MVP for Security)**
+1. **DNS TXT support**: Rejected due to security concerns (see Rejected Features section)
+2. **Invite key system**: Secure alternative to DNS (Release 2 priority)
 
 ### **🚀 Post-MVP Features (Next Releases)**
 
-#### **Release 2: Configuration Management**
-1. **Remote config editing**: Download/upload/edit with hash validation and three-way merge
-2. **Command aliases**: Global aliases in malai.toml for convenient access
+#### **Release 2: Secure Cluster Management**
+1. **Invite key system**: Secure cluster joining without exposing root keys
+2. **Key rotation**: Cluster root key rotation and migration management  
+3. **Remote config editing**: Download/upload/edit with hash validation and three-way merge
+4. **Command aliases**: Global aliases in malai.toml for convenient access
 
 #### **Release 3: Service Mesh**
 1. **TCP forwarding**: `mysql -h localhost:3306` → remote MySQL via P2P
 2. **HTTP forwarding**: `curl admin.company.localhost` → remote admin interface
+
+#### **Release 3: Always-On HTTP Proxy**  
+1. **Dynamic proxy routing**: CLI control of all devices' internet routing
+2. **Privacy chains**: P2P encrypted proxy tunnels for IP masking
+3. **Device management**: One-time setup, permanent CLI control
+
+#### **Release 4: On-Demand Process Management**
+1. **Dynamic service startup**: Start services when first request arrives
+2. **Idle shutdown**: Stop services when no longer needed
+3. **Process lifecycle**: Full process management (start, stop, restart, monitor)
+4. **Resource optimization**: Run services only when actively used
+
+### **On-Demand Process Management Design:**
+
+Since malai controls all incoming P2P connections, it can manage service processes dynamically:
+
+#### **Dynamic Service Lifecycle:**
+```bash
+# Service configuration in cluster.toml:
+[machine.web01.http.admin]
+port = 8080
+command = "python manage.py runserver 8080"
+idle_timeout = "300s"    # Stop after 5 minutes of inactivity
+startup_time = "10s"     # Expected startup time
+
+# malai behavior:
+1. HTTP request arrives for admin.web01.company
+2. Check if admin service process running
+3. If not running: Start "python manage.py runserver 8080"  
+4. Wait for service to be ready (up to 10s)
+5. Forward request to localhost:8080
+6. Track activity - stop after 5 minutes idle
+```
+
+#### **Process Management Features:**
+- **Lazy startup**: Services start only when first request arrives
+- **Health monitoring**: Check if processes are responsive  
+- **Graceful shutdown**: Stop services cleanly when idle
+- **Resource efficiency**: No idle processes consuming resources
+- **Auto-restart**: Restart crashed services on next request
+
+#### **Configuration Example:**
+```toml
+[machine.database.tcp.postgres]
+port = 5432
+command = "docker run -p 5432:5432 postgres:15"
+idle_timeout = "30m"     # Database can idle longer
+health_check = "pg_isready -p 5432"
+restart_policy = "on-failure"
+```
+
+### **Always-On HTTP Proxy Design (Release 3):**
+
+malai provides seamless privacy through an always-on proxy server with dynamic routing:
+
+#### **Always-On Proxy Server:**
+```bash
+# malai daemon automatically starts proxy server on fixed port
+malai daemon  # Starts proxy on localhost:8080 (fixed port)
+
+# One-time device configuration (TV, mobile, laptop, etc.):
+# Set HTTP proxy: 192.168.1.100:8080  # Your malai machine IP
+# Never change device settings again!
+```
+
+#### **Dynamic Proxy Routing (CLI Control):**
+```bash
+# Check current proxy status:
+malai status
+# Shows: 
+# 📡 HTTP Proxy: localhost:8080 → direct (no upstream)
+# 📋 Configure devices: HTTP proxy 192.168.1.100:8080
+
+# Route through specific machine for privacy:
+malai proxy-via proxy-server.company
+# All devices now use proxy-server.company transparently
+
+# Check updated status:
+malai status  
+# Shows: 📡 HTTP Proxy: localhost:8080 → proxy-server.company
+
+# Switch to different proxy server:
+malai proxy-via vpn-exit.datacenter
+# All devices instantly use new proxy (no device reconfiguration)
+
+# Go back to direct connections:
+malai proxy-via direct
+# All devices back to direct internet
+```
+
+#### **User Experience Benefits:**
+- **Configure once**: Set proxy on all devices to fixed malai port (one-time)
+- **Dynamic routing**: Change proxy destination via CLI without touching devices
+- **Seamless switching**: TV, mobile, laptop all switch proxy instantly
+- **No device pain**: Never change proxy settings on individual devices again
+
+#### **Technical Implementation:**
+```toml
+# Always-on proxy configuration
+[daemon.proxy]
+port = 8080                    # Fixed port for device configuration
+mode = "direct"                # Default: no upstream proxy
+# mode = "upstream"            # Route via upstream machine when configured
+
+[proxy]
+upstream_machine = ""          # Empty = direct mode
+# upstream_machine = "proxy-server.company"  # Set via malai proxy-via command
+```
+
+#### **Privacy Workflow:**
+1. **Install malai**: Proxy server starts automatically on port 8080
+2. **Configure devices once**: Point all devices to malai proxy port  
+3. **Control via CLI**: `malai proxy-via <machine>` changes routing for all devices
+4. **Seamless switching**: Change proxy destination without device reconfiguration
+5. **Privacy on-demand**: Enable/disable proxy routing as needed
+
+This solves the real-world problem of painful proxy configuration on multiple devices.
 
 #### **Release 4: Performance & Advanced Features**  
 1. **CLI → daemon socket communication**: Connection pooling optimization
@@ -2293,3 +2531,20 @@ This fixes connection timeouts and simplifies service lifecycle.
 - **Command aliases** (Release 2)
 
 **MVP Focus**: Direct CLI mode - commands work without daemon requirement for resilience and simplicity.
+
+## Considered and Rejected Features
+
+### **DNS TXT Record Support (Rejected - Security Concerns)**
+
+**Feature**: Allow machines to join clusters using domain names instead of ID52s.
+```bash
+# Proposed (rejected):
+malai machine init company.example.com corp  # DNS lookup for cluster manager ID52
+
+# Current (secure):  
+malai machine init abc123def456... corp      # Direct ID52 sharing
+```
+
+**Rejection Reason**: DNS TXT records would expose cluster manager ID52 publicly, creating attack surface where adversaries could discover cluster managers to target. Security risk outweighs convenience benefit.
+
+**Secure Alternative**: Invite key system (Release 2) provides public sharing without exposing cluster root ID52.

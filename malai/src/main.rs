@@ -124,8 +124,9 @@ async fn main() -> eyre::Result<()> {
         Some(Command::Machine { machine_command }) => {
             match machine_command {
                 MachineCommand::Init { cluster_manager, cluster_alias } => {
-                    println!("Machine init temporarily disabled");
-                    todo!("Fix machine init after simple server working");
+                    if let Err(e) = malai::init_machine_for_cluster(cluster_manager.clone(), cluster_alias.clone()).await {
+                        println!("❌ Machine initialization failed: {}", e);
+                    }
                     return Ok(());
                 }
             }

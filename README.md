@@ -60,17 +60,26 @@ mysql -h localhost:3306  # Direct database access via forwarding
 
 ## Planned Features (Future Releases)
 
-### 📡 **Service Mesh** (Next Priority)
-- **HTTP forwarding**: `curl admin.company.localhost` → remote admin interfaces
-- **TCP forwarding**: `mysql -h localhost:3306` → remote database connections
-- **Identity injection**: HTTP services receive client identity headers
-- **Browser access**: Direct browser access to remote web interfaces
-
-### 🔧 **Enhanced Management**
+### 🔐 **Secure Cluster Management**
+- **Invite key system**: Safe cluster joining without exposing root keys
+- **Key rotation**: Cluster root key rotation for security incidents
 - **Remote configuration**: Download/edit/upload cluster configs
 - **Command aliases**: `malai web` shortcuts for common operations
-- **Advanced permissions**: Group-based access control
-- **Automatic joining**: Streamlined machine onboarding process
+
+### 📡 **Service Mesh**
+- **HTTP/TCP forwarding**: Access remote services transparently
+- **Identity injection**: Services receive client identity headers
+
+### 🌐 **Always-On HTTP Proxy**
+- **Dynamic proxy routing**: Control all devices' internet routing via CLI
+- **Privacy chains**: P2P encrypted proxy tunnels
+- **One-time setup**: Configure devices once, control via malai commands
+
+### 🔄 **On-Demand Process Management**
+- **Dynamic startup**: Start services when first request arrives
+- **Idle shutdown**: Stop services when no longer needed  
+- **Resource efficiency**: Run Django, nginx, etc. only when actively used
+- **Health monitoring**: Auto-restart crashed services on next request
 
 ## Architecture
 
@@ -108,21 +117,8 @@ malai status                  # Detailed daemon and cluster info
 malai rescan --check         # Validate all configurations
 ```
 
-## Planned Usage (Service Mesh - Next Release)
+**See [DESIGN.md](DESIGN.md) for complete architecture and feature specifications.**
 
-### Database Access
-```bash
-# TCP forwarding (planned)
-mysql -h localhost:3306      # → Forward to remote MySQL via P2P
-redis-cli -p 6379           # → Forward to remote Redis via P2P
-```
-
-### Web Interface Access  
-```bash
-# HTTP forwarding (planned)
-curl admin.company.localhost          # → Remote admin interface
-open http://grafana.company.localhost # → Remote monitoring dashboard
-```
 
 ## Daemon Usage
 

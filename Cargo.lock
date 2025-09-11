@@ -1586,7 +1586,7 @@ checksum = "2acce4a10f12dc2fb14a218589d4f1f62ef011b2d0cc4b3cb1bba8e94da14649"
 [[package]]
 name = "fastn-id52"
 version = "0.1.2"
-source = "git+https://github.com/fastn-stack/fastn.git?branch=main#e2d4089ba8a88d0cfcf6b86526b0dad271a623ed"
+source = "git+https://github.com/fastn-stack/fastn.git?rev=d50fff5fe7bc4f81f34db71f381b7c47a9a812f7#d50fff5fe7bc4f81f34db71f381b7c47a9a812f7"
 dependencies = [
  "data-encoding",
  "ed25519-dalek",
@@ -1598,7 +1598,7 @@ dependencies = [
 [[package]]
 name = "fastn-net"
 version = "0.1.2"
-source = "git+https://github.com/fastn-stack/fastn.git?branch=main#e2d4089ba8a88d0cfcf6b86526b0dad271a623ed"
+source = "git+https://github.com/fastn-stack/fastn.git?rev=d50fff5fe7bc4f81f34db71f381b7c47a9a812f7#d50fff5fe7bc4f81f34db71f381b7c47a9a812f7"
 dependencies = [
  "async-stream",
  "bb8",
@@ -1626,7 +1626,7 @@ dependencies = [
 [[package]]
 name = "fastn-p2p"
 version = "0.1.0"
-source = "git+https://github.com/fastn-stack/fastn.git?branch=main#e2d4089ba8a88d0cfcf6b86526b0dad271a623ed"
+source = "git+https://github.com/fastn-stack/fastn.git?rev=d50fff5fe7bc4f81f34db71f381b7c47a9a812f7#d50fff5fe7bc4f81f34db71f381b7c47a9a812f7"
 dependencies = [
  "async-stream",
  "eyre",
