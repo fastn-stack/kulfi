@@ -23,8 +23,8 @@ pub enum DaemonMessage {
     Error(String),
 }
 
-/// Start Unix socket listener in daemon
-pub async fn start_daemon_socket_listener(malai_home: PathBuf) -> Result<()> {
+/// Start Unix socket listener and return handle for background processing
+pub async fn start_daemon_socket_listener(malai_home: PathBuf) -> Result<tokio::task::JoinHandle<()>> {
     let socket_path = malai_home.join("malai.socket");
     
     // Remove old socket file if exists
@@ -35,25 +35,28 @@ pub async fn start_daemon_socket_listener(malai_home: PathBuf) -> Result<()> {
     let listener = UnixListener::bind(&socket_path)?;
     println!("🔌 Daemon socket listener started: {}", socket_path.display());
     
-    // Handle incoming connections
-    loop {
-        match listener.accept().await {
-            Ok((stream, _addr)) => {
-                // Handle connection in background task
-                tokio::spawn(async move {
-                    if let Err(e) = handle_socket_connection(stream).await {
-                        println!("❌ Socket connection error: {}", e);
-                    }
-                });
-            }
-            Err(e) => {
-                println!("❌ Socket accept error: {}", e);
-                break;
+    // Return handle to background task that processes connections
+    let handle = tokio::spawn(async move {
+        // Handle incoming connections
+        loop {
+            match listener.accept().await {
+                Ok((stream, _addr)) => {
+                    // Handle connection in background task
+                    tokio::spawn(async move {
+                        if let Err(e) = handle_socket_connection(stream).await {
+                            println!("❌ Socket connection error: {}", e);
+                        }
+                    });
+                }
+                Err(e) => {
+                    println!("❌ Socket accept error: {}", e);
+                    break;
+                }
             }
         }
-    }
+    });
     
-    Ok(())
+    Ok(handle)
 }
 
 /// Handle single socket connection from CLI

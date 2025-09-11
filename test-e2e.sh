@@ -251,8 +251,8 @@ EOF
     # Phase 8: Daemon Auto-Detection and Unix Socket Communication
     log "📡 Phase 8: Testing daemon auto-detection and socket communication"
     
-    # Give daemon a moment to start socket listener
-    sleep 5
+    # Give daemon more time to fully initialize socket listener (especially in CI)
+    sleep 3
     
     # Test 1: Daemon should have socket listener running
     SOCKET_PATH="$MALAI_HOME/malai.socket"
