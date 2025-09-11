@@ -2386,6 +2386,7 @@ This fixes connection timeouts and simplifies service lifecycle.
 #### **Release 3: Service Mesh**
 1. **TCP forwarding**: `mysql -h localhost:3306` → remote MySQL via P2P
 2. **HTTP forwarding**: `curl admin.company.localhost` → remote admin interface
+3. **HTTP proxy chains**: Machine A uses Machine B as HTTP proxy for privacy
 
 #### **Release 4: On-Demand Process Management**
 1. **Dynamic service startup**: Start services when first request arrives
@@ -2431,6 +2432,46 @@ idle_timeout = "30m"     # Database can idle longer
 health_check = "pg_isready -p 5432"
 restart_policy = "on-failure"
 ```
+
+### **HTTP Proxy Chain Design (Release 3):**
+
+malai enables privacy through HTTP proxy chains using existing http-proxy infrastructure:
+
+#### **HTTP Proxy Configuration:**
+```toml
+# Machine acting as HTTP proxy client (local machine)
+[proxy]
+upstream_machine = "proxy-server.company"  # Machine acting as HTTP proxy server
+local_port = 8888                          # Local proxy port
+
+# Machine acting as HTTP proxy server (remote machine) 
+[machine.proxy-server.http.proxy]
+port = 3128                               # Standard HTTP proxy port
+command = "malai http-proxy-remote"       # Use existing malai proxy functionality
+allow_from = "trusted-clients"            # Only allow specific machines
+```
+
+#### **Privacy Chain Workflow:**
+```bash
+# Setup (one-time):
+# 1. Configure proxy server machine to run http-proxy-remote
+# 2. Configure client machine to route through proxy server
+
+# Usage (automatic):
+curl https://example.com
+# 1. Local HTTP client connects to localhost:8888
+# 2. malai forwards request to proxy-server.company via P2P  
+# 3. proxy-server.company sends request to internet
+# 4. Response travels back through P2P tunnel
+# 5. Local client receives response (appears to come from proxy server's IP)
+```
+
+#### **Privacy Benefits:**
+- **IP masking**: Internet sees proxy server IP, not client IP
+- **Geographic flexibility**: Use proxy servers in different regions
+- **P2P encryption**: Proxy traffic encrypted through malai P2P network
+- **Multi-hop chains**: Chain multiple proxy servers for enhanced privacy
+- **Access control**: Only authorized machines can use proxy servers
 
 #### **Release 4: Performance & Advanced Features**  
 1. **CLI → daemon socket communication**: Connection pooling optimization
