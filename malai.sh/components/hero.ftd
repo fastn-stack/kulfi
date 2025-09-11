@@ -13,9 +13,9 @@ spacing: $ds.spaces.horizontal-gap.extra-large
 
 -- ds.column:
 inset: $ds.spaces.inset-square.zero
-align-content: left
+align-content: center
 spacing: $ds.spaces.vertical-gap.large
-width.fixed.percent: 50
+width.fixed.percent: 70
 
 -- highlight-hero-title: $hero.title
 
@@ -30,12 +30,19 @@ spacing: $ds.spaces.vertical-gap.small
 -- ds.code:
 lang: bash
 
-\$ malai http 3000 --public
-Malai: Sharing http://127.0.0.1:3000 at
-https://pubqaksutn9im0ncln2bki3i8diekh3sr4vp94o2cg1agjrb8dhg.kulfi.site
-To avoid the public proxy, run your own with: malai http-bridge
+# Initialize cluster
+malai cluster init company
+# Cluster ID: abc123def456ghi789jkl012mno345pqr678stu901vwx234yz
 
-Or use: malai browse kulfi://pubqaksutn9im0ncln2bki3i8diekh3sr4vp94o2cg1agjrb8dhg
+malai daemon --foreground
+
+# Add machines to cluster (on each server)  
+malai machine init abc123def456ghi789jkl012mno345pqr678stu901vwx234yz company
+
+# Execute commands on remote machines
+malai web01.company ps aux
+malai web01.company whoami
+malai db01.company systemctl status nginx
 
 
 -- ds.copy-small: ⭐️ Star us on GitHub
@@ -47,9 +54,6 @@ color: $ds.colors.accent.primary
 
 -- end: ds.column
 
--- ds.image:
-link: /-/malai.sh/assets/demo.svg
-src: $assets.files.assets.demo.svg
 
 -- end: ds.row
 
@@ -75,7 +79,17 @@ spacing: $ds.spaces.vertical-gap.small
 -- ds.code:
 lang: bash
 
-\curl -fsSL https://malai.sh/install.sh | sh
+# Initialize cluster  
+malai cluster init company
+# Cluster ID: abc123def456ghi789jkl012mno345pqr678stu901vwx234yz
+
+malai daemon --foreground
+
+# Add machines to cluster
+malai machine init abc123def456ghi789jkl012mno345pqr678stu901vwx234yz company
+
+# Execute commands remotely
+malai web01.company ps aux
 
 -- ds.copy-regular: ⭐️ Star us on GitHub
 link: https://github.com/fastn-stack/kulfi
@@ -84,8 +98,6 @@ color: $ds.colors.accent.primary
 
 -- end: ds.column
 
--- ds.image:
-src: $assets.files.assets.demo.svg
 
 -- end: ds.column
 
@@ -105,17 +117,17 @@ caption title:
 -- ds.column:
 inset: $ds.spaces.inset-square.zero
 margin: $ds.spaces.vertical-gap.zero
-align-content: left
+align-content: center
 
 -- ftd.desktop:
 
 -- ds.column:
 inset: $ds.spaces.inset-square.zero
-align-content: left
+align-content: center
 spacing: $ds.spaces.vertical-gap.extra-small
 
 -- ds.row:
-align-content: left
+align-content: center
 spacing: $ds.spaces.horizontal-gap.large
 
 -- ds.heading-hero: $highlight-hero-title.title
@@ -130,7 +142,7 @@ spacing: $ds.spaces.horizontal-gap.large
 
 -- ds.column:
 inset: $ds.spaces.inset-square.zero
-align-content: left
+align-content: center
 spacing: $ds.spaces.vertical-gap.extra-small
 
 -- ds.heading-hero: $highlight-hero-title.title

@@ -1,16 +1,631 @@
 -- import: malai.sh/components/hero
 
+-- component feature-item:
+caption title:
+body body:
+
+-- ds.column:
+spacing: $ds.spaces.vertical-gap.small
+
+-- ds.heading-small: $feature-item.title
+
+-- ds.copy-regular: $feature-item.body
+color: $ds.colors.text-strong
+
+-- end: ds.column
+
+-- end: feature-item
+
+-- component usage-mode:
+caption title:
+body body:
+
+-- ds.column:
+spacing: $ds.spaces.vertical-gap.small
+
+-- ds.heading-small: $usage-mode.title
+
+-- ds.copy-regular: $usage-mode.body
+color: $ds.colors.text-strong
+
+-- end: ds.column
+
+-- end: usage-mode
+
+-- component coming-feature:
+caption title:
+body body:
+
+-- ds.column:
+spacing: $ds.spaces.vertical-gap.small
+
+-- ds.heading-small: $coming-feature.title
+
+-- ds.copy-regular: $coming-feature.body
+color: $ds.colors.text-strong
+
+-- end: ds.column
+
+-- end: coming-feature
+
+-- component why-item:
+caption title:
+body body:
+
+-- ds.column:
+spacing: $ds.spaces.vertical-gap.small
+
+-- ds.heading-small: $why-item.title
+
+-- ds.copy-regular: $why-item.body
+color: $ds.colors.text-strong
+
+-- end: ds.column
+
+-- end: why-item
+
+-- component use-case:
+caption title:
+body body:
+
+-- ds.column:
+spacing: $ds.spaces.vertical-gap.small
+
+-- ds.heading-small: $use-case.title
+
+-- ds.copy-regular: $use-case.body
+color: $ds.colors.text-strong
+
+-- end: ds.column
+
+-- end: use-case
+
+-- component support-item:
+caption title:
+body body:
+
+-- ds.column:
+spacing: $ds.spaces.vertical-gap.small
+
+-- ds.heading-small: $support-item.title
+
+-- ds.copy-regular: $support-item.body
+color: $ds.colors.text-strong
+
+-- end: ds.column
+
+-- end: support-item
+
+-- component current-feature:
+caption title:
+body body:
+
+-- ds.column:
+spacing: $ds.spaces.vertical-gap.small
+
+-- ds.heading-small: $current-feature.title
+
+-- ds.copy-regular: $current-feature.body
+color: $ds.colors.text-strong
+
+-- end: ds.column
+
+-- end: current-feature
+
 
 -- ds.site-page: Malai.sh
 inset: $ds.spaces.inset-square.zero
 
 -- ds.column:
 
--- hero.hero: P2P Infrastructure Platform
+-- hero.hero: `malai` - SSH Replacement with P2P Networking
 
-malai provides distributed infrastructure management using peer-to-peer 
+malai provides remote access to your machines and services using peer-to-peer 
 networking. Execute commands on remote machines, organize infrastructure 
-into clusters, and manage distributed systems without central servers.
+into clusters, and manage distributed systems without central servers or 
+certificate authorities.
+
+-- ds.section-row:
+margin: $ds.spaces.vertical-gap.large
+
+-- ftd.desktop:
+
+-- ds.column:
+width.fixed.percent: 70
+align-content: center
+spacing: $ds.spaces.vertical-gap.medium
+
+-- ds.copy-regular: ⭐ 400+ stars on GitHub • Open source
+color: $ds.colors.text-strong
+
+-- ds.row:
+spacing: $ds.spaces.horizontal-gap.small
+align-content: center
+
+-- ds.copy-regular: Discussion:
+color: $ds.colors.text-strong
+
+-- ds.copy-regular: Reddit
+link: https://www.reddit.com/r/rust/comments/1kbg1uz/malai_share_your_dev_server_and_more_over_p2p/
+color: $ds.colors.accent.primary
+
+-- ds.copy-regular: |
+color: $ds.colors.text-strong
+
+-- ds.copy-regular: Hacker News
+link: https://news.ycombinator.com/item?id=43844500
+color: $ds.colors.accent.primary
+
+-- end: ds.row
+
+-- end: ds.column
+
+-- end: ftd.desktop
+
+-- ftd.mobile:
+
+-- ds.column:
+align-content: center
+spacing: $ds.spaces.vertical-gap.medium
+
+-- ds.copy-regular: ⭐ 400+ stars on GitHub • Open source
+color: $ds.colors.text-strong
+
+-- ds.row:
+spacing: $ds.spaces.horizontal-gap.small
+align-content: center
+
+-- ds.copy-regular: Discussion:
+color: $ds.colors.text-strong
+
+-- ds.copy-regular: Reddit
+link: https://www.reddit.com/r/rust/comments/1kbg1uz/malai_share_your_dev_server_and_more_over_p2p/
+color: $ds.colors.accent.primary
+
+-- ds.copy-regular: |
+color: $ds.colors.text-strong
+
+-- ds.copy-regular: HN
+link: https://news.ycombinator.com/item?id=43844500
+color: $ds.colors.accent.primary
+
+-- end: ds.row
+
+-- end: ds.column
+
+-- end: ftd.mobile
+
+-- end: ds.section-row
+
+-- ds.section-row:
+margin: $ds.spaces.vertical-gap.extra-large
+
+-- ftd.desktop:
+
+-- ds.column:
+width.fixed.percent: 70
+align-content: left
+spacing: $ds.spaces.vertical-gap.large
+
+-- ds.heading-medium: Get Started
+
+-- ds.copy-regular: malai is ready to use! Install and start sharing services or managing infrastructure in minutes.
+
+-- ds.code:
+lang: bash
+
+curl -fsSL https://malai.sh/install.sh | sh
+
+-- ds.copy-regular: 
+link: /get-started/
+color: $ds.colors.accent.primary
+
+→ Full installation guide
+
+-- end: ds.column
+
+-- end: ftd.desktop
+
+-- ftd.mobile:
+
+-- ds.column:
+align-content: left
+spacing: $ds.spaces.vertical-gap.large
+
+-- ds.heading-medium: Get Started
+
+-- ds.copy-regular: malai is ready to use! Install and start sharing services or managing infrastructure in minutes.
+
+-- ds.code:
+lang: bash
+
+curl -fsSL https://malai.sh/install.sh | sh
+
+-- ds.copy-regular: 
+link: /get-started/
+color: $ds.colors.accent.primary
+
+→ Full installation guide
+
+-- end: ds.column
+
+-- end: ftd.mobile
+
+-- end: ds.section-row
+
+-- ds.section-row:
+margin: $ds.spaces.vertical-gap.extra-large
+
+-- ftd.desktop:
+
+-- ds.column:
+width.fixed.percent: 70
+align-content: left
+spacing: $ds.spaces.vertical-gap.large
+
+-- ds.heading-medium: Key Features
+
+-- feature-item: 🔐 P2P Security
+
+Each machine has unique cryptographic identity. Only cluster members can connect.
+Direct verification without passwords or certificate authorities.
+
+-- feature-item: 📡 Remote Command Execution
+
+Execute commands on any machine in your cluster via P2P networking.
+`malai web01.company ps aux` runs directly on the target machine.
+
+-- feature-item: 🌐 Multi-Cluster Support
+
+Organize different environments into separate clusters.
+Personal, staging, production - each with their own access control.
+
+-- end: ds.column
+
+-- end: ftd.desktop
+
+-- ftd.mobile:
+
+-- ds.column:
+align-content: left
+spacing: $ds.spaces.vertical-gap.large
+
+-- ds.heading-medium: Key Features
+
+-- feature-item: 🔐 P2P Security
+
+Each machine has unique cryptographic identity. Only cluster members can connect.
+Direct verification without passwords or certificate authorities.
+
+-- feature-item: 📡 Remote Command Execution
+
+Execute commands on any machine in your cluster via P2P networking.
+`malai web01.company ps aux` runs directly on the target machine.
+
+-- feature-item: 🌐 Multi-Cluster Support
+
+Organize different environments into separate clusters.
+Personal, staging, production - each with their own access control.
+
+-- end: ds.column
+
+-- end: ftd.mobile
+
+-- end: ds.section-row
+
+-- ds.section-row:
+margin: $ds.spaces.vertical-gap.extra-large
+
+-- ftd.desktop:
+
+-- ds.column:
+width.fixed.percent: 70
+align-content: left
+spacing: $ds.spaces.vertical-gap.large
+
+-- ds.heading-medium: Why malai?
+
+-- why-item: No More VPNs or Jump Boxes
+
+Direct machine access without complex network infrastructure. Skip the VPN setup, bastion hosts, and network configuration.
+
+-- why-item: End SSH Key Management Hell
+
+No more distributing SSH keys, managing authorized_keys files, or dealing with key rotation across dozens of machines.
+
+-- why-item: Infrastructure That Just Works
+
+P2P networking eliminates single points of failure. Your infrastructure keeps working even when central servers go down.
+
+-- end: ds.column
+
+-- end: ftd.desktop
+
+-- ftd.mobile:
+
+-- ds.column:
+align-content: left
+spacing: $ds.spaces.vertical-gap.large
+
+-- ds.heading-medium: Why malai?
+
+-- why-item: No More VPNs or Jump Boxes
+
+Direct machine access without complex network infrastructure. Skip the VPN setup, bastion hosts, and network configuration.
+
+-- why-item: End SSH Key Management Hell
+
+No more distributing SSH keys, managing authorized_keys files, or dealing with key rotation across dozens of machines.
+
+-- why-item: Infrastructure That Just Works
+
+P2P networking eliminates single points of failure. Your infrastructure keeps working even when central servers go down.
+
+-- end: ds.column
+
+-- end: ftd.mobile
+
+-- end: ds.section-row
+
+-- ds.section-row:
+margin: $ds.spaces.vertical-gap.extra-large
+
+-- ftd.desktop:
+
+-- ds.column:
+width.fixed.percent: 70
+align-content: left
+spacing: $ds.spaces.vertical-gap.large
+
+-- ds.heading-medium: Use Cases
+
+-- use-case: Personal Infrastructure
+
+Manage your homelab, personal servers, and development environments without complex networking setup.
+
+-- use-case: Team Server Access
+
+Replace VPNs and jump boxes for team access to staging, production, and development servers.
+
+-- use-case: Remote Development
+
+Direct access to remote development environments, databases, and services from your local machine.
+
+-- end: ds.column
+
+-- end: ftd.desktop
+
+-- ftd.mobile:
+
+-- ds.column:
+align-content: left
+spacing: $ds.spaces.vertical-gap.large
+
+-- ds.heading-medium: Use Cases
+
+-- use-case: Personal Infrastructure
+
+Manage your homelab, personal servers, and development environments without complex networking setup.
+
+-- use-case: Team Server Access
+
+Replace VPNs and jump boxes for team access to staging, production, and development servers.
+
+-- use-case: Remote Development
+
+Direct access to remote development environments, databases, and services from your local machine.
+
+-- end: ds.column
+
+-- end: ftd.mobile
+
+-- end: ds.section-row
+
+-- ds.section-row:
+margin: $ds.spaces.vertical-gap.extra-large
+
+-- ftd.desktop:
+
+-- ds.column:
+width.fixed.percent: 70
+align-content: left
+spacing: $ds.spaces.vertical-gap.large
+
+-- ds.heading-medium: Available Now
+
+-- current-feature: 🌐 Service Sharing
+
+Share HTTP services, TCP ports, or folders instantly. `malai http 8080 --public` makes your local server accessible worldwide.
+
+-- current-feature: 🔗 Proxy & Tunneling
+
+Advanced proxy capabilities with `malai http-proxy` and `malai tcp-bridge` for complex networking scenarios.
+
+-- current-feature: ⚡ Ready to Use
+
+No configuration needed. Just install and start sharing or managing infrastructure immediately.
+
+-- end: ds.column
+
+-- end: ftd.desktop
+
+-- ftd.mobile:
+
+-- ds.column:
+align-content: left
+spacing: $ds.spaces.vertical-gap.large
+
+-- ds.heading-medium: Available Now
+
+-- current-feature: 🌐 Service Sharing
+
+Share HTTP services, TCP ports, or folders instantly. `malai http 8080 --public` makes your local server accessible worldwide.
+
+-- current-feature: 🔗 Proxy & Tunneling
+
+Advanced proxy capabilities with `malai http-proxy` and `malai tcp-bridge` for complex networking scenarios.
+
+-- current-feature: ⚡ Ready to Use
+
+No configuration needed. Just install and start sharing or managing infrastructure immediately.
+
+-- end: ds.column
+
+-- end: ftd.mobile
+
+-- end: ds.section-row
+
+-- ds.section-row:
+margin: $ds.spaces.vertical-gap.extra-large
+
+-- ftd.desktop:
+
+-- ds.column:
+width.fixed.percent: 70
+align-content: left
+spacing: $ds.spaces.vertical-gap.large
+
+-- ds.heading-medium: Coming Soon
+
+-- coming-feature: 🔑 Invite Keys & Key Rotation
+
+Safe cluster joining without exposing root keys. Plus automated key rotation and enhanced permissions.
+
+-- coming-feature: 🌐 Service Mesh 
+
+HTTP and TCP forwarding with identity injection. Access remote services via localhost transparently.
+
+-- coming-feature: 🌐 Always-On HTTP Proxy
+
+Control all devices' internet routing via CLI. P2P encrypted proxy tunnels for privacy chains.
+
+-- coming-feature: 🔄 On-Demand Process Management
+
+Dynamic service startup when first request arrives. Resource-efficient Django, nginx, etc. that run only when needed.
+
+-- end: ds.column
+
+-- end: ftd.desktop
+
+-- ftd.mobile:
+
+-- ds.column:
+align-content: left
+spacing: $ds.spaces.vertical-gap.large
+
+-- ds.heading-medium: Coming Soon
+
+-- coming-feature: 🔑 Invite Keys & Key Rotation
+
+Safe cluster joining without exposing root keys. Plus automated key rotation and enhanced permissions.
+
+-- coming-feature: 🌐 Service Mesh 
+
+HTTP and TCP forwarding with identity injection. Access remote services via localhost transparently.
+
+-- coming-feature: 🌐 Always-On HTTP Proxy
+
+Control all devices' internet routing via CLI. P2P encrypted proxy tunnels for privacy chains.
+
+-- coming-feature: 🔄 On-Demand Process Management
+
+Dynamic service startup when first request arrives. Resource-efficient Django, nginx, etc. that run only when needed.
+
+-- end: ds.column
+
+-- end: ftd.mobile
+
+-- end: ds.section-row
+
+-- ds.section-row:
+margin: $ds.spaces.vertical-gap.extra-large
+
+-- ftd.desktop:
+
+-- ds.column:
+width.fixed.percent: 70
+align-content: left
+spacing: $ds.spaces.vertical-gap.large
+
+-- ds.heading-medium: Community & Support
+
+-- support-item: 🐛 Report Issues & Request Features
+
+Found a bug or have an idea? Open an issue on GitHub to help improve malai.
+
+-- ds.copy-regular: 
+link: https://github.com/fastn-stack/kulfi/issues
+color: $ds.colors.accent.primary
+
+→ GitHub Issues
+
+-- support-item: 💬 Get Help & Discuss
+
+Join our Discord community for support, discussions, and to connect with other users.
+
+-- ds.copy-regular: 
+link: https://discord.gg/nK4ZP8HpV7
+color: $ds.colors.accent.primary
+
+→ Join Discord
+
+-- support-item: 💝 Support Development
+
+Help fund malai's development through OpenCollective. Every contribution helps!
+
+-- ds.copy-regular: 
+link: https://opencollective.com/fastn/
+color: $ds.colors.accent.primary
+
+→ Donate on OpenCollective
+
+-- end: ds.column
+
+-- end: ftd.desktop
+
+-- ftd.mobile:
+
+-- ds.column:
+align-content: left
+spacing: $ds.spaces.vertical-gap.large
+
+-- ds.heading-medium: Community & Support
+
+-- support-item: 🐛 Report Issues & Request Features
+
+Found a bug or have an idea? Open an issue on GitHub to help improve malai.
+
+-- ds.copy-regular: 
+link: https://github.com/fastn-stack/kulfi/issues
+color: $ds.colors.accent.primary
+
+→ GitHub Issues
+
+-- support-item: 💬 Get Help & Discuss
+
+Join our Discord community for support, discussions, and to connect with other users.
+
+-- ds.copy-regular: 
+link: https://discord.gg/nK4ZP8HpV7
+color: $ds.colors.accent.primary
+
+→ Join Discord
+
+-- support-item: 💝 Support Development
+
+Help fund malai's development through OpenCollective. Every contribution helps!
+
+-- ds.copy-regular: 
+link: https://opencollective.com/fastn/
+color: $ds.colors.accent.primary
+
+→ Donate on OpenCollective
+
+-- end: ds.column
+
+-- end: ftd.mobile
+
+-- end: ds.section-row
 
 -- end: ds.column
 

@@ -60,9 +60,9 @@ mysql -h localhost:3306  # Direct database access via forwarding
 
 ## Planned Features (Future Releases)
 
-### 🔐 **Secure Cluster Management**
+### 🔑 **Invite Keys & Key Rotation**
 - **Invite key system**: Safe cluster joining without exposing root keys
-- **Key rotation**: Cluster root key rotation for security incidents
+- **Key rotation**: Automated cluster root key rotation for security incidents
 - **Remote configuration**: Download/edit/upload cluster configs
 - **Command aliases**: `malai web` shortcuts for common operations
 
