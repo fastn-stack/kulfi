@@ -120,9 +120,67 @@ pub async fn check_all_configs() -> Result<()> {
     Ok(())
 }
 
+/// Check configuration for specific cluster
+pub async fn check_cluster_config(cluster_name: &str) -> Result<()> {
+    println!("🔍 Checking configuration for cluster: {}", cluster_name);
+    
+    let malai_home = crate::core_utils::get_malai_home();
+    let cluster_dir = malai_home.join("clusters").join(cluster_name);
+    
+    if !cluster_dir.exists() {
+        return Err(eyre::eyre!("Cluster '{}' not found in {}", cluster_name, cluster_dir.display()));
+    }
+    
+    // Check cluster config
+    let cluster_config = cluster_dir.join("cluster.toml");
+    if cluster_config.exists() {
+        validate_config_file(&cluster_config.to_string_lossy())?;
+        println!("✅ {}/cluster.toml valid", cluster_name);
+    }
+    
+    // Check machine config if exists
+    let machine_config = cluster_dir.join("machine.toml");
+    if machine_config.exists() {
+        validate_config_file(&machine_config.to_string_lossy())?;
+        println!("✅ {}/machine.toml valid", cluster_name);
+    }
+    
+    println!("✅ Cluster '{}' configuration valid", cluster_name);
+    Ok(())
+}
+
+/// Trigger selective config reload on running daemon
+pub async fn reload_daemon_config_selective(cluster_name: String) -> Result<()> {
+    println!("🔄 Triggering selective config reload for cluster: {}", cluster_name);
+    
+    let malai_home = crate::core_utils::get_malai_home();
+    let socket_path = malai_home.join("malai.socket");
+    
+    if !socket_path.exists() {
+        println!("❌ Daemon not running (no Unix socket found)");
+        println!("💡 Start daemon with: malai daemon");
+        return Ok(());
+    }
+    
+    // TODO: Send selective reload signal to daemon via Unix socket
+    println!("⚠️ Selective config reload not yet implemented");
+    println!("💡 For now, restart daemon to reload config");
+    
+    Ok(())
+}
+
 /// Trigger config reload on running daemon
 pub async fn reload_daemon_config() -> Result<()> {
     println!("🔄 Triggering config reload on running daemon...");
+    
+    let malai_home = crate::core_utils::get_malai_home();
+    let socket_path = malai_home.join("malai.socket");
+    
+    if !socket_path.exists() {
+        println!("❌ Daemon not running (no Unix socket found)");
+        println!("💡 Start daemon with: malai daemon");
+        return Ok(());
+    }
     
     // TODO: Send reload signal to daemon via Unix socket
     println!("⚠️ Config reload not yet implemented");
