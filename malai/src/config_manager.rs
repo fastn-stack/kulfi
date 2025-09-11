@@ -165,11 +165,10 @@ pub async fn reload_daemon_config_selective(cluster_name: String) -> Result<()> 
             if e.to_string().contains("no Unix socket found") {
                 println!("❌ Daemon not running (no Unix socket found)");
                 println!("💡 Start daemon with: malai daemon");
-                Ok(())
             } else {
                 println!("❌ Daemon communication failed: {}", e);
-                Ok(())
             }
+            Err(e)  // FAIL LOUDLY - don't hide the error
         }
     }
 }
@@ -190,11 +189,10 @@ pub async fn reload_daemon_config() -> Result<()> {
             if e.to_string().contains("no Unix socket found") {
                 println!("❌ Daemon not running (no Unix socket found)");
                 println!("💡 Start daemon with: malai daemon");
-                Ok(())
             } else {
                 println!("❌ Daemon communication failed: {}", e);
-                Ok(())
             }
+            Err(e)  // FAIL LOUDLY - don't hide the error
         }
     }
 }

@@ -102,10 +102,18 @@ use_keyring = true
     
     // Trigger selective rescan for the new cluster
     println!("🔄 Triggering daemon rescan for new cluster...");
-    if let Err(e) = crate::config_manager::reload_daemon_config_selective(cluster_name).await {
-        println!("⚠️  Daemon rescan failed: {}", e);
-        println!("💡 Run 'malai rescan {}' manually or restart daemon", 
-                 cluster_dir.file_name().unwrap().to_string_lossy());
+    match crate::config_manager::reload_daemon_config_selective(cluster_name).await {
+        Ok(_) => {
+            println!("✅ Daemon automatically updated with new cluster");
+        }
+        Err(e) if e.to_string().contains("no Unix socket found") => {
+            // This is expected - daemon not running during init is normal
+            println!("💡 Daemon not running - start with: malai daemon");
+        }
+        Err(e) => {
+            // Real daemon communication failure - this should fail loudly
+            return Err(eyre::eyre!("Failed to update daemon with new cluster: {}", e));
+        }
     }
     
     Ok(())

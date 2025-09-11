@@ -2,6 +2,22 @@
 
 malai provides a secure, P2P infrastructure platform for managing clusters of machines and services over the fastn network.
 
+## Error Handling Philosophy
+
+**STRICT ERROR HANDLING**: malai fails fast and fails loudly. Errors are never silently ignored or "gracefully handled" unless explicitly designed for user experience.
+
+### Explicit Graceful Handling (The ONLY Exception)
+- **Direct CLI Mode**: `malai web01.company ps aux` works without daemon running - this is intentional UX design
+
+### Everywhere Else: STRICT FAILURE
+- **Tests**: Any error must cause test failure immediately
+- **Daemon Communication**: Socket failures must be reported as errors, not "gracefully handled"  
+- **Configuration**: Invalid configs must fail loudly, not be skipped
+- **P2P Communication**: Connection failures must be reported as errors
+- **File Operations**: Missing files, permission errors must fail immediately
+
+**Rationale**: "Graceful handling" hides real issues, makes debugging impossible, and reduces development velocity. We only handle errors gracefully where it's an explicit user experience design decision.
+
 ## Overview
 
 malai enables:
