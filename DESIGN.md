@@ -32,10 +32,11 @@ When joining a cluster, you need to contact the cluster manager. Two methods:
    malai machine init abc123def456ghi789jkl012mno345pqr678stu901vwx234 ft
    ```
 
-2. **Domain Name**: Use domain with DNS TXT record (if configured)
+2. **Domain Name**: Use domain with DNS TXT record (planned feature)
    ```bash
    malai machine init fifthtry.com ft
    # DNS lookup: TXT record for fifthtry.com contains cluster manager ID52
+   # Format: fifthtry.com TXT "malai=abc123def456ghi789..."
    ```
 
 ### **Two-Level Alias System:**
@@ -58,13 +59,48 @@ Edit `$MALAI_HOME/aliases.toml` for ultra-short machine access:
 2. **Check cluster.machine**: `web01.ft` → resolve cluster and machine
 3. **Direct ID52**: `abc123...xyz789` → direct machine contact
 
-### **DNS Integration (Optional):**
-For domains with DNS access:
+### **DNS Integration (Planned Feature):**
+
+#### **DNS TXT Record Format:**
 ```bash
-# Set TXT record: fifthtry.com TXT "malai-ssh=abc123def456..."
-# Then machines can join via domain:
-malai machine init fifthtry.com ft  # Resolves to cluster manager ID52
+# DNS record format:
+fifthtry.com TXT "malai=abc123def456ghi789..."
+
+# Multiple records supported:
+company.example.com TXT "malai=cluster1-id52..."  
+company.example.com TXT "malai-staging=cluster2-id52..."
 ```
+
+#### **DNS Lookup Process:**
+1. **Parse domain**: `malai machine init company.example.com corp`
+2. **DNS TXT query**: Look up TXT records for `company.example.com`
+3. **Find malai record**: Extract ID52 from `malai=` prefix
+4. **Validate ID52**: Ensure valid fastn_id52 format
+5. **Proceed with ID52**: Use resolved ID52 for normal machine init flow
+
+#### **Implementation Requirements:**
+```rust
+// Dependencies needed:
+trust-dns-resolver = "0.23"  // DNS TXT lookup
+
+// Functions to implement:
+async fn resolve_cluster_manager_from_domain(domain: &str) -> Result<String>
+fn is_domain_name(cluster_identifier: &str) -> bool
+async fn validate_cluster_id52(id52: &str) -> Result<()>
+```
+
+#### **DNS Management Commands (Future):**
+```bash
+# Help cluster managers set up DNS:
+malai cluster dns-record company.example.com    # Show required TXT record
+malai cluster verify-dns company.example.com    # Test DNS resolution
+```
+
+#### **Development Estimate: 4-7 hours**
+- DNS lookup implementation: 2-3 hours
+- Integration with machine init: 1-2 hours  
+- Testing and error handling: 1-2 hours
+- Documentation updates: 30 minutes
 
 ## System Architecture
 
@@ -362,6 +398,27 @@ malai config edit company
 - **MALAI_HOME-based**: CLI reads cluster configs and identities directly from filesystem
 - **Machine auto-selection**: Automatically picks local machine identity for target cluster
 - **Self-command optimization**: Local execution when targeting same identity
+
+**Implementation Details:**
+```rust
+// Machine auto-selection logic:
+1. Parse: malai web01.company ps aux → machine="web01", cluster="company"
+2. Find cluster dir: $MALAI_HOME/clusters/company/
+3. Auto-select identity:
+   - If cluster.private-key exists → use cluster manager identity
+   - If machine.private-key exists → use machine identity  
+   - If both exist → configuration error (crash)
+   - If neither → no identity error
+4. Read config: cluster.toml OR machine.toml (whichever exists)
+5. Find target: Look up web01 machine ID52 in config
+6. Execute: Self-command (local) OR P2P call (remote)
+```
+
+**Resilience Benefits:**
+- Works without daemon dependency (survives daemon crashes)
+- No socket configuration needed
+- No connection pooling complexity
+- Simple troubleshooting (direct file/network operations)
 
 #### **Daemon Mode (Post-MVP - Performance Optimization):**
 - **Optional daemon**: `malai daemon` provides connection pooling for better performance  
