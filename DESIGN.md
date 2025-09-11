@@ -945,6 +945,49 @@ The cluster manager automatically distributes configuration updates:
 3. **Auto-Overwrite**: Machines automatically overwrite their local config file
 4. **Role Detection**: Each machine's agent reads config to determine its role
 
+### Daemon Configuration Rescanning
+
+#### **Selective Rescan Philosophy**
+The daemon rescans configurations selectively to avoid disrupting stable clusters:
+
+- **Targeted rescans**: Only rescan specific clusters, not all clusters
+- **Resilient operation**: If one cluster config is broken, other clusters continue operating
+- **Minimal disruption**: Only reload listeners for clusters with actual changes
+
+#### **Automatic Rescan Triggers**
+1. **Init Commands**: `malai cluster init` and `malai machine init` trigger selective rescan of only the new/modified cluster
+2. **Manual Rescan**: `malai rescan [cluster-name]` allows selective or full rescan
+3. **File System Watching**: Daemon watches for config file changes (future enhancement)
+
+#### **Rescan Behavior**
+```bash
+# Full rescan (scans all clusters, reports all issues)
+malai rescan
+
+# Selective rescan (only rescan specific cluster)  
+malai rescan company
+malai rescan personal
+
+# Init commands trigger automatic selective rescan
+malai cluster init newcluster  # Only rescans newcluster, not other clusters
+malai machine init abc123...xyz789 mycompany  # Only rescans mycompany cluster
+```
+
+#### **Resilient Rescan Implementation**
+1. **Continue on Failure**: If cluster A config is broken, clusters B and C still load successfully
+2. **Detailed Reporting**: Show exactly which clusters succeeded/failed and why
+3. **Graceful Listener Management**: 
+   - Stop old listeners before starting new ones
+   - Only restart listeners for changed clusters
+   - Preserve working listeners for unchanged clusters
+4. **Unix Socket Communication**: CLI commands communicate with daemon via Unix socket at `$MALAI_HOME/malai.socket`
+
+#### **Error Recovery**
+- Broken configs don't prevent daemon startup
+- Failed clusters are retried on next rescan
+- Clear error messages help users fix configuration issues
+- Working clusters remain unaffected by broken ones
+
 ### Machine Role Detection
 Each machine's agent automatically detects its role by:
 
@@ -2368,6 +2411,12 @@ This fixes connection timeouts and simplifies service lifecycle.
 2. **Multi-cluster daemon startup**: One daemon handles all cluster identities simultaneously ✅  
 3. **Basic ACL system**: Group expansion and permission validation (simple implementation) ✅
 4. **Direct CLI mode**: Commands work without daemon dependency ✅
+
+### **❌ CRITICAL ISSUES (Blocking Production Use)**
+1. **Daemon Auto-Detection**: Init commands don't trigger daemon rescan - daemon must be restarted manually
+2. **Unix Socket Communication**: CLI can't communicate with running daemon for rescan operations
+3. **Selective Rescan**: Only full rescan supported, no per-cluster rescan capability
+4. **Resilient Config Loading**: One broken cluster config prevents entire daemon startup
 
 ### **❌ NOT IMPLEMENTED (Moved to Post-MVP for Security)**
 1. **DNS TXT support**: Rejected due to security concerns (see Rejected Features section)

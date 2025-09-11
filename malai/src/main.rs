@@ -234,15 +234,32 @@ allow_from = "*"
             }
             return Ok(());
         }
-        Some(Command::Rescan { check }) => {
+        Some(Command::Rescan { check, cluster_name }) => {
             if check {
-                println!("🔍 Checking configuration validity...");
-                malai::check_all_configs().await?;
+                match cluster_name {
+                    Some(cluster) => {
+                        println!("🔍 Checking configuration validity for cluster: {}", cluster);
+                        malai::check_cluster_config(&cluster).await?;
+                    }
+                    None => {
+                        println!("🔍 Checking configuration validity...");
+                        malai::check_all_configs().await?;
+                    }
+                }
                 return Ok(());
             } else {
-                println!("🔄 Rescanning and applying configuration changes...");
-                malai::check_all_configs().await?;
-                malai::reload_daemon_config().await?;
+                match cluster_name {
+                    Some(cluster) => {
+                        println!("🔄 Rescanning cluster: {}", cluster);
+                        malai::check_cluster_config(&cluster).await?;
+                        malai::reload_daemon_config_selective(cluster).await?;
+                    }
+                    None => {
+                        println!("🔄 Rescanning and applying configuration changes...");
+                        malai::check_all_configs().await?;
+                        malai::reload_daemon_config().await?;
+                    }
+                }
                 return Ok(());
             }
         }
@@ -543,6 +560,8 @@ pub enum Command {
     Rescan {
         #[arg(long, help = "Check config validity without applying changes")]
         check: bool,
+        #[arg(help = "Rescan only specific cluster (optional)")]
+        cluster_name: Option<String>,
     },
     #[clap(about = "Service management commands")]
     Service {

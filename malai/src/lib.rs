@@ -61,7 +61,7 @@ pub use malai_server::{run_malai_server, send_config, send_command};
 pub use daemon::start_real_daemon;
 pub use cli::execute_direct_command;
 pub use machine_init::init_machine_for_cluster;
-pub use config_manager::{validate_config_file, check_all_configs, reload_daemon_config, scan_cluster_roles, ClusterRole};
+pub use config_manager::{validate_config_file, check_all_configs, check_cluster_config, reload_daemon_config, reload_daemon_config_selective, scan_cluster_roles, ClusterRole};
 pub use tcp_bridge::tcp_bridge;
 
 #[cfg(feature = "ui")]
