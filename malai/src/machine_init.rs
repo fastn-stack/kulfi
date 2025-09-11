@@ -7,7 +7,7 @@ pub async fn init_machine_for_cluster(cluster_manager: String, cluster_alias: St
     println!("🏗️  Initializing machine for cluster...");
     println!("🎯 Cluster: {} (alias: {})", cluster_manager, cluster_alias);
     
-    // Use cluster manager ID52 directly (DNS removed for security)
+    // Use cluster manager ID52 directly (security-first approach)
     if cluster_manager.contains('.') {
         return Err(eyre::eyre!("Domain names not supported for security reasons. Use cluster manager ID52 directly."));
     }

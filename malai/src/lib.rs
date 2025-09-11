@@ -35,7 +35,7 @@ mod run;
 mod config_manager;  // Config validation and reload utilities
 mod malai_server;  // Real malai server - clean and readable
 mod daemon;  // Real malai daemon - MVP implementation
-mod machine_init;  // Machine initialization with DNS support
+mod machine_init;  // Machine initialization with security-first design
 mod simple_server;  // Ultra-simple server for testing
 mod cli;  // Direct CLI execution mode
 // mod core;  // Old SSH module with compilation issues
