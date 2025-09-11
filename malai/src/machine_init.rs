@@ -63,6 +63,13 @@ domain = "{}"
     println!("   allow_from = \"*\"");
     println!("2. Start daemon to accept commands: malai daemon");
     
+    // Trigger selective rescan for this cluster if daemon running
+    println!("🔄 Checking for running daemon to rescan cluster...");
+    if let Err(e) = crate::config_manager::reload_daemon_config_selective(cluster_alias.clone()).await {
+        println!("⚠️  Daemon rescan failed: {}", e);
+        println!("💡 Run 'malai rescan {}' manually after admin adds this machine", cluster_alias);
+    }
+    
     Ok(())
 }
 
