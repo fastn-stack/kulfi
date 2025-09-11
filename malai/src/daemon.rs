@@ -48,13 +48,8 @@ pub async fn start_real_daemon(foreground: bool) -> Result<()> {
     
     println!("✅ Found {} cluster identities", cluster_roles.len());
     
-    // Start Unix socket listener for daemon-CLI communication
-    let malai_home_clone = malai_home.clone();
-    fastn_p2p::spawn(async move {
-        if let Err(e) = crate::daemon_socket::start_daemon_socket_listener(malai_home_clone).await {
-            println!("❌ Socket listener failed: {}", e);
-        }
-    });
+    // Start Unix socket listener for daemon-CLI communication (wait for it to be ready)
+    let _socket_handle = crate::daemon_socket::start_daemon_socket_listener(malai_home.clone()).await?;
     
     // Start one P2P listener per identity
     for (cluster_alias, identity, role) in cluster_roles {
