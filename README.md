@@ -60,18 +60,18 @@ mysql -h localhost:3306  # Direct database access via forwarding
 
 ## Planned Features (Future Releases)
 
-### 🔐 **Secure Cluster Management** (Release 2)
+### 🔐 **Secure Cluster Management**
 - **Invite key system**: Safe cluster joining without exposing root keys
 - **Key rotation**: Cluster root key rotation for security incidents
 - **Remote configuration**: Download/edit/upload cluster configs
 - **Command aliases**: `malai web` shortcuts for common operations
 
-### 📡 **Service Mesh** (Release 3)
+### 📡 **Service Mesh**
 - **HTTP/TCP forwarding**: Access remote services transparently
 - **Always-on HTTP proxy**: Dynamic proxy routing for all devices
 - **Identity injection**: Services receive client identity headers
 
-### 🔄 **On-Demand Process Management** (Release 4)
+### 🔄 **On-Demand Process Management**
 - **Dynamic startup**: Start services when first request arrives
 - **Idle shutdown**: Stop services when no longer needed  
 - **Resource efficiency**: Run Django, nginx, etc. only when actively used
