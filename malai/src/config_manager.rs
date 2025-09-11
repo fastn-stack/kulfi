@@ -154,19 +154,24 @@ pub async fn reload_daemon_config_selective(cluster_name: String) -> Result<()> 
     println!("🔄 Triggering selective config reload for cluster: {}", cluster_name);
     
     let malai_home = crate::core_utils::get_malai_home();
-    let socket_path = malai_home.join("malai.socket");
     
-    if !socket_path.exists() {
-        println!("❌ Daemon not running (no Unix socket found)");
-        println!("💡 Start daemon with: malai daemon");
-        return Ok(());
+    // Send rescan command to daemon via Unix socket
+    match crate::daemon_socket::send_daemon_rescan_command(malai_home, Some(cluster_name)).await {
+        Ok(_) => {
+            println!("✅ Daemon rescan request completed");
+            Ok(())
+        }
+        Err(e) => {
+            if e.to_string().contains("no Unix socket found") {
+                println!("❌ Daemon not running (no Unix socket found)");
+                println!("💡 Start daemon with: malai daemon");
+                Ok(())
+            } else {
+                println!("❌ Daemon communication failed: {}", e);
+                Ok(())
+            }
+        }
     }
-    
-    // TODO: Send selective reload signal to daemon via Unix socket
-    println!("⚠️ Selective config reload not yet implemented");
-    println!("💡 For now, restart daemon to reload config");
-    
-    Ok(())
 }
 
 /// Trigger config reload on running daemon
@@ -174,19 +179,24 @@ pub async fn reload_daemon_config() -> Result<()> {
     println!("🔄 Triggering config reload on running daemon...");
     
     let malai_home = crate::core_utils::get_malai_home();
-    let socket_path = malai_home.join("malai.socket");
     
-    if !socket_path.exists() {
-        println!("❌ Daemon not running (no Unix socket found)");
-        println!("💡 Start daemon with: malai daemon");
-        return Ok(());
+    // Send full rescan command to daemon via Unix socket
+    match crate::daemon_socket::send_daemon_rescan_command(malai_home, None).await {
+        Ok(_) => {
+            println!("✅ Daemon rescan request completed");
+            Ok(())
+        }
+        Err(e) => {
+            if e.to_string().contains("no Unix socket found") {
+                println!("❌ Daemon not running (no Unix socket found)");
+                println!("💡 Start daemon with: malai daemon");
+                Ok(())
+            } else {
+                println!("❌ Daemon communication failed: {}", e);
+                Ok(())
+            }
+        }
     }
-    
-    // TODO: Send reload signal to daemon via Unix socket
-    println!("⚠️ Config reload not yet implemented");
-    println!("💡 For now, restart daemon to reload config");
-    
-    Ok(())
 }
 /// Role detection for cluster directory
 #[derive(Debug, Clone, PartialEq)]

@@ -41,6 +41,7 @@ mod cli;  // Direct CLI execution mode
 // mod core;  // Old SSH module with compilation issues
 mod core_utils;  // Core malai utilities
 mod tcp_bridge;
+mod daemon_socket;  // Unix socket communication for daemon-CLI
 
 pub use browse::browse;
 pub use expose_http::expose_http;
