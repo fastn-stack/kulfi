@@ -29,7 +29,7 @@ When joining a cluster, you use invite keys instead of exposing cluster manager 
 
 1. **Invite Key**: Use disposable invite key (recommended)
    ```bash
-   malai machine init invite789xyz123def456 company
+   malai machine init 789xyz123def456ghi company
    # Invite key resolves to actual cluster manager internally
    ```
 
@@ -109,13 +109,13 @@ Edit `$MALAI_HOME/aliases.toml` for ultra-short machine access:
 ```bash
 # Cluster manager creates invite keys:
 malai cluster create-invite company --alias "conference-2025"
-# Outputs: invite789xyz123def456 (safe to share publicly)
+# Outputs: 789xyz123def456ghi (safe to share publicly)
 
 # Share invite key publicly:
-"Join our cluster: malai machine init invite789xyz123def456 company"
+"Join our cluster: malai machine init 789xyz123def456ghi company"
 
 # Revoke invite key when needed:
-malai cluster revoke-invite invite789xyz123def456
+malai cluster revoke-invite 789xyz123def456ghi
 
 # List active invites:
 malai cluster list-invites
@@ -1165,12 +1165,13 @@ $MALAI_HOME/
 ├── clusters/
 │   ├── company/                     # Cluster 1 - This device is cluster manager
 │   │   ├── cluster.toml            # → Cluster manager role (master config)
-│   │   ├── cluster.private-key     # → Cluster root private key (hidden)
-│   │   ├── cluster.public-key      # → Cluster root public key (for reference)
-│   │   ├── invites.toml            # → Active invite keys and aliases
+│   │   ├── cluster.private-key     # → Cluster root private key (or keyring if available)
+│   │   ├── invites/                # → Invite keys for secure cluster joining
+│   │   │   ├── 789xyz123def.private-key # → Individual invite key  
+│   │   │   └── 456abc789ghi.private-key # → Another invite key
+│   │   ├── invites.toml            # → Invite key metadata and aliases
 │   │   ├── old-keys/               # → Rotated keys during transition
-│   │   │   ├── cluster.private-key.1 # → Previous root key (for migration)
-│   │   │   └── cluster.public-key.1  # → Previous root public key
+│   │   │   └── cluster.private-key.1   # → Previous root key (migration)
 │   │   └── state.json              # → Config distribution tracking
 │   ├── personal/                    # Cluster 2 - This device is machine only
 │   │   ├── machine.toml            # → Machine role (received from CM)
@@ -1213,13 +1214,18 @@ When cluster manager acts as machine (common single-cluster scenario):
 
 ### **File Name Conventions:**
 - `cluster.toml`: Master cluster config (cluster manager role)
-- `cluster.private-key`: Cluster root private key (hidden, not shared)
-- `cluster.public-key`: Cluster root public key (for reference)
-- `invites.toml`: Active invite keys with aliases and expiration
+- `cluster.private-key`: Cluster root private key (filesystem fallback - prefer keyring)
+- `invites/`: Directory containing individual invite private keys
+- `invites.toml`: Invite key metadata, aliases, and expiration tracking
 - `machine.toml`: Machine-specific config (machine role, received via P2P)
-- `machine.private-key`: Private key for machine role
+- `machine.private-key`: Private key for machine role (filesystem fallback)
 - `old-keys/`: Directory for rotated keys during transition
 - `state.json`: Config distribution tracking (cluster manager only)
+
+**Key Storage Preference:**
+1. **Keyring (preferred)**: Store private keys in system keyring when available
+2. **Filesystem (fallback)**: Store in .private-key files when keyring unavailable
+3. **No .public-key files needed**: Public keys derived from private keys
 
 **invites.toml Structure:**
 ```toml
@@ -2380,6 +2386,51 @@ This fixes connection timeouts and simplifies service lifecycle.
 #### **Release 3: Service Mesh**
 1. **TCP forwarding**: `mysql -h localhost:3306` → remote MySQL via P2P
 2. **HTTP forwarding**: `curl admin.company.localhost` → remote admin interface
+
+#### **Release 4: On-Demand Process Management**
+1. **Dynamic service startup**: Start services when first request arrives
+2. **Idle shutdown**: Stop services when no longer needed
+3. **Process lifecycle**: Full process management (start, stop, restart, monitor)
+4. **Resource optimization**: Run services only when actively used
+
+### **On-Demand Process Management Design:**
+
+Since malai controls all incoming P2P connections, it can manage service processes dynamically:
+
+#### **Dynamic Service Lifecycle:**
+```bash
+# Service configuration in cluster.toml:
+[machine.web01.http.admin]
+port = 8080
+command = "python manage.py runserver 8080"
+idle_timeout = "300s"    # Stop after 5 minutes of inactivity
+startup_time = "10s"     # Expected startup time
+
+# malai behavior:
+1. HTTP request arrives for admin.web01.company
+2. Check if admin service process running
+3. If not running: Start "python manage.py runserver 8080"  
+4. Wait for service to be ready (up to 10s)
+5. Forward request to localhost:8080
+6. Track activity - stop after 5 minutes idle
+```
+
+#### **Process Management Features:**
+- **Lazy startup**: Services start only when first request arrives
+- **Health monitoring**: Check if processes are responsive  
+- **Graceful shutdown**: Stop services cleanly when idle
+- **Resource efficiency**: No idle processes consuming resources
+- **Auto-restart**: Restart crashed services on next request
+
+#### **Configuration Example:**
+```toml
+[machine.database.tcp.postgres]
+port = 5432
+command = "docker run -p 5432:5432 postgres:15"
+idle_timeout = "30m"     # Database can idle longer
+health_check = "pg_isready -p 5432"
+restart_policy = "on-failure"
+```
 
 #### **Release 4: Performance & Advanced Features**  
 1. **CLI → daemon socket communication**: Connection pooling optimization
