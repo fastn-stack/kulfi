@@ -25,19 +25,57 @@ Machines can belong to multiple clusters simultaneously, each with their own id5
 ## Cluster Identification and Aliases
 
 ### **Cluster Contact Methods:**
-When joining a cluster, you need to contact the cluster manager. Two methods:
+When joining a cluster, you use invite keys instead of exposing cluster manager ID52:
 
-1. **Direct ID52**: Use cluster manager's full ID52 (always works)
+1. **Invite Key**: Use disposable invite key (recommended)
    ```bash
-   malai machine init abc123def456ghi789jkl012mno345pqr678stu901vwx234 ft
+   malai machine init invite789xyz123def456 company
+   # Invite key resolves to actual cluster manager internally
    ```
 
-2. **Domain Name**: Use domain with DNS TXT record (planned feature)
+2. **Direct ID52**: Use cluster manager's full ID52 (fallback)
    ```bash
-   malai machine init fifthtry.com ft
-   # DNS lookup: TXT record for fifthtry.com contains cluster manager ID52
-   # Format: fifthtry.com TXT "malai=abc123def456ghi789..."
+   malai machine init abc123def456ghi789jkl012mno345pqr678stu901vwx234 company
+   # Direct access to cluster manager (less secure - ID52 exposed)
    ```
+
+## Cluster Security Architecture
+
+### **Three-Tier Key System:**
+
+#### **1. Cluster Root Key (Hidden)**
+- **Purpose**: True cluster identity, never shared publicly
+- **Visibility**: Hidden in MALAI_HOME config files, not shown in daily usage
+- **Rotation**: `malai cluster rotate-key` generates new root key  
+- **Cleanup**: `malai cluster delete-old-key` removes compromised keys
+
+#### **2. Invite Keys (Public)**
+- **Purpose**: Safe-to-share keys for joining cluster
+- **Creation**: `malai cluster create-invite --alias "conference-2025"`
+- **Revocation**: `malai cluster revoke-invite <invite-key>`
+- **Security**: Compromised invite keys don't expose cluster root
+
+#### **3. Multiple Identities → One Cluster**
+- **Invite keys are aliases**: Multiple invite keys point to same cluster root
+- **Post-join discovery**: After joining via invite, machine learns cluster root key
+- **Day-to-day usage**: Users never see root key in normal operations
+- **Root key obscurity**: Security through hiding cluster root from public view
+
+### **Key Rotation Security:**
+```bash
+# Rotate cluster root key (security incident response):
+malai cluster rotate-key
+# 1. Generates new cluster root key
+# 2. Contacts all machines with new key  
+# 3. Machines update configs to use new root key
+# 4. Old key still maintained for transitioning machines
+
+# Delete compromised old key:
+malai cluster delete-old-key <old-key>
+# 1. Stop listening on old key
+# 2. Continue using old key in client mode to update remaining machines  
+# 3. Gradual migration to new key
+```
 
 ### **Two-Level Alias System:**
 
@@ -59,48 +97,40 @@ Edit `$MALAI_HOME/aliases.toml` for ultra-short machine access:
 2. **Check cluster.machine**: `web01.ft` → resolve cluster and machine
 3. **Direct ID52**: `abc123...xyz789` → direct machine contact
 
-### **DNS Integration (Planned Feature):**
+### **Invite Key System (Recommended Security Model):**
 
-#### **DNS TXT Record Format:**
+#### **Invite Key Benefits:**
+- **Security**: Real cluster manager ID52 stays private
+- **Revocable**: Disable compromised invite keys without cluster disruption
+- **Public sharing**: Safe to share at conferences, public forums
+- **Multiple invites**: Different invite keys for different purposes
+
+#### **Invite Key Management:**
 ```bash
-# DNS record format:
-fifthtry.com TXT "malai=abc123def456ghi789..."
+# Cluster manager creates invite keys:
+malai cluster create-invite company --alias "conference-2025"
+# Outputs: invite789xyz123def456 (safe to share publicly)
 
-# Multiple records supported:
-company.example.com TXT "malai=cluster1-id52..."  
-company.example.com TXT "malai-staging=cluster2-id52..."
+# Share invite key publicly:
+"Join our cluster: malai machine init invite789xyz123def456 company"
+
+# Revoke invite key when needed:
+malai cluster revoke-invite invite789xyz123def456
+
+# List active invites:
+malai cluster list-invites
 ```
-
-#### **DNS Lookup Process:**
-1. **Parse domain**: `malai machine init company.example.com corp`
-2. **DNS TXT query**: Look up TXT records for `company.example.com`
-3. **Find malai record**: Extract ID52 from `malai=` prefix
-4. **Validate ID52**: Ensure valid fastn_id52 format
-5. **Proceed with ID52**: Use resolved ID52 for normal machine init flow
 
 #### **Implementation Requirements:**
-```rust
-// Dependencies needed:
-trust-dns-resolver = "0.23"  // DNS TXT lookup
+- **invite.toml**: Maps invite keys to actual cluster manager ID52
+- **Revocation system**: Disable invite keys in cluster config
+- **P2P routing**: Invite keys forward to real cluster manager
+- **Security audit**: Track invite key usage and revocation
 
-// Functions to implement:
-async fn resolve_cluster_manager_from_domain(domain: &str) -> Result<String>
-fn is_domain_name(cluster_identifier: &str) -> bool
-async fn validate_cluster_id52(id52: &str) -> Result<()>
-```
-
-#### **DNS Management Commands (Future):**
-```bash
-# Help cluster managers set up DNS:
-malai cluster dns-record company.example.com    # Show required TXT record
-malai cluster verify-dns company.example.com    # Test DNS resolution
-```
-
-#### **Development Estimate: 4-7 hours**
-- DNS lookup implementation: 2-3 hours
-- Integration with machine init: 1-2 hours  
-- Testing and error handling: 1-2 hours
-- Documentation updates: 30 minutes
+#### **Development Estimate: 3-4 hours**
+- Invite key generation and mapping: 2 hours
+- P2P routing for invite keys: 1-2 hours  
+- Revocation and management commands: 1 hour
 
 ## System Architecture
 
@@ -1135,8 +1165,13 @@ $MALAI_HOME/
 ├── clusters/
 │   ├── company/                     # Cluster 1 - This device is cluster manager
 │   │   ├── cluster.toml            # → Cluster manager role (master config)
-│   │   ├── cluster.private-key     # → Private key for cluster manager role
-│   │   └── state.json              # → Config distribution tracking (cluster manager only)
+│   │   ├── cluster.private-key     # → Cluster root private key (hidden)
+│   │   ├── cluster.public-key      # → Cluster root public key (for reference)
+│   │   ├── invites.toml            # → Active invite keys and aliases
+│   │   ├── old-keys/               # → Rotated keys during transition
+│   │   │   ├── cluster.private-key.1 # → Previous root key (for migration)
+│   │   │   └── cluster.public-key.1  # → Previous root public key
+│   │   └── state.json              # → Config distribution tracking
 │   ├── personal/                    # Cluster 2 - This device is machine only
 │   │   ├── machine.toml            # → Machine role (received from CM)
 │   │   └── machine.private-key     # → Private key for machine role
@@ -1178,10 +1213,28 @@ When cluster manager acts as machine (common single-cluster scenario):
 
 ### **File Name Conventions:**
 - `cluster.toml`: Master cluster config (cluster manager role)
-- `cluster.private-key`: Private key for cluster manager role
+- `cluster.private-key`: Cluster root private key (hidden, not shared)
+- `cluster.public-key`: Cluster root public key (for reference)
+- `invites.toml`: Active invite keys with aliases and expiration
 - `machine.toml`: Machine-specific config (machine role, received via P2P)
-- `machine.private-key`: Private key for machine role  
+- `machine.private-key`: Private key for machine role
+- `old-keys/`: Directory for rotated keys during transition
 - `state.json`: Config distribution tracking (cluster manager only)
+
+**invites.toml Structure:**
+```toml
+# Active invite keys for cluster joining
+[invite."invite789xyz123def456"]
+alias = "conference-2025"
+created = "2025-01-15T10:30:00Z"
+expires = "2025-02-15T10:30:00Z"  # Optional expiration
+created_by = "admin-laptop-id52"
+
+[invite."invite456abc789def"]  
+alias = "partners-q1"
+created = "2025-01-10T09:00:00Z"
+# No expiration = permanent until revoked
+```
 
 ## Real-World Deployment Scenarios
 
@@ -2306,16 +2359,23 @@ This fixes connection timeouts and simplifies service lifecycle.
 5. **Basic Command Execution**: Real remote command execution via P2P
 6. **E2E Testing**: Comprehensive business logic testing with proper file structure
 
-#### **❌ NOT IMPLEMENTED (MVP Blockers)**
-1. **Real malai daemon**: Single daemon with multi-identity P2P listeners
-2. **Multi-cluster daemon startup**: One daemon handles all cluster identities simultaneously  
-3. **Basic ACL system**: Group expansion and permission validation (simple implementation)
+#### **✅ IMPLEMENTED (MVP Ready)**
+1. **Real malai daemon**: Single daemon with multi-identity P2P listeners ✅
+2. **Multi-cluster daemon startup**: One daemon handles all cluster identities simultaneously ✅  
+3. **Basic ACL system**: Group expansion and permission validation (simple implementation) ✅
+4. **Direct CLI mode**: Commands work without daemon dependency ✅
+
+### **❌ NOT IMPLEMENTED (Moved to Post-MVP for Security)**
+1. **DNS TXT support**: Removed due to security concerns (exposes cluster root ID52 publicly)
+2. **Invite key system**: Secure alternative to DNS (Release 2 priority)
 
 ### **🚀 Post-MVP Features (Next Releases)**
 
-#### **Release 2: Configuration Management**
-1. **Remote config editing**: Download/upload/edit with hash validation and three-way merge
-2. **Command aliases**: Global aliases in malai.toml for convenient access
+#### **Release 2: Secure Cluster Management**
+1. **Invite key system**: Secure cluster joining without exposing root keys
+2. **Key rotation**: Cluster root key rotation and migration management  
+3. **Remote config editing**: Download/upload/edit with hash validation and three-way merge
+4. **Command aliases**: Global aliases in malai.toml for convenient access
 
 #### **Release 3: Service Mesh**
 1. **TCP forwarding**: `mysql -h localhost:3306` → remote MySQL via P2P
