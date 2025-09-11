@@ -67,11 +67,9 @@ mysql -h localhost:3306  # Direct database access via forwarding
 - **Command aliases**: `malai web` shortcuts for common operations
 
 ### 📡 **Service Mesh** (Release 3)
-- **HTTP forwarding**: `curl admin.company.localhost` → remote admin interfaces
-- **TCP forwarding**: `mysql -h localhost:3306` → remote database connections
-- **Always-on HTTP proxy**: Set devices once, control routing via CLI
-- **Identity injection**: HTTP services receive client identity headers
-- **Browser access**: Direct browser access to remote web interfaces
+- **HTTP/TCP forwarding**: Access remote services transparently
+- **Always-on HTTP proxy**: Dynamic proxy routing for all devices
+- **Identity injection**: Services receive client identity headers
 
 ### 🔄 **On-Demand Process Management** (Release 4)
 - **Dynamic startup**: Start services when first request arrives
@@ -115,38 +113,8 @@ malai status                  # Detailed daemon and cluster info
 malai rescan --check         # Validate all configurations
 ```
 
-## Planned Usage (Service Mesh - Next Release)
+**See [DESIGN.md](DESIGN.md) for complete architecture and feature specifications.**
 
-### Database Access
-```bash
-# TCP forwarding (planned)
-mysql -h localhost:3306      # → Forward to remote MySQL via P2P
-redis-cli -p 6379           # → Forward to remote Redis via P2P
-```
-
-### Web Interface Access  
-```bash
-# HTTP forwarding (planned)
-curl admin.company.localhost          # → Remote admin interface
-open http://grafana.company.localhost # → Remote monitoring dashboard
-```
-
-### Privacy Proxy (Planned - Release 3)
-```bash
-# One-time setup: Configure all devices to use malai proxy
-# TV, mobile, laptop → HTTP proxy: 192.168.1.100:8080
-
-# Dynamic proxy control (no device reconfiguration needed):
-malai proxy-via vpn-exit.datacenter    # All devices use VPN exit
-malai proxy-via proxy-server.company   # All devices use company proxy  
-malai proxy-via direct                 # All devices use direct connection
-
-# Innovative UX:
-# - Configure TV/mobile proxy settings once, never again
-# - Control all devices' internet routing via simple CLI
-# - P2P encrypted tunnels for privacy
-# - Instant proxy switching without device reconfiguration
-```
 
 ## Daemon Usage
 
