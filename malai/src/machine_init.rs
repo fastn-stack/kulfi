@@ -65,9 +65,18 @@ domain = "{}"
     
     // Trigger selective rescan for this cluster if daemon running
     println!("🔄 Checking for running daemon to rescan cluster...");
-    if let Err(e) = crate::config_manager::reload_daemon_config_selective(cluster_alias.clone()).await {
-        println!("⚠️  Daemon rescan failed: {}", e);
-        println!("💡 Run 'malai rescan {}' manually after admin adds this machine", cluster_alias);
+    match crate::config_manager::reload_daemon_config_selective(cluster_alias.clone()).await {
+        Ok(_) => {
+            println!("✅ Daemon notified of new machine");
+        }
+        Err(e) if e.to_string().contains("no Unix socket found") => {
+            // This is expected - daemon not running during init is normal
+            println!("💡 Daemon not running - run 'malai rescan {}' after admin adds this machine", cluster_alias);
+        }
+        Err(e) => {
+            // Real daemon communication failure - this should fail loudly
+            return Err(eyre::eyre!("Failed to notify daemon of new machine: {}", e));
+        }
     }
     
     Ok(())
