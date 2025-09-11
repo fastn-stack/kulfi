@@ -2433,45 +2433,72 @@ health_check = "pg_isready -p 5432"
 restart_policy = "on-failure"
 ```
 
-### **HTTP Proxy Chain Design (Release 3):**
+### **Always-On HTTP Proxy Design (Release 3):**
 
-malai enables privacy through HTTP proxy chains using existing http-proxy infrastructure:
+malai provides seamless privacy through an always-on proxy server with dynamic routing:
 
-#### **HTTP Proxy Configuration:**
-```toml
-# Machine acting as HTTP proxy client (local machine)
-[proxy]
-upstream_machine = "proxy-server.company"  # Machine acting as HTTP proxy server
-local_port = 8888                          # Local proxy port
-
-# Machine acting as HTTP proxy server (remote machine) 
-[machine.proxy-server.http.proxy]
-port = 3128                               # Standard HTTP proxy port
-command = "malai http-proxy-remote"       # Use existing malai proxy functionality
-allow_from = "trusted-clients"            # Only allow specific machines
-```
-
-#### **Privacy Chain Workflow:**
+#### **Always-On Proxy Server:**
 ```bash
-# Setup (one-time):
-# 1. Configure proxy server machine to run http-proxy-remote
-# 2. Configure client machine to route through proxy server
+# malai daemon automatically starts proxy server on fixed port
+malai daemon  # Starts proxy on localhost:8080 (fixed port)
 
-# Usage (automatic):
-curl https://example.com
-# 1. Local HTTP client connects to localhost:8888
-# 2. malai forwards request to proxy-server.company via P2P  
-# 3. proxy-server.company sends request to internet
-# 4. Response travels back through P2P tunnel
-# 5. Local client receives response (appears to come from proxy server's IP)
+# One-time device configuration (TV, mobile, laptop, etc.):
+# Set HTTP proxy: 192.168.1.100:8080  # Your malai machine IP
+# Never change device settings again!
 ```
 
-#### **Privacy Benefits:**
-- **IP masking**: Internet sees proxy server IP, not client IP
-- **Geographic flexibility**: Use proxy servers in different regions
-- **P2P encryption**: Proxy traffic encrypted through malai P2P network
-- **Multi-hop chains**: Chain multiple proxy servers for enhanced privacy
-- **Access control**: Only authorized machines can use proxy servers
+#### **Dynamic Proxy Routing (CLI Control):**
+```bash
+# Check current proxy status:
+malai status
+# Shows: 
+# 📡 HTTP Proxy: localhost:8080 → direct (no upstream)
+# 📋 Configure devices: HTTP proxy 192.168.1.100:8080
+
+# Route through specific machine for privacy:
+malai proxy-via proxy-server.company
+# All devices now use proxy-server.company transparently
+
+# Check updated status:
+malai status  
+# Shows: 📡 HTTP Proxy: localhost:8080 → proxy-server.company
+
+# Switch to different proxy server:
+malai proxy-via vpn-exit.datacenter
+# All devices instantly use new proxy (no device reconfiguration)
+
+# Go back to direct connections:
+malai proxy-via direct
+# All devices back to direct internet
+```
+
+#### **User Experience Benefits:**
+- **Configure once**: Set proxy on all devices to fixed malai port (one-time)
+- **Dynamic routing**: Change proxy destination via CLI without touching devices
+- **Seamless switching**: TV, mobile, laptop all switch proxy instantly
+- **No device pain**: Never change proxy settings on individual devices again
+
+#### **Technical Implementation:**
+```toml
+# Always-on proxy configuration
+[daemon.proxy]
+port = 8080                    # Fixed port for device configuration
+mode = "direct"                # Default: no upstream proxy
+# mode = "upstream"            # Route via upstream machine when configured
+
+[proxy]
+upstream_machine = ""          # Empty = direct mode
+# upstream_machine = "proxy-server.company"  # Set via malai proxy-via command
+```
+
+#### **Privacy Workflow:**
+1. **Install malai**: Proxy server starts automatically on port 8080
+2. **Configure devices once**: Point all devices to malai proxy port  
+3. **Control via CLI**: `malai proxy-via <machine>` changes routing for all devices
+4. **Seamless switching**: Change proxy destination without device reconfiguration
+5. **Privacy on-demand**: Enable/disable proxy routing as needed
+
+This solves the real-world problem of painful proxy configuration on multiple devices.
 
 #### **Release 4: Performance & Advanced Features**  
 1. **CLI → daemon socket communication**: Connection pooling optimization
