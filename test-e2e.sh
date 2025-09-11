@@ -247,6 +247,65 @@ EOF
     assert_contains "$CLUSTER_DIR/cluster.toml" "cluster_manager"
     assert_contains "$CLUSTER_DIR/cluster.toml" "machine.web01"
     success "File structure maintained correctly"
+    
+    # Phase 8: Daemon Auto-Detection and Unix Socket Communication
+    log "📡 Phase 8: Testing daemon auto-detection and socket communication"
+    
+    # Give daemon a moment to start socket listener
+    sleep 5
+    
+    # Test 1: Daemon should have socket listener running
+    SOCKET_PATH="$MALAI_HOME/malai.socket"
+    if [[ ! -S "$SOCKET_PATH" ]]; then
+        ls -la "$MALAI_HOME/" || true
+        error "Daemon socket not found at $SOCKET_PATH"
+    fi
+    success "Daemon Unix socket listener active"
+    
+    # Test 2: Create new cluster while daemon running (should auto-rescan)
+    NEW_CLUSTER_DIR="$MALAI_HOME/clusters/auto-test"
+    if ! $MALAI_BIN cluster init auto-test > "$TEST_DIR/auto-cluster.log" 2>&1; then
+        cat "$TEST_DIR/auto-cluster.log"
+        error "Auto-rescan cluster creation failed"
+    fi
+    
+    # Verify auto-rescan messaging
+    if ! grep -q "Triggering daemon rescan" "$TEST_DIR/auto-cluster.log"; then
+        log "Auto-cluster.log contents:"
+        cat "$TEST_DIR/auto-cluster.log"
+        error "Expected 'Triggering daemon rescan' not found"
+    fi
+    
+    if ! grep -q "Daemon rescan completed successfully\|Daemon rescan request completed" "$TEST_DIR/auto-cluster.log"; then
+        log "Auto-cluster.log contents:"
+        cat "$TEST_DIR/auto-cluster.log"
+        error "Expected daemon rescan success message not found"
+    fi
+    success "Automatic rescan on cluster init working"
+    
+    # Test 3: Manual selective rescan via socket
+    if ! $MALAI_BIN rescan auto-test > "$TEST_DIR/selective-rescan.log" 2>&1; then
+        cat "$TEST_DIR/selective-rescan.log"
+        error "Selective rescan failed"
+    fi
+    
+    assert_contains "$TEST_DIR/selective-rescan.log" "Daemon rescan request completed"
+    success "Selective rescan via Unix socket working"
+    
+    # Test 4: Full rescan via socket  
+    if ! $MALAI_BIN rescan > "$TEST_DIR/full-rescan.log" 2>&1; then
+        cat "$TEST_DIR/full-rescan.log"
+        error "Full rescan failed"
+    fi
+    
+    assert_contains "$TEST_DIR/full-rescan.log" "Daemon rescan request completed"
+    success "Full rescan via Unix socket working"
+    
+    # Test 5: Verify daemon processed rescan requests (check socket still active)
+    if [[ ! -S "$SOCKET_PATH" ]]; then
+        error "Daemon socket disappeared after rescan operations"
+    fi
+    success "Daemon auto-detection system fully operational"
 
     success "Bash P2P infrastructure test PASSED"
     BASH_RESULT="✅ PASSED" 
