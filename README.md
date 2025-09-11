@@ -68,8 +68,12 @@ mysql -h localhost:3306  # Direct database access via forwarding
 
 ### 📡 **Service Mesh**
 - **HTTP/TCP forwarding**: Access remote services transparently
-- **Always-on HTTP proxy**: Dynamic proxy routing for all devices
 - **Identity injection**: Services receive client identity headers
+
+### 🌐 **Always-On HTTP Proxy**
+- **Dynamic proxy routing**: Control all devices' internet routing via CLI
+- **Privacy chains**: P2P encrypted proxy tunnels
+- **One-time setup**: Configure devices once, control via malai commands
 
 ### 🔄 **On-Demand Process Management**
 - **Dynamic startup**: Start services when first request arrives

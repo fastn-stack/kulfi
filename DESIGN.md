@@ -2386,7 +2386,11 @@ This fixes connection timeouts and simplifies service lifecycle.
 #### **Release 3: Service Mesh**
 1. **TCP forwarding**: `mysql -h localhost:3306` → remote MySQL via P2P
 2. **HTTP forwarding**: `curl admin.company.localhost` → remote admin interface
-3. **HTTP proxy chains**: Machine A uses Machine B as HTTP proxy for privacy
+
+#### **Release 3: Always-On HTTP Proxy**  
+1. **Dynamic proxy routing**: CLI control of all devices' internet routing
+2. **Privacy chains**: P2P encrypted proxy tunnels for IP masking
+3. **Device management**: One-time setup, permanent CLI control
 
 #### **Release 4: On-Demand Process Management**
 1. **Dynamic service startup**: Start services when first request arrives
