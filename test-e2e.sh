@@ -237,11 +237,7 @@ EOF
     # Phase 7: File Structure and Role Validation
     log "📁 Phase 7: Validating complete file structure"
     
-    # Kill daemon gracefully
-    kill $DAEMON_PID 2>/dev/null || true
-    wait $DAEMON_PID 2>/dev/null || true
-    
-    # Verify proper file structure was maintained  
+    # Verify proper file structure was maintained (keep daemon running for Phase 8)
     assert_file_exists "$CLUSTER_DIR/cluster.toml"
     assert_file_exists "$CLUSTER_DIR/cluster.private-key"
     assert_contains "$CLUSTER_DIR/cluster.toml" "cluster_manager"
@@ -256,7 +252,16 @@ EOF
     
     # Test 1: Daemon should have socket listener running
     SOCKET_PATH="$MALAI_HOME/malai.socket"
+    log "Checking socket at: $SOCKET_PATH"
+    log "MALAI_HOME contents:"
+    ls -la "$MALAI_HOME/" || true
+    log "Socket file details:"
+    ls -la "$SOCKET_PATH" || true
+    log "Socket type check:"
+    file "$SOCKET_PATH" || true
+    
     if [[ ! -S "$SOCKET_PATH" ]]; then
+        log "MALAI_HOME contents:"
         ls -la "$MALAI_HOME/" || true
         error "Daemon socket not found at $SOCKET_PATH"
     fi
@@ -264,6 +269,13 @@ EOF
     
     # Test 2: Create new cluster while daemon running (should auto-rescan)
     NEW_CLUSTER_DIR="$MALAI_HOME/clusters/auto-test"
+    log "Creating cluster with MALAI_HOME=$MALAI_HOME"
+    log "Daemon PID: $DAEMON_PID (should be running)"
+    if ! kill -0 $DAEMON_PID 2>/dev/null; then
+        log "WARNING: Daemon process appears to have died"
+        cat "$TEST_DIR/daemon.log" || true
+    fi
+    
     if ! $MALAI_BIN cluster init auto-test > "$TEST_DIR/auto-cluster.log" 2>&1; then
         cat "$TEST_DIR/auto-cluster.log"
         error "Auto-rescan cluster creation failed"
@@ -306,6 +318,10 @@ EOF
         error "Daemon socket disappeared after rescan operations"
     fi
     success "Daemon auto-detection system fully operational"
+    
+    # Clean up daemon after all tests complete
+    kill $DAEMON_PID 2>/dev/null || true
+    wait $DAEMON_PID 2>/dev/null || true
 
     success "Bash P2P infrastructure test PASSED"
     BASH_RESULT="✅ PASSED" 
