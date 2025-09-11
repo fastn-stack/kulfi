@@ -18,7 +18,7 @@ malai organizes machines into clusters. Each cluster has:
 - **Cluster Manager**: A designated server that manages cluster configuration and coordinates member communication
 - **Unique Identity**: Each cluster is identified by the cluster manager's id52
 - **Domain Aliases**: Optional domain-based aliases for easier identification
-- **DNS Integration**: Cluster manager id52 can be stored in DNS TXT records for domain-based discovery
+- **Secure Joining**: Machines join clusters via cluster manager ID52 or invite keys
 
 Machines can belong to multiple clusters simultaneously, each with their own id52 keypair.
 
@@ -395,7 +395,7 @@ malai config edit company
 #### **Cluster Manager Discovery:**
 - **Gap**: How do machines find cluster manager to receive configs?  
 - **Current**: cluster-info.toml stores cluster manager ID52 after `malai machine init`
-- **Missing**: DNS TXT record resolution for domain-based cluster discovery
+- **Alternative**: Invite key system for secure cluster discovery (Release 2)
 
 #### **Config Authentication:**
 - **Gap**: How machines verify config comes from authorized cluster manager
@@ -589,7 +589,7 @@ open http://logs.company.localhost     # Mobile browser → log analysis
 ### Machine Addressing
 Each machine has multiple addressing options:
 
-- **Domain-based**: `machine-alias.cluster-domain.com` (when domain is available)
+- **Alias-based**: `machine-alias.cluster-alias` (using local cluster aliases)
 - **ID-based**: `machine-alias.cluster-id52` (always works)
 - **Full ID**: `machine-id52.cluster-id52` (direct addressing)
 
@@ -614,10 +614,8 @@ For HTTP services, the complete URL format is:
 
 #### **URL Parsing Rules:**
 Agent parses `subdomain.localhost` requests as:
-1. **Simple**: `admin.company.localhost` → service=admin, cluster=company
-2. **Domain cluster**: `api.mycompany.com.localhost` → service=api, cluster=mycompany.com  
-3. **ID52 cluster**: `grafana.abc123def456.localhost` → service=grafana, cluster=abc123def456
-4. **Complex domain**: `api.aws.mycompany.com.localhost` → service=api, cluster=aws.mycompany.com
+1. **Simple alias**: `admin.company.localhost` → service=admin, cluster=company (local alias)
+2. **ID52 cluster**: `grafana.abc123def456.localhost` → service=grafana, cluster=abc123def456
 
 #### **Service Resolution:**
 1. Parse subdomain: extract service name and cluster identifier
@@ -981,7 +979,7 @@ malai web01.cluster-id52 systemctl status nginx
 ### Cluster Registration Security
 - Machines store verified cluster manager ID52 in `cluster-info.toml`
 - All config updates must come from verified cluster manager
-- DNS TXT record integration for automatic cluster manager discovery
+- Invite key system for secure cluster manager discovery
 - Cryptographic proof required for cluster manager verification
 
 ## Command Reference
@@ -994,10 +992,10 @@ malai cluster init <cluster-alias>
 # Creates: $MALAI_HOME/clusters/company/ with cluster manager config
 
 # Join existing cluster as machine (contacts cluster manager)
-malai machine init <cluster-id52-or-domain> <local-alias>
+malai machine init <cluster-id52-or-invite-key> <local-alias>
 # Examples:
 malai machine init abc123def456ghi789... company     # Using cluster manager ID52
-malai machine init fifthtry.com ft                  # Using domain (if DNS configured)
+malai machine init invite123def456 ft           # Using invite key (secure)
 # Creates: $MALAI_HOME/clusters/ft/ with machine config and registration
 ```
 
@@ -1812,7 +1810,7 @@ malai cluster init ft
 malai daemon  # Starts cluster manager
 
 # On each fastn server:
-malai machine init fifthtry.com ft  # Join via domain, use short alias
+malai machine init <cluster-manager-id52> ft  # Join via ID52, use short alias
 # fastn-ops adds machine to cluster config
 malai daemon  # Starts remote access daemon
 
@@ -1841,7 +1839,7 @@ curl grafana.monitoring.ft/dashboard
 ```bash
 # Initialize participation in multiple clusters:
 malai cluster init personal                           # Create personal cluster (cluster manager)
-malai machine init company.example.com company       # Join company cluster (via domain)
+malai machine init <cluster-manager-id52> company    # Join company cluster (via ID52)
 malai machine init abc123def456ghi789... ft          # Join fifthtry cluster (via ID52, alias "ft")
 
 # Single unified start:
@@ -2147,7 +2145,7 @@ The MALAI_HOME approach gives us everything we need for robust end-to-end testin
 - [ ] **Username validation**: Prevent privilege escalation via username field
 - [ ] **Group loop detection**: Prevent infinite recursion in group expansion
 - [ ] **Config content validation**: Validate TOML structure and permissions
-- [ ] **DNS TXT integration**: Automatic cluster manager discovery
+- [ ] **Invite key system**: Secure cluster manager discovery
 
 **MEDIUM:**
 - [ ] **Rate limiting**: Prevent SSH command flooding attacks
@@ -2290,7 +2288,7 @@ public_services = ["api"]               # These services don't get identity head
 
 ### **Multi-Cluster Power User Workflow:**
 1. **Cluster manager**: `malai cluster init personal` (manage personal cluster)
-2. **Join company**: `malai machine init company.example.com corp` (work cluster)  
+2. **Join company**: `malai machine init <company-cluster-id52> corp` (work cluster)  
 3. **Join fifthtry**: `malai machine init abc123...xyz789 ft` (client cluster)
 4. **Unified start**: `malai daemon` (starts cluster manager + remote access daemons + agent)
 5. **Cross-cluster access**: `malai web01.ft systemctl status nginx`
@@ -2372,7 +2370,7 @@ This fixes connection timeouts and simplifies service lifecycle.
 4. **Direct CLI mode**: Commands work without daemon dependency ✅
 
 ### **❌ NOT IMPLEMENTED (Moved to Post-MVP for Security)**
-1. **DNS TXT support**: Removed due to security concerns (exposes cluster root ID52 publicly)
+1. **DNS TXT support**: Rejected due to security concerns (see Rejected Features section)
 2. **Invite key system**: Secure alternative to DNS (Release 2 priority)
 
 ### **🚀 Post-MVP Features (Next Releases)**
