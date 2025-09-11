@@ -2375,7 +2375,7 @@ This fixes connection timeouts and simplifies service lifecycle.
 
 ### **🚀 Post-MVP Features (Next Releases)**
 
-#### **Release 2: Secure Cluster Management**
+#### **Release 2: Invite Keys & Key Rotation**
 1. **Invite key system**: Secure cluster joining without exposing root keys
 2. **Key rotation**: Cluster root key rotation and migration management  
 3. **Remote config editing**: Download/upload/edit with hash validation and three-way merge

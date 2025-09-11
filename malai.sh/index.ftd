@@ -487,9 +487,9 @@ spacing: $ds.spaces.vertical-gap.large
 
 -- ds.heading-medium: Coming Soon
 
--- coming-feature: 🔐 Secure Cluster Management
+-- coming-feature: 🔑 Invite Keys & Key Rotation
 
-Invite key system for safe cluster joining without exposing root keys. Plus key rotation and enhanced permissions.
+Safe cluster joining without exposing root keys. Plus automated key rotation and enhanced permissions.
 
 -- coming-feature: 🌐 Service Mesh 
 
@@ -515,9 +515,9 @@ spacing: $ds.spaces.vertical-gap.large
 
 -- ds.heading-medium: Coming Soon
 
--- coming-feature: 🔐 Secure Cluster Management
+-- coming-feature: 🔑 Invite Keys & Key Rotation
 
-Invite key system for safe cluster joining without exposing root keys. Plus key rotation and enhanced permissions.
+Safe cluster joining without exposing root keys. Plus automated key rotation and enhanced permissions.
 
 -- coming-feature: 🌐 Service Mesh 
 
