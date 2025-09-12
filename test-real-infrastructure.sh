@@ -66,6 +66,15 @@ if ! ~/doctl account get >/dev/null 2>&1; then
 fi
 success "Digital Ocean CLI authenticated"
 
+# Check SSH key exists (prefer test key)
+if [[ -f ~/.ssh/malai-test-key ]]; then
+    success "SSH test key found at ~/.ssh/malai-test-key"
+elif [[ -f ~/.ssh/ssh-key ]]; then
+    success "SSH key found at ~/.ssh/ssh-key"
+else
+    error "No SSH key found. Generate one: ssh-keygen -t rsa -f ~/.ssh/malai-test-key"
+fi
+
 # Check MALAI_HOME
 if [[ -z "${MALAI_HOME:-}" ]]; then
     error "MALAI_HOME not set. Set it to your test directory."
@@ -79,19 +88,21 @@ if [[ ! -f "./target/debug/malai" ]]; then
 fi
 success "malai binary available"
 
-# Get SSH key ID (prefer "ssh-key" if available, otherwise use first)
-if ~/doctl compute ssh-key list --format Name --no-header | grep -q "ssh-key"; then
-    SSH_KEY_ID=$(~/doctl compute ssh-key list --format ID,Name --no-header | grep "ssh-key" | awk '{print $1}')
-    SSH_KEY_NAME="ssh-key"
+# Get SSH key ID (prefer "malai-test-key" for testing)
+if ~/doctl compute ssh-key list --format Name --no-header | grep -q "malai-test-key"; then
+    SSH_KEY_ID=$(~/doctl compute ssh-key list --format ID,Name --no-header | grep "malai-test-key" | awk '{print $1}')
+    SSH_KEY_NAME="malai-test-key"
+    SSH_KEY_FILE="~/.ssh/malai-test-key"
 else
     SSH_KEY_ID=$(~/doctl compute ssh-key list --format ID --no-header | head -1)
     SSH_KEY_NAME=$(~/doctl compute ssh-key list --format Name --no-header | head -1)
+    SSH_KEY_FILE="~/.ssh/ssh-key"
 fi
 
 if [[ -z "$SSH_KEY_ID" ]]; then
     error "No SSH keys found in Digital Ocean account. Add one first: doctl compute ssh-key import"
 fi
-log "Using SSH key: $SSH_KEY_NAME (ID: $SSH_KEY_ID)"
+log "Using SSH key: $SSH_KEY_NAME (ID: $SSH_KEY_ID, file: $SSH_KEY_FILE)"
 
 # Phase 1: Create and configure droplet
 log "🚀 Phase 1: Creating Digital Ocean droplet"
@@ -129,7 +140,7 @@ success "Droplet provisioned successfully"
 log "Waiting for SSH to be ready..."
 for i in {1..60}; do  # Increased attempts for better reliability
     log "SSH attempt $i/60..."
-    if ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no root@"$DROPLET_IP" echo "SSH ready" >/dev/null 2>&1; then
+    if ssh -i ~/.ssh/malai-test-key -o ConnectTimeout=10 -o StrictHostKeyChecking=no root@"$DROPLET_IP" echo "SSH ready" >/dev/null 2>&1; then
         log "SSH connection established!"
         break
     fi
@@ -137,7 +148,7 @@ for i in {1..60}; do  # Increased attempts for better reliability
 done
 
 # Verify SSH works
-if ! ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@"$DROPLET_IP" echo "SSH test" >/dev/null 2>&1; then
+if ! ssh -i ~/.ssh/malai-test-key -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@"$DROPLET_IP" echo "SSH test" >/dev/null 2>&1; then
     error "SSH connection failed to $DROPLET_IP"
 fi
 success "SSH connection to droplet working"
@@ -189,7 +200,7 @@ REMOTE_SCRIPT
 
 # Copy and execute installation script
 log "Copying installation script to droplet..."
-scp -o StrictHostKeyChecking=no /tmp/install-malai-remote.sh root@"$DROPLET_IP":/tmp/
+scp -i ~/.ssh/malai-test-key -o StrictHostKeyChecking=no /tmp/install-malai-remote.sh root@"$DROPLET_IP":/tmp/
 success "Installation script copied"
 
 log "Executing malai installation on droplet..."
