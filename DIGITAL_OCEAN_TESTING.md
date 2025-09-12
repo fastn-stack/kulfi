@@ -33,6 +33,19 @@ Complete design and implementation for automated real-world P2P infrastructure v
 
 ---
 
+### 2025-09-12 20:48 - Finding: Small Droplets Cannot Build Complex Rust Projects Reliably  
+**Branch**: `feat/real-infrastructure-testing`
+**Status**: ⚠️  IN PROGRESS  
+**PR**: TBD
+
+#### Key Findings:
+1GB RAM droplets consistently fail during linking phase of large Rust projects (iroh, malai). Release builds work better than debug, but still fail on complex dependencies. Future testing should use 2GB+ droplets or pre-built binaries for reliable P2P testing.
+
+#### Next Steps:
+Use larger droplets or cross-compilation for faster, more reliable testing infrastructure.
+
+---
+
 ### 2025-09-12 17:55 - Finding: E2E Tests Only Validate Self-Commands, Not Real P2P
 **Branch**: `feat/real-infrastructure-testing`
 **Status**: ⚠️  IN PROGRESS
