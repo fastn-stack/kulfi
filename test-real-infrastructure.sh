@@ -15,7 +15,7 @@ set -euo pipefail
 
 # Configuration
 DROPLET_NAME="malai-test-$(date +%s)"
-DROPLET_SIZE="s-1vcpu-1gb"  # Smallest droplet
+DROPLET_SIZE="s-2vcpu-2gb"  # Reliable for Rust builds
 DROPLET_REGION="nyc3"       # Close to US East Coast
 DROPLET_IMAGE="ubuntu-22-04-x64"
 LOCAL_CLUSTER_NAME="test-real-infra"
@@ -194,12 +194,12 @@ rm -rf kulfi 2>/dev/null || true
 git clone https://github.com/fastn-stack/kulfi.git kulfi
 cd kulfi
 
-# Build malai with verbose output to debug issues
-echo "🔨 Building malai (this may take several minutes)..."
-~/.cargo/bin/cargo build --bin malai
+# Build malai optimized for server (exclude UI dependencies)
+echo "🔨 Building malai server binary (optimized, faster)..."
+~/.cargo/bin/cargo build --bin malai --no-default-features --release
 
 # Verify binary was created
-if [[ ! -f target/debug/malai ]]; then
+if [[ ! -f target/release/malai ]]; then
     echo "❌ malai binary not created"
     exit 1
 fi
@@ -214,7 +214,7 @@ chown malai:malai /opt/malai
 
 # Copy binary
 echo "📋 Installing malai binary..."
-cp target/debug/malai /usr/local/bin/malai
+cp target/release/malai /usr/local/bin/malai
 chmod +x /usr/local/bin/malai
 
 # Test binary works
