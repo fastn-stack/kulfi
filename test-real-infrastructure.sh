@@ -79,9 +79,15 @@ if [[ ! -f "./target/debug/malai" ]]; then
 fi
 success "malai binary available"
 
-# Get first available SSH key ID
-SSH_KEY_ID=$(~/doctl compute ssh-key list --format ID --no-header | head -1)
-SSH_KEY_NAME=$(~/doctl compute ssh-key list --format Name --no-header | head -1)
+# Get SSH key ID (prefer "ssh-key" if available, otherwise use first)
+if ~/doctl compute ssh-key list --format Name --no-header | grep -q "ssh-key"; then
+    SSH_KEY_ID=$(~/doctl compute ssh-key list --format ID,Name --no-header | grep "ssh-key" | awk '{print $1}')
+    SSH_KEY_NAME="ssh-key"
+else
+    SSH_KEY_ID=$(~/doctl compute ssh-key list --format ID --no-header | head -1)
+    SSH_KEY_NAME=$(~/doctl compute ssh-key list --format Name --no-header | head -1)
+fi
+
 if [[ -z "$SSH_KEY_ID" ]]; then
     error "No SSH keys found in Digital Ocean account. Add one first: doctl compute ssh-key import"
 fi
