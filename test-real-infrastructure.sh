@@ -156,35 +156,59 @@ success "SSH connection to droplet working"
 # Phase 2: Install malai on remote machine
 log "📦 Phase 2: Installing malai on remote machine"
 
-# Create installation script
+# Create simpler installation script with better error handling
 cat > /tmp/install-malai-remote.sh << 'REMOTE_SCRIPT'
 #!/bin/bash
 set -euo pipefail
 
 echo "🔨 Installing malai on remote machine..."
 
+# Install dependencies first
+echo "📦 Installing system dependencies..."
+export DEBIAN_FRONTEND=noninteractive
+
+# Wait for automatic apt processes to complete (Ubuntu does this on first boot)
+echo "⏳ Waiting for automatic apt processes to complete..."
+while pgrep -x apt-get > /dev/null || pgrep -x apt > /dev/null || pgrep -x dpkg > /dev/null; do
+    echo "   Waiting for apt lock to be released..."
+    sleep 5
+done
+echo "✅ apt lock available"
+
+apt-get update -y
+apt-get install -y curl git build-essential pkg-config libssl-dev
+
 # Install Rust (required for building malai)
 echo "📦 Installing Rust..."
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
 source ~/.cargo/env
 
-# Install dependencies
-echo "📦 Installing system dependencies..."
-apt-get update
-apt-get install -y git build-essential pkg-config libssl-dev
+# Verify Rust installation
+echo "✅ Rust version: $(rustc --version)"
+echo "✅ Cargo version: $(cargo --version)"
 
-# Clone kulfi repository
+# Clone kulfi repository to tmp first
 echo "📂 Cloning kulfi repository..."
-git clone https://github.com/fastn-stack/kulfi.git /opt/kulfi
-cd /opt/kulfi
+cd /tmp
+rm -rf kulfi 2>/dev/null || true
+git clone https://github.com/fastn-stack/kulfi.git kulfi
+cd kulfi
 
-# Build malai
-echo "🔨 Building malai..."
-cargo build --bin malai --quiet
+# Build malai with verbose output to debug issues
+echo "🔨 Building malai (this may take several minutes)..."
+~/.cargo/bin/cargo build --bin malai
+
+# Verify binary was created
+if [[ ! -f target/debug/malai ]]; then
+    echo "❌ malai binary not created"
+    exit 1
+fi
+
+echo "✅ malai binary built successfully"
 
 # Create malai user and directory
 echo "👤 Setting up malai user..."
-useradd -r -d /opt/malai -s /bin/bash malai
+useradd -r -d /opt/malai -s /bin/bash malai || echo "User may already exist"
 mkdir -p /opt/malai
 chown malai:malai /opt/malai
 
@@ -193,9 +217,14 @@ echo "📋 Installing malai binary..."
 cp target/debug/malai /usr/local/bin/malai
 chmod +x /usr/local/bin/malai
 
+# Test binary works
+echo "🧪 Testing malai binary..."
+/usr/local/bin/malai --version
+
 echo "✅ malai installation complete!"
 echo "📍 Binary location: /usr/local/bin/malai"
 echo "📁 Data directory: /opt/malai"
+echo "👤 User: malai"
 REMOTE_SCRIPT
 
 # Copy and execute installation script
@@ -204,8 +233,15 @@ scp -i ~/.ssh/malai-test-key -o StrictHostKeyChecking=no /tmp/install-malai-remo
 success "Installation script copied"
 
 log "Executing malai installation on droplet..."
-if ! ssh -o StrictHostKeyChecking=no root@"$DROPLET_IP" "bash /tmp/install-malai-remote.sh"; then
-    error "malai installation failed on droplet"
+if ! ssh -i ~/.ssh/malai-test-key -o StrictHostKeyChecking=no root@"$DROPLET_IP" "bash /tmp/install-malai-remote.sh" 2>&1 | tee /tmp/remote-install.log; then
+    echo ""
+    log "❌ malai installation failed on droplet"
+    log "📋 Installation output:"
+    cat /tmp/remote-install.log || echo "No installation log available"
+    log "🔍 Droplet IP: $DROPLET_IP (keeping alive for debugging)"
+    log "🔌 SSH command: ssh -i ~/.ssh/malai-test-key root@$DROPLET_IP"
+    log "💡 Manual cleanup: ~/doctl compute droplet delete $DROPLET_NAME --force"
+    exit 1
 fi
 success "malai installed successfully on droplet"
 
