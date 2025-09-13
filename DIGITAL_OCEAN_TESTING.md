@@ -33,6 +33,31 @@ Complete design and implementation for automated real-world P2P infrastructure v
 
 ---
 
+### 2025-09-13 15:30 - Finding: P2P Functionality Not Actually Implemented - E2E Tests are False Positives
+**Branch**: `feat/real-infrastructure-testing`
+**Status**: ⚠️ IN PROGRESS
+**PR**: TBD
+
+#### Key Findings:
+- **CRITICAL**: E2E tests create false confidence - they only test self-commands, never real P2P
+- **P2P not implemented**: Real cross-machine P2P communication fails with `NoResults` errors
+- **Test design flaw**: `[machine.web01] id52 = "$CM_ID52"` uses same ID as cluster manager, so commands execute locally
+- **Wasted effort**: Remote infrastructure testing is premature when core P2P functionality doesn't work
+
+#### Technical Details:
+- **E2E test pattern**: `malai web01.company echo "test"` → self-command optimization → local execution
+- **Real P2P attempt**: Fails with `NoResults { node_id: PublicKey(...) }` across internet
+- **fastn-p2p layer**: P2P discovery/bootstrap not working between different machines
+- **No cross-machine validation**: All "successful" tests were actually localhost operations
+
+#### Next Steps:
+- **STOP remote testing** until basic P2P works between different machines locally first
+- Fix fastn-p2p implementation for actual cross-machine communication
+- Rewrite E2E tests to validate real P2P, not just self-commands
+- Test with separate machines on same network before attempting internet P2P
+
+---
+
 ### 2025-09-12 20:48 - Finding: Small Droplets Cannot Build Complex Rust Projects Reliably  
 **Branch**: `feat/real-infrastructure-testing`
 **Status**: ⚠️  IN PROGRESS  
