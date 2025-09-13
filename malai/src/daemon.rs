@@ -5,12 +5,38 @@
 
 use eyre::Result;
 use futures_util::stream::StreamExt;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
+/// Global daemon state for managing P2P listeners
+#[derive(Debug)]
+struct DaemonState {
+    cluster_listeners: HashMap<String, tokio::task::JoinHandle<()>>,
+    malai_home: std::path::PathBuf,
+}
+
+impl DaemonState {
+    fn new(malai_home: std::path::PathBuf) -> Self {
+        Self {
+            cluster_listeners: HashMap::new(),
+            malai_home,
+        }
+    }
+}
+
+/// Global daemon state - accessible for rescan operations
+static DAEMON_STATE: tokio::sync::OnceCell<Arc<RwLock<DaemonState>>> = tokio::sync::OnceCell::const_new();
 
 /// Start the real malai daemon - MVP implementation
 pub async fn start_real_daemon(foreground: bool) -> Result<()> {
     let malai_home = crate::core_utils::get_malai_home();
     println!("🔥 Starting malai daemon (MVP)");
     println!("📁 MALAI_HOME: {}", malai_home.display());
+    
+    // Initialize global daemon state
+    let daemon_state = Arc::new(RwLock::new(DaemonState::new(malai_home.clone())));
+    DAEMON_STATE.set(daemon_state.clone()).map_err(|_| eyre::eyre!("Daemon state already initialized"))?;
     
     // File locking (proven working pattern)
     let lock_path = malai_home.join("malai.lock");
@@ -37,7 +63,24 @@ pub async fn start_real_daemon(foreground: bool) -> Result<()> {
         println!("📋 Running in foreground mode (daemonization TODO)");
     }
     
-    // Scan all cluster identities and roles
+    // Start Unix socket listener for daemon-CLI communication (wait for it to be ready)
+    let _socket_handle = crate::daemon_socket::start_daemon_socket_listener(malai_home.clone()).await?;
+    
+    // Initial cluster scan and startup
+    start_all_cluster_listeners().await?;
+    
+    println!("✅ malai daemon started - all cluster listeners active");
+    println!("📨 Press Ctrl+C to stop gracefully");
+    
+    // Wait for graceful shutdown
+    fastn_p2p::cancelled().await;
+    println!("👋 malai daemon stopped gracefully");
+    
+    Ok(())
+}
+
+/// Start all cluster listeners (called at startup and during rescan)
+async fn start_all_cluster_listeners() -> Result<()> {
     let cluster_roles = crate::config_manager::scan_cluster_roles().await?;
     
     if cluster_roles.is_empty() {
@@ -48,27 +91,103 @@ pub async fn start_real_daemon(foreground: bool) -> Result<()> {
     
     println!("✅ Found {} cluster identities", cluster_roles.len());
     
-    // Start Unix socket listener for daemon-CLI communication (wait for it to be ready)
-    let _socket_handle = crate::daemon_socket::start_daemon_socket_listener(malai_home.clone()).await?;
+    let daemon_state = DAEMON_STATE.get().ok_or_else(|| eyre::eyre!("Daemon state not initialized"))?;
+    let mut state = daemon_state.write().await;
     
     // Start one P2P listener per identity
     for (cluster_alias, identity, role) in cluster_roles {
         println!("🚀 Starting P2P listener for: {} ({:?})", cluster_alias, role);
         
         let cluster_alias_clone = cluster_alias.clone();
-        fastn_p2p::spawn(async move {
-            if let Err(e) = run_cluster_listener(cluster_alias_clone, identity, role).await {
-                println!("❌ Cluster listener failed for {}: {}", cluster_alias, e);
+        let identity_clone = identity.clone();
+        let handle = tokio::spawn(async move {
+            if let Err(e) = run_cluster_listener(cluster_alias_clone.clone(), identity_clone, role).await {
+                println!("❌ Cluster listener failed for {}: {}", cluster_alias_clone, e);
             }
         });
+        
+        // Track the handle so we can stop it later
+        state.cluster_listeners.insert(cluster_alias, handle);
     }
     
-    println!("✅ malai daemon started - all cluster listeners active");
-    println!("📨 Press Ctrl+C to stop gracefully");
+    Ok(())
+}
+
+/// Stop specific cluster listeners (used during selective rescan)
+async fn stop_cluster_listeners(cluster_names: &[String]) -> Result<()> {
+    let daemon_state = DAEMON_STATE.get().ok_or_else(|| eyre::eyre!("Daemon state not initialized"))?;
+    let mut state = daemon_state.write().await;
     
-    // Wait for graceful shutdown
-    fastn_p2p::cancelled().await;
-    println!("👋 malai daemon stopped gracefully");
+    for cluster_name in cluster_names {
+        if let Some(handle) = state.cluster_listeners.remove(cluster_name) {
+            println!("🛑 Stopping P2P listener for: {}", cluster_name);
+            handle.abort();
+        }
+    }
+    
+    Ok(())
+}
+
+/// Stop all cluster listeners
+async fn stop_all_cluster_listeners() -> Result<()> {
+    let daemon_state = DAEMON_STATE.get().ok_or_else(|| eyre::eyre!("Daemon state not initialized"))?;
+    let mut state = daemon_state.write().await;
+    
+    println!("🛑 Stopping all P2P listeners...");
+    for (cluster_name, handle) in state.cluster_listeners.drain() {
+        println!("🛑 Stopping P2P listener for: {}", cluster_name);
+        handle.abort();
+    }
+    
+    Ok(())
+}
+
+/// Restart specific cluster listeners (selective rescan)
+async fn restart_cluster_listeners(cluster_names: &[String]) -> Result<()> {
+    // Stop the specific listeners
+    stop_cluster_listeners(cluster_names).await?;
+    
+    // Re-scan configs and start new listeners for these clusters
+    let cluster_roles = crate::config_manager::scan_cluster_roles().await?;
+    let daemon_state = DAEMON_STATE.get().ok_or_else(|| eyre::eyre!("Daemon state not initialized"))?;
+    let mut state = daemon_state.write().await;
+    
+    for (cluster_alias, identity, role) in cluster_roles {
+        if cluster_names.contains(&cluster_alias) {
+            println!("🔄 Restarting P2P listener for: {} ({:?})", cluster_alias, role);
+            
+            let cluster_alias_clone = cluster_alias.clone();
+            let identity_clone = identity.clone();
+            let handle = tokio::spawn(async move {
+                if let Err(e) = run_cluster_listener(cluster_alias_clone.clone(), identity_clone, role).await {
+                    println!("❌ Cluster listener failed for {}: {}", cluster_alias_clone, e);
+                }
+            });
+            
+            state.cluster_listeners.insert(cluster_alias, handle);
+        }
+    }
+    
+    Ok(())
+}
+
+/// Perform actual daemon rescan (REAL IMPLEMENTATION)
+pub async fn perform_real_daemon_rescan(cluster_name: Option<String>) -> Result<()> {
+    println!("🔄 REAL DAEMON RESCAN: Starting rescan operation...");
+    
+    match cluster_name {
+        Some(cluster) => {
+            println!("🔄 Selective rescan for cluster: {}", cluster);
+            restart_cluster_listeners(&[cluster.clone()]).await?;
+            println!("✅ Selective rescan completed for: {}", cluster);
+        }
+        None => {
+            println!("🔄 Full rescan - restarting all cluster listeners");
+            stop_all_cluster_listeners().await?;
+            start_all_cluster_listeners().await?;
+            println!("✅ Full rescan completed - all clusters rescanned");
+        }
+    }
     
     Ok(())
 }
