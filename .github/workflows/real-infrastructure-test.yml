@@ -6,41 +6,60 @@ on:
     branches: 
       - feat/real-infrastructure-testing
       - main
-  # Allow manual triggering
+  # Allow manual triggering for testing
   workflow_dispatch:
-  # Run weekly to catch regressions
+  # Run weekly to catch regressions  
   schedule:
     - cron: '0 10 * * 1'  # Every Monday at 10 AM UTC
 
 jobs:
   real-infrastructure-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 45  # Full test including build takes ~30-40 minutes
+    timeout-minutes: 45  # Full test including 11-min droplet build
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Install Rust
+    - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
       
-    - name: Install doctl
+    - name: Setup Digital Ocean CLI
       uses: digitalocean/action-doctl@v2
       with:
         token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
         
-    - name: Run automated infrastructure test
+    - name: Validate DIGITALOCEAN_ACCESS_TOKEN secret
+      run: |
+        if [[ -z "${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}" ]]; then
+          echo "❌ DIGITALOCEAN_ACCESS_TOKEN secret not configured"
+          echo "💡 Add it at: https://github.com/fastn-stack/kulfi/settings/secrets/actions"
+          exit 1
+        fi
+        echo "✅ Digital Ocean token configured"
+        
+    - name: Run automated real infrastructure P2P test
       env:
         DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
       run: |
-        echo "🌐 Starting automated real infrastructure P2P test"
-        echo "This will validate malai P2P across real internet infrastructure"
+        echo "🌐 Starting automated real infrastructure P2P validation"
+        echo "📍 This validates malai P2P communication across real internet"
+        echo "🎯 Test: GitHub CI (Ubuntu) → Digital Ocean droplet via P2P"
         ./test-automated-infra.sh
         
-    - name: Archive test logs on failure
+    - name: Archive test artifacts on failure
       if: failure()
       uses: actions/upload-artifact@v4
       with:
-        name: infrastructure-test-logs
-        path: /tmp/malai-auto-*/
+        name: infrastructure-test-logs-${{ github.run_number }}
+        path: |
+          /tmp/malai-auto-*/
+          ~/.cache/malai-test-*
         retention-days: 7
+        
+    - name: Report success
+      if: success()
+      run: |
+        echo "🎉 REAL INFRASTRUCTURE P2P TEST PASSED!"
+        echo "✅ malai P2P communication validated across internet"
+        echo "🚀 Production deployment confidence verified"

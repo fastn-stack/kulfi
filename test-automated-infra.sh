@@ -75,19 +75,21 @@ echo
 # Phase 1: Auto-setup dependencies
 header "🔧 Phase 1: Auto-Setup Dependencies"
 
-# Setup doctl
+# Setup doctl (assume user is logged in for local testing)
 log "Checking Digital Ocean CLI..."
 if ! command -v doctl >/dev/null 2>&1; then
-    error "Install doctl first: brew install doctl (or download from GitHub)"
+    error "Install doctl first: brew install doctl"
 fi
 
 if ! doctl account get >/dev/null 2>&1; then
+    # For CI: use environment token
     if [[ -n "${DIGITALOCEAN_ACCESS_TOKEN:-}" ]]; then
-        log "Authenticating with provided token..."
+        log "Authenticating with CI token..."
         doctl auth init --access-token "$DIGITALOCEAN_ACCESS_TOKEN"
         success "doctl authenticated from environment"
     else
-        error "Set DIGITALOCEAN_ACCESS_TOKEN environment variable or run: doctl auth init"
+        # For local: guide user to authenticate
+        error "Please authenticate doctl first: doctl auth init"
     fi
 else
     success "doctl already authenticated"
