@@ -1,4 +1,4 @@
-name: Real Infrastructure P2P Test
+name: Digital Ocean P2P Test
 
 on:
   # Run on pushes to infrastructure testing branches
@@ -13,9 +13,9 @@ on:
     - cron: '0 10 * * 1'  # Every Monday at 10 AM UTC
 
 jobs:
-  real-infrastructure-test:
+  digital-ocean-p2p-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 45  # Full test including 11-min droplet build
+    timeout-minutes: 45  # Full test including deployment and P2P validation
     
     steps:
     - name: Checkout code
@@ -45,29 +45,29 @@ jobs:
         fi
         echo "✅ Digital Ocean token configured"
         
-    - name: Run optimized real infrastructure P2P test
+    - name: Test real P2P across internet (GitHub CI → Digital Ocean)
       env:
         DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
       run: |
-        echo "🌐 Starting optimized real infrastructure P2P validation"
-        echo "📍 Using pre-built binary - no compilation on droplet needed"
-        echo "🎯 Test: GitHub CI (Ubuntu) → Digital Ocean droplet via P2P"
-        echo "⚡ Optimization: 6 minutes vs 16+ minutes (80% faster)"
+        echo "🌐 Testing malai P2P across real internet infrastructure"
+        echo "📍 GitHub CI runner → Digital Ocean droplet via P2P networking"
+        echo "⚡ Using optimized pre-built binary deployment (80% faster)"
         ./test-automated-infra.sh --use-ci-binary
         
-    - name: Archive test artifacts on failure
+    - name: Archive Digital Ocean test logs on failure
       if: failure()
       uses: actions/upload-artifact@v4
       with:
-        name: infrastructure-test-logs-${{ github.run_number }}
+        name: digital-ocean-p2p-logs-${{ github.run_number }}
         path: |
           /tmp/malai-auto-*/
           ~/.cache/malai-test-*
         retention-days: 7
         
-    - name: Report success
+    - name: Report Digital Ocean P2P test success
       if: success()
       run: |
-        echo "🎉 REAL INFRASTRUCTURE P2P TEST PASSED!"
-        echo "✅ malai P2P communication validated across internet"
+        echo "🎉 DIGITAL OCEAN P2P TEST PASSED!"
+        echo "✅ Real internet P2P communication validated"
+        echo "🌐 GitHub CI ↔ Digital Ocean droplet P2P working"
         echo "🚀 Production deployment confidence verified"
