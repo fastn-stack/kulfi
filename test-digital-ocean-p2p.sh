@@ -83,19 +83,19 @@ for arg in "$@"; do
             ;;
         "--small")
             DROPLET_SIZE="s-1vcpu-1gb"  # $6/month, slow builds
-            log "Using small droplet (1GB RAM, $6/month) - slower builds but cheaper"
+            log "Using small droplet (1GB RAM, \$6/month) - slower builds but cheaper"
             ;;
         "--fast")
             DROPLET_SIZE="s-4vcpu-8gb"  # $48/month, fast builds  
-            log "Using fast droplet (4CPU/8GB RAM, $48/month) - faster builds"
+            log "Using fast droplet (4CPU/8GB RAM, \$48/month) - faster builds"
             ;;
         "--turbo")
             DROPLET_SIZE="s-8vcpu-16gb"  # $96/month, very fast builds
-            log "Using turbo droplet (8CPU/16GB RAM, $96/month) - fastest builds"
+            log "Using turbo droplet (8CPU/16GB RAM, \$96/month) - fastest builds"
             ;;
         "--beast")
             DROPLET_SIZE="s-8vcpu-16gb"  # $96/month, ultra-fast builds (32GB not available in region)
-            log "Using beast droplet (8CPU/16GB RAM, $96/month) - ultra-fast builds"
+            log "Using beast droplet (8CPU/16GB RAM, \$96/month) - ultra-fast builds"
             ;;
         "--keep-droplet")
             KEEP_DROPLET=true
