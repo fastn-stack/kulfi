@@ -59,8 +59,8 @@ cleanup() {
     # Destroy droplet
     if command -v doctl >/dev/null 2>&1; then
         CLEANUP_DOCTL="doctl"
-    elif [[ -f ~/doctl ]] && [[ -x ~/doctl ]]; then
-        CLEANUP_DOCTL="~/doctl"
+    elif [[ -f "$HOME/doctl" ]] && [[ -x "$HOME/doctl" ]]; then
+        CLEANUP_DOCTL="$HOME/doctl"
     fi
     
     if [[ -n "${CLEANUP_DOCTL:-}" ]] && $CLEANUP_DOCTL account get >/dev/null 2>&1; then
@@ -94,9 +94,9 @@ header "🔧 Phase 1: Auto-Setup Dependencies"
 log "Checking Digital Ocean CLI..."
 if command -v doctl >/dev/null 2>&1; then
     DOCTL="doctl"
-elif [[ -f ~/doctl ]] && [[ -x ~/doctl ]]; then
-    DOCTL="~/doctl"
-    log "Using doctl from home directory: ~/doctl"
+elif [[ -f "$HOME/doctl" ]] && [[ -x "$HOME/doctl" ]]; then
+    DOCTL="$HOME/doctl"
+    log "Using doctl from home directory: $HOME/doctl"
 else
     error "Install doctl first: brew install doctl (or download to ~/doctl)"
 fi
