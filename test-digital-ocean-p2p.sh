@@ -5,8 +5,9 @@
 # Self-contained with automatic setup, cleanup, and comprehensive validation.
 #
 # Usage:
-#   Local: ./test-digital-ocean-p2p.sh (builds on droplet)
-#   CI:    ./test-digital-ocean-p2p.sh --use-ci-binary (uses pre-built binary)
+#   Default: ./test-digital-ocean-p2p.sh (cross-compiles locally - fastest)
+#   Fallback: ./test-digital-ocean-p2p.sh --build-on-droplet (if cross-compilation fails)
+#   CI: ./test-digital-ocean-p2p.sh --use-ci-binary (uses pre-built binary)
 #
 # Requirements: doctl auth init (one-time setup)
 
@@ -35,16 +36,27 @@ export MALAI_HOME="/tmp/$TEST_ID"
 TEST_SSH_KEY="/tmp/$TEST_ID-ssh"
 DROPLET_NAME="$TEST_ID"
 
-# Check if using pre-built binary from CI
+# Deployment mode selection
 USE_CI_BINARY=false
-if [[ "${1:-}" == "--use-ci-binary" ]]; then
-    USE_CI_BINARY=true
-    DROPLET_SIZE="s-1vcpu-1gb"  # Smaller droplet sufficient (no compilation)
-    log "Using pre-built CI binary - no compilation on droplet needed"
-else
-    DROPLET_SIZE="s-2vcpu-2gb"  # Larger droplet needed for 11-minute builds
-    log "Will build malai on droplet (slower but works everywhere)"
-fi
+BUILD_ON_DROPLET=false
+
+case "${1:-}" in
+    "--use-ci-binary")
+        USE_CI_BINARY=true
+        DROPLET_SIZE="s-1vcpu-1gb"  # No compilation needed
+        log "Using pre-built CI binary - no compilation needed"
+        ;;
+    "--build-on-droplet")
+        BUILD_ON_DROPLET=true
+        DROPLET_SIZE="s-2vcpu-2gb"  # Needs larger droplet for compilation
+        log "Will build malai on droplet (fallback mode)"
+        ;;
+    *)
+        # Default: Cross-compile locally (fastest for development)
+        DROPLET_SIZE="s-1vcpu-1gb"  # No compilation needed
+        log "Will cross-compile locally and deploy binary (fastest)"
+        ;;
+esac
 DROPLET_REGION="nyc3"
 DROPLET_IMAGE="ubuntu-22-04-x64"
 
@@ -141,14 +153,29 @@ if [[ "$USE_CI_BINARY" == "true" ]]; then
     fi
     MALAI_BINARY="target/release/malai"
     success "Using pre-built CI binary (optimized)"
-else
-    # Local mode: Build debug binary if needed
+elif [[ "$BUILD_ON_DROPLET" == "true" ]]; then
+    # Fallback mode: Build debug binary for droplet build mode
     if [[ ! -f "target/debug/malai" ]]; then
-        log "Building malai locally..."
+        log "Building malai locally for deployment verification..."
         cargo build --bin malai --quiet
     fi
     MALAI_BINARY="target/debug/malai"
-    success "Local malai binary ready"
+    success "Local malai binary ready (will build on droplet)"
+else
+    # Default mode: Cross-compile for Linux
+    log "Cross-compiling malai for Linux..."
+    if ! CC_x86_64_unknown_linux_musl=x86_64-linux-musl-gcc cargo build --bin malai --target x86_64-unknown-linux-musl --no-default-features --release; then
+        warn "Cross-compilation failed - falling back to droplet build mode"
+        BUILD_ON_DROPLET=true
+        DROPLET_SIZE="s-2vcpu-2gb"  # Need larger droplet for compilation
+        if [[ ! -f "target/debug/malai" ]]; then
+            cargo build --bin malai --quiet
+        fi
+        MALAI_BINARY="target/debug/malai"
+    else
+        MALAI_BINARY="target/x86_64-unknown-linux-musl/release/malai"
+        success "Cross-compiled Linux binary ready (fastest deployment)"
+    fi
 fi
 
 # Phase 2: Automated droplet provisioning
@@ -185,9 +212,13 @@ success "SSH connection ready"
 # Phase 3: Optimized malai deployment
 header "📦 Phase 3: Optimized malai Deployment"
 
-if [[ "$USE_CI_BINARY" == "true" ]]; then
-    # FAST: Copy pre-built binary from CI (30 seconds vs 11+ minutes)
-    log "Deploying pre-built binary to droplet (CI optimization)..."
+if [[ "$USE_CI_BINARY" == "true" ]] || [[ "$BUILD_ON_DROPLET" == "false" ]]; then
+    # FAST: Copy pre-built binary (cross-compiled or CI-built)
+    if [[ "$USE_CI_BINARY" == "true" ]]; then
+        log "Deploying pre-built CI binary to droplet..."
+    else
+        log "Deploying cross-compiled binary to droplet (fastest local mode)..."
+    fi
     
     # Copy binary directly
     scp -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no "$MALAI_BINARY" root@"$DROPLET_IP":/usr/local/bin/malai
@@ -200,9 +231,13 @@ if [[ "$USE_CI_BINARY" == "true" ]]; then
     chown malai:malai /opt/malai
     "
     
-    success "malai deployed via binary copy (fast CI mode)"
+    if [[ "$USE_CI_BINARY" == "true" ]]; then
+        success "malai deployed via CI binary copy"
+    else
+        success "malai deployed via cross-compiled binary (fastest)"
+    fi
     
-else
+elif [[ "$BUILD_ON_DROPLET" == "true" ]]; then
     # SLOW: Build on droplet (original approach for local testing)
     log "Building malai on droplet (local testing mode)..."
     ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "
