@@ -31,6 +31,9 @@ static DAEMON_STATE: tokio::sync::OnceCell<Arc<RwLock<DaemonState>>> = tokio::sy
 /// Start the real malai daemon - MVP implementation
 pub async fn start_real_daemon(foreground: bool) -> Result<()> {
     let malai_home = crate::core_utils::get_malai_home();
+    
+    // Production logging for cluster admins
+    tracing::info!("Starting malai daemon - MALAI_HOME: {}", malai_home.display());
     println!("🔥 Starting malai daemon (MVP)");
     println!("📁 MALAI_HOME: {}", malai_home.display());
     
@@ -48,9 +51,11 @@ pub async fn start_real_daemon(foreground: bool) -> Result<()> {
     
     match lock_file.try_lock() {
         Ok(()) => {
+            tracing::info!("Daemon lock acquired successfully: {}", lock_path.display());
             println!("🔒 Lock acquired: {}", lock_path.display());
         }
         Err(_) => {
+            tracing::warn!("Daemon startup failed: another instance already running at {}", malai_home.display());
             println!("❌ Another malai daemon already running at {}", malai_home.display());
             return Ok(());
         }
@@ -69,11 +74,13 @@ pub async fn start_real_daemon(foreground: bool) -> Result<()> {
     // Initial cluster scan and startup
     start_all_cluster_listeners().await?;
     
+    tracing::info!("malai daemon fully started - all cluster listeners active");
     println!("✅ malai daemon started - all cluster listeners active");
     println!("📨 Press Ctrl+C to stop gracefully");
     
     // Wait for graceful shutdown
     fastn_p2p::cancelled().await;
+    tracing::info!("malai daemon shutting down gracefully");
     println!("👋 malai daemon stopped gracefully");
     
     Ok(())
@@ -84,11 +91,15 @@ async fn start_all_cluster_listeners() -> Result<()> {
     let cluster_roles = crate::config_manager::scan_cluster_roles().await?;
     
     if cluster_roles.is_empty() {
+        let daemon_state = DAEMON_STATE.get().ok_or_else(|| eyre::eyre!("Daemon state not initialized"))?;
+        let state = daemon_state.read().await;
+        tracing::warn!("No clusters found in MALAI_HOME: {}", state.malai_home.display());
         println!("❌ No clusters found in MALAI_HOME");
         println!("💡 Initialize a cluster: malai cluster init <name>");
         return Ok(());
     }
     
+    tracing::info!("Found {} cluster identities for daemon startup", cluster_roles.len());
     println!("✅ Found {} cluster identities", cluster_roles.len());
     
     let daemon_state = DAEMON_STATE.get().ok_or_else(|| eyre::eyre!("Daemon state not initialized"))?;
@@ -96,12 +107,16 @@ async fn start_all_cluster_listeners() -> Result<()> {
     
     // Start one P2P listener per identity
     for (cluster_alias, identity, role) in cluster_roles {
+        let id52 = identity.id52();
+        tracing::info!("Starting P2P listener for cluster: {} (role: {:?}, id52: {})", cluster_alias, role, id52);
         println!("🚀 Starting P2P listener for: {} ({:?})", cluster_alias, role);
         
         let cluster_alias_clone = cluster_alias.clone();
+        let cluster_alias_log = cluster_alias.clone();
         let identity_clone = identity.clone();
         let handle = tokio::spawn(async move {
             if let Err(e) = run_cluster_listener(cluster_alias_clone.clone(), identity_clone, role).await {
+                tracing::error!("Cluster listener failed for {}: {}", cluster_alias_log, e);
                 println!("❌ Cluster listener failed for {}: {}", cluster_alias_clone, e);
             }
         });

@@ -2428,12 +2428,10 @@ This fixes connection timeouts and simplifies service lifecycle.
 2. **Multi-cluster daemon startup**: One daemon handles all cluster identities simultaneously ✅  
 3. **Basic ACL system**: Group expansion and permission validation (simple implementation) ✅
 4. **Direct CLI mode**: Commands work without daemon dependency ✅
-
-### **❌ CRITICAL ISSUES (Blocking Production Use)**
-1. **Daemon Auto-Detection**: Init commands don't trigger daemon rescan - daemon must be restarted manually
-2. **Unix Socket Communication**: CLI can't communicate with running daemon for rescan operations
-3. **Selective Rescan**: Only full rescan supported, no per-cluster rescan capability
-4. **Resilient Config Loading**: One broken cluster config prevents entire daemon startup
+5. **Daemon Auto-Detection**: Init commands trigger daemon rescan automatically ✅
+6. **Unix Socket Communication**: CLI communicates with daemon via Unix socket ✅
+7. **Selective Rescan**: `malai rescan [cluster-name]` per-cluster rescan support ✅
+8. **Strict Error Handling**: Errors fail loudly, no unwarranted graceful handling ✅
 
 ### **❌ NOT IMPLEMENTED (Moved to Post-MVP for Security)**
 1. **DNS TXT support**: Rejected due to security concerns (see Rejected Features section)

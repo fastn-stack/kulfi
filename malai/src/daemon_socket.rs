@@ -73,6 +73,7 @@ async fn handle_socket_connection(mut stream: UnixStream) -> Result<()> {
     let message_str = String::from_utf8_lossy(&buffer[..n]);
     let message: DaemonMessage = serde_json::from_str(&message_str)?;
     
+    tracing::info!("Daemon received CLI command: {:?}", message);
     println!("📨 Received daemon message: {:?}", message);
     
     // Process message and generate response
