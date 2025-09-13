@@ -305,12 +305,23 @@ else
     ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "
     export DEBIAN_FRONTEND=noninteractive
 
-    # Wait for automatic apt processes (Ubuntu does this on boot)
-    echo 'Waiting for Ubuntu automatic updates to complete...'
-    while pgrep -x apt-get > /dev/null || pgrep -x apt > /dev/null || pgrep -x dpkg > /dev/null; do 
-        echo 'Waiting for apt lock...'
-        sleep 5
-    done
+    # Disable and stop automatic updates to prevent delays
+    echo 'Disabling Ubuntu automatic updates for faster setup...'
+    systemctl stop apt-daily.timer || true
+    systemctl stop apt-daily-upgrade.timer || true
+    systemctl stop unattended-upgrades || true
+    killall apt-get || true
+    killall apt || true
+    killall dpkg || true
+    
+    # Brief wait to ensure processes are stopped
+    sleep 3
+    
+    # Quick check if any apt processes still running
+    if pgrep -x apt-get > /dev/null || pgrep -x apt > /dev/null || pgrep -x dpkg > /dev/null; then
+        echo 'Waiting for remaining apt processes...'
+        sleep 10
+    fi
 
     # Install all dependencies
     echo 'Installing system dependencies...'
