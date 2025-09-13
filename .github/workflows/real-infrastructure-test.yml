@@ -14,7 +14,7 @@ on:
 
 jobs:
   digital-ocean-p2p-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04  # Match Digital Ocean Ubuntu 22.04 exactly
     timeout-minutes: 45  # Full test including deployment and P2P validation
     
     steps:
@@ -24,15 +24,12 @@ jobs:
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
       
-    - name: Build static malai binary for deployment
+    - name: Build malai binary for deployment (Ubuntu 22.04 compatibility)
       run: |
-        echo "🔨 Building static malai binary (no glibc dependencies)"
-        echo "This ensures compatibility across different Ubuntu versions"
-        rustup target add x86_64-unknown-linux-musl
-        cargo build --bin malai --target x86_64-unknown-linux-musl --no-default-features --release
-        # Copy to standard location for script to find
-        cp target/x86_64-unknown-linux-musl/release/malai target/release/malai
-        echo "✅ Static binary built - will work on any Linux system"
+        echo "🔨 Building malai on Ubuntu 22.04 (matches Digital Ocean droplet)"
+        echo "Same Ubuntu version = same glibc = perfect binary compatibility"
+        cargo build --bin malai --no-default-features --release
+        echo "✅ Binary built with Ubuntu 22.04 glibc - ready for deployment"
         
     - name: Setup Digital Ocean CLI
       uses: digitalocean/action-doctl@v2
