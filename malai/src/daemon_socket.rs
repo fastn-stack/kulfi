@@ -163,28 +163,8 @@ pub async fn send_daemon_rescan_command(malai_home: PathBuf, cluster_name: Optio
     }
 }
 
-/// Perform actual rescan in daemon (placeholder implementation)
+/// Perform actual rescan in daemon (REAL IMPLEMENTATION)
 async fn perform_daemon_rescan(cluster_name: Option<String>) -> Result<()> {
-    // TODO: This is where we'd implement the actual daemon rescan logic:
-    // 1. Stop old P2P listeners for affected clusters
-    // 2. Re-read cluster configurations 
-    // 3. Start new P2P listeners with updated configs
-    // 4. Handle errors gracefully (continue with working clusters)
-    
-    match cluster_name {
-        Some(cluster) => {
-            println!("🔄 [PLACEHOLDER] Rescanning cluster: {}", cluster);
-            // Simulate selective rescan work
-            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-            println!("✅ [PLACEHOLDER] Cluster {} rescan complete", cluster);
-        }
-        None => {
-            println!("🔄 [PLACEHOLDER] Rescanning all clusters");
-            // Simulate full rescan work  
-            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-            println!("✅ [PLACEHOLDER] Full rescan complete");
-        }
-    }
-    
-    Ok(())
+    // ✅ REAL IMPLEMENTATION: Now calls the actual daemon rescan functionality
+    crate::daemon::perform_real_daemon_rescan(cluster_name).await
 }

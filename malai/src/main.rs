@@ -201,8 +201,7 @@ allow_from = "*"
 "#, cm_id52, machine_id52);
             
             if let Err(e) = malai::send_config(cluster_manager_key.clone(), &machine_id52, &sample_config).await {
-                println!("❌ Config distribution failed: {}", e);
-                return Ok(());
+                panic!("❌ REAL P2P CONFIG DISTRIBUTION FAILED: {}\n\nThis test was silently returning Ok(()) on failure, making tests pass when P2P was broken!", e);
             }
             
             println!("✅ Config distribution successful");
@@ -213,8 +212,7 @@ allow_from = "*"
             // Test 2: Command execution (should work after config)
             println!("📤 Step 2: Testing command execution...");
             if let Err(e) = malai::send_command(cluster_manager_key, &machine_id52, "echo", vec!["Complete malai infrastructure working!".to_string()]).await {
-                println!("❌ Command execution failed: {}", e);
-                return Ok(());
+                panic!("❌ REAL P2P COMMAND EXECUTION FAILED: {}\n\nThis test was silently returning Ok(()) on failure, making tests pass when P2P was broken!", e);
             }
             
             println!("🎉 Complete malai infrastructure test successful!");
