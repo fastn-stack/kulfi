@@ -341,7 +341,8 @@ else
     rm -rf kulfi 2>/dev/null || true
     git clone https://github.com/fastn-stack/kulfi.git
     cd kulfi
-    git checkout feat/real-infrastructure-testing
+    # Use main branch (has the working P2P implementation)
+    git checkout main
     END_CLONE=\$(date +%s)
     echo \"Repository cloned in \$((END_CLONE - START_CLONE))s\"
 
