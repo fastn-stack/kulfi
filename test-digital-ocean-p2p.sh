@@ -403,6 +403,15 @@ success "malai verified working on droplet"
 header "🔗 Phase 4: Automated P2P Cluster Setup"
 
 log "Creating cluster locally..."
+# For droplet build mode, use local debug binary for cluster setup
+if [[ -z "$MALAI_BINARY" ]]; then
+    # Build local binary for cluster management if not exists
+    if [[ ! -f "target/debug/malai" ]]; then
+        log "Building local malai for cluster management..."
+        cargo build --bin malai --quiet
+    fi
+    MALAI_BINARY="target/debug/malai"
+fi
 ./"$MALAI_BINARY" cluster init "$TEST_CLUSTER_NAME"
 CLUSTER_MANAGER_ID52=$(./"$MALAI_BINARY" scan-roles | grep "Identity:" | head -1 | cut -d: -f2 | tr -d ' ')
 log "Cluster Manager ID: $CLUSTER_MANAGER_ID52"
