@@ -203,27 +203,22 @@ if [[ "$USE_CI_BINARY" == "true" ]]; then
     MALAI_BINARY="target/release/malai"
     success "Using pre-built CI binary (optimized)"
 elif [[ "$BUILD_ON_DROPLET" == "true" ]]; then
-    # Fallback mode: Build debug binary for droplet build mode
-    if [[ ! -f "target/debug/malai" ]]; then
-        log "Building malai locally for deployment verification..."
-        cargo build --bin malai --quiet
-    fi
-    MALAI_BINARY="target/debug/malai"
-    success "Local malai binary ready (will build on droplet)"
+    # Fallback mode: Build on droplet (no local binary needed)
+    log "Will build malai on droplet - no local compilation needed"
+    MALAI_BINARY=""  # No local binary needed
+    success "Droplet build mode selected"
 else
-    # Default mode: Cross-compile for Linux
-    log "Cross-compiling malai for Linux..."
-    if ! CC_x86_64_unknown_linux_musl=x86_64-linux-musl-gcc cargo build --bin malai --target x86_64-unknown-linux-musl --no-default-features --release; then
+    # Default mode: Try cross-compile, fallback to droplet build
+    log "Attempting cross-compilation for fastest deployment..."
+    if CC_x86_64_unknown_linux_musl=x86_64-linux-musl-gcc cargo build --bin malai --target x86_64-unknown-linux-musl --no-default-features --release 2>/dev/null; then
+        MALAI_BINARY="target/x86_64-unknown-linux-musl/release/malai"
+        success "Cross-compiled Linux binary ready (fastest deployment)"
+    else
         warn "Cross-compilation failed - falling back to droplet build mode"
         BUILD_ON_DROPLET=true
         DROPLET_SIZE="s-2vcpu-2gb"  # Need larger droplet for compilation
-        if [[ ! -f "target/debug/malai" ]]; then
-            cargo build --bin malai --quiet
-        fi
-        MALAI_BINARY="target/debug/malai"
-    else
-        MALAI_BINARY="target/x86_64-unknown-linux-musl/release/malai"
-        success "Cross-compiled Linux binary ready (fastest deployment)"
+        MALAI_BINARY=""  # No local binary needed for droplet build
+        log "Will build malai on droplet instead"
     fi
 fi
 
