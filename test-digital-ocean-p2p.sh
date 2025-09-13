@@ -88,14 +88,28 @@ cleanup() {
     
     # Destroy droplet (unless debugging)
     if [[ "$KEEP_DROPLET" == "true" ]]; then
-        log "🔧 DEBUG MODE: Keeping droplet for debugging"
+        log "🔧 DEBUG MODE: Keeping droplet and SSH key for debugging"
         if [[ -n "${DROPLET_NAME:-}" ]] && [[ -n "${DROPLET_IP:-}" ]]; then
-            echo "📍 Droplet info for debugging:"
-            echo "   Name: $DROPLET_NAME"
-            echo "   IP: $DROPLET_IP"
-            echo "   SSH: ssh -i $TEST_SSH_KEY root@$DROPLET_IP"
-            echo "   Manual cleanup: $DOCTL compute droplet delete $DROPLET_NAME --force"
+            echo ""
+            echo "📍 DEBUGGING INFORMATION:"
+            echo "   Droplet Name: $DROPLET_NAME"
+            echo "   Droplet IP: $DROPLET_IP" 
+            echo "   SSH Command: ssh -i $TEST_SSH_KEY root@$DROPLET_IP"
+            echo ""
+            echo "🔍 Useful debugging commands:"
+            echo "   Check remote daemon: sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai status"
+            echo "   View daemon logs: sudo -u malai cat /opt/malai/daemon.log"
+            echo "   Test malai version: /usr/local/bin/malai --version"
+            echo ""
+            echo "🧹 Manual cleanup when done:"
+            echo "   Droplet: $DOCTL compute droplet delete $DROPLET_NAME --force"
+            echo "   SSH key: $DOCTL compute ssh-key delete $TEST_ID --force"
+            echo "   Local files: rm -rf /tmp/$TEST_ID*"
+            echo ""
         fi
+        
+        # Keep SSH key for debugging (don't delete it)
+        log "SSH key preserved for debugging access"
     else
         # Normal cleanup: destroy droplet
         if command -v doctl >/dev/null 2>&1; then
@@ -127,6 +141,10 @@ trap cleanup EXIT
 header "🌐 FULLY AUTOMATED DIGITAL OCEAN P2P TEST"
 log "Test ID: $TEST_ID"
 log "Tests real P2P across internet (laptop ↔ Digital Ocean droplet)"
+
+if [[ "$KEEP_DROPLET" != "true" ]]; then
+    log "💡 For debugging failed tests, use: ./test-digital-ocean-p2p.sh --keep-droplet"
+fi
 echo
 
 # Phase 1: Auto-setup dependencies
