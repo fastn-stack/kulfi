@@ -99,6 +99,10 @@ for arg in "$@"; do
             DROPLET_SIZE="s-8vcpu-16gb"  # $96/month, very fast builds
             log "Using turbo droplet (8CPU/16GB RAM, $96/month) - fastest builds"
             ;;
+        "--beast")
+            DROPLET_SIZE="s-8vcpu-32gb"  # $168/month, ultra-fast builds
+            log "Using beast droplet (8CPU/32GB RAM, $168/month) - ultra-fast builds"
+            ;;
         "--keep-droplet")
             KEEP_DROPLET=true
             log "🔧 DEBUG MODE: Droplet will be kept for debugging"
@@ -566,6 +570,10 @@ case "$DROPLET_SIZE" in
     "s-8vcpu-16gb")
         HOURLY_COST="0.14286"
         echo "  📍 Turbo droplet: \$0.14286/hour × $(echo "scale=2; $TOTAL_TIME/3600" | bc)h = \$$(echo "scale=4; $HOURLY_COST * $TOTAL_TIME / 3600" | bc)"
+        ;;
+    "s-8vcpu-32gb")
+        HOURLY_COST="0.25000"
+        echo "  📍 Beast droplet: \$0.25000/hour × $(echo "scale=2; $TOTAL_TIME/3600" | bc)h = \$$(echo "scale=4; $HOURLY_COST * $TOTAL_TIME / 3600" | bc)"
         ;;
     "s-2vcpu-2gb")
         HOURLY_COST="0.02679"
