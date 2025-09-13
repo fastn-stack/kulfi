@@ -9,6 +9,10 @@
 #   Fallback: ./test-digital-ocean-p2p.sh --build-on-droplet (if cross-compilation fails)
 #   CI: ./test-digital-ocean-p2p.sh --use-ci-binary (uses pre-built binary)
 #
+# Debugging:
+#   Keep droplet: ./test-digital-ocean-p2p.sh --keep-droplet (for debugging)
+#   Or: KEEP_DROPLET=1 ./test-digital-ocean-p2p.sh
+#
 # Requirements: doctl auth init (one-time setup)
 
 set -euo pipefail
@@ -39,24 +43,39 @@ DROPLET_NAME="$TEST_ID"
 # Deployment mode selection
 USE_CI_BINARY=false
 BUILD_ON_DROPLET=false
+KEEP_DROPLET="${KEEP_DROPLET:-false}"
 
-case "${1:-}" in
-    "--use-ci-binary")
-        USE_CI_BINARY=true
-        DROPLET_SIZE="s-1vcpu-1gb"  # No compilation needed
-        log "Using pre-built CI binary - no compilation needed"
-        ;;
-    "--build-on-droplet")
-        BUILD_ON_DROPLET=true
-        DROPLET_SIZE="s-2vcpu-2gb"  # Needs larger droplet for compilation
-        log "Will build malai on droplet (fallback mode)"
-        ;;
-    *)
-        # Default: Cross-compile locally (fastest for development)
-        DROPLET_SIZE="s-1vcpu-1gb"  # No compilation needed
-        log "Will cross-compile locally and deploy binary (fastest)"
-        ;;
-esac
+# Parse arguments (can combine flags)
+for arg in "$@"; do
+    case "$arg" in
+        "--use-ci-binary")
+            USE_CI_BINARY=true
+            DROPLET_SIZE="s-1vcpu-1gb"  # No compilation needed
+            log "Using pre-built CI binary - no compilation needed"
+            ;;
+        "--build-on-droplet")
+            BUILD_ON_DROPLET=true
+            DROPLET_SIZE="s-2vcpu-2gb"  # Needs larger droplet for compilation
+            log "Will build malai on droplet (fallback mode)"
+            ;;
+        "--keep-droplet")
+            KEEP_DROPLET=true
+            log "🔧 DEBUG MODE: Droplet will be kept for debugging"
+            ;;
+        *)
+            if [[ "$arg" != "${BASH_SOURCE[0]}" ]]; then
+                warn "Unknown argument: $arg (ignoring)"
+            fi
+            ;;
+    esac
+done
+
+# Default mode if no build method specified
+if [[ "$USE_CI_BINARY" == "false" ]] && [[ "$BUILD_ON_DROPLET" == "false" ]]; then
+    # Default: Cross-compile locally (fastest for development)
+    DROPLET_SIZE="s-1vcpu-1gb"  # No compilation needed
+    log "Will cross-compile locally and deploy binary (fastest)"
+fi
 DROPLET_REGION="nyc3"
 DROPLET_IMAGE="ubuntu-22-04-x64"
 
@@ -67,22 +86,34 @@ cleanup() {
     # Kill local daemons
     pkill -f "malai daemon" 2>/dev/null || true
     
-    # Destroy droplet
-    if command -v doctl >/dev/null 2>&1; then
-        CLEANUP_DOCTL="doctl"
-    elif [[ -f "$HOME/doctl" ]] && [[ -x "$HOME/doctl" ]]; then
-        CLEANUP_DOCTL="$HOME/doctl"
-    fi
-    
-    if [[ -n "${CLEANUP_DOCTL:-}" ]] && $CLEANUP_DOCTL account get >/dev/null 2>&1; then
-        if $CLEANUP_DOCTL compute droplet list --format Name --no-header | grep -q "$DROPLET_NAME"; then
-            log "Destroying droplet: $DROPLET_NAME"
-            $CLEANUP_DOCTL compute droplet delete "$DROPLET_NAME" --force
+    # Destroy droplet (unless debugging)
+    if [[ "$KEEP_DROPLET" == "true" ]]; then
+        log "🔧 DEBUG MODE: Keeping droplet for debugging"
+        if [[ -n "${DROPLET_NAME:-}" ]] && [[ -n "${DROPLET_IP:-}" ]]; then
+            echo "📍 Droplet info for debugging:"
+            echo "   Name: $DROPLET_NAME"
+            echo "   IP: $DROPLET_IP"
+            echo "   SSH: ssh -i $TEST_SSH_KEY root@$DROPLET_IP"
+            echo "   Manual cleanup: $DOCTL compute droplet delete $DROPLET_NAME --force"
+        fi
+    else
+        # Normal cleanup: destroy droplet
+        if command -v doctl >/dev/null 2>&1; then
+            CLEANUP_DOCTL="doctl"
+        elif [[ -f "$HOME/doctl" ]] && [[ -x "$HOME/doctl" ]]; then
+            CLEANUP_DOCTL="$HOME/doctl"
         fi
         
-        # Remove auto-generated SSH key
-        if $CLEANUP_DOCTL compute ssh-key list --format Name --no-header | grep -q "$TEST_ID"; then
-            $CLEANUP_DOCTL compute ssh-key delete "$TEST_ID" --force 2>/dev/null || true
+        if [[ -n "${CLEANUP_DOCTL:-}" ]] && $CLEANUP_DOCTL account get >/dev/null 2>&1; then
+            if [[ -n "${DROPLET_NAME:-}" ]] && $CLEANUP_DOCTL compute droplet list --format Name --no-header | grep -q "$DROPLET_NAME"; then
+                log "Destroying droplet: $DROPLET_NAME"
+                $CLEANUP_DOCTL compute droplet delete "$DROPLET_NAME" --force
+            fi
+            
+            # Remove auto-generated SSH key
+            if $CLEANUP_DOCTL compute ssh-key list --format Name --no-header | grep -q "$TEST_ID"; then
+                $CLEANUP_DOCTL compute ssh-key delete "$TEST_ID" --force 2>/dev/null || true
+            fi
         fi
     fi
     
