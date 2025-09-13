@@ -339,11 +339,11 @@ fi
 
 # Test 3: Command with arguments
 if ./"$MALAI_BINARY" web01."$TEST_CLUSTER_NAME" ls -la /opt/malai > "$MALAI_HOME/test3.log" 2>&1; then
-    if grep -q "/opt/malai" "$MALAI_HOME/test3.log"; then
+    if grep -q "malai" "$MALAI_HOME/test3.log" && grep -q "drwx" "$MALAI_HOME/test3.log"; then
         success "Test 3: Command with arguments via P2P ✅"
     else
         cat "$MALAI_HOME/test3.log"
-        error "Test 3: Command arguments not processed"
+        error "Test 3: Command arguments not processed correctly"
     fi
 else
     cat "$MALAI_HOME/test3.log"
