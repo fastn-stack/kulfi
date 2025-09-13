@@ -71,7 +71,7 @@ TEST_TIME=""
 # Deployment mode selection  
 USE_CI_BINARY=false
 KEEP_DROPLET="${KEEP_DROPLET:-false}"
-DROPLET_SIZE="s-8vcpu-16gb"  # Default: turbo (best balance of speed vs cost)
+DROPLET_SIZE="s-4vcpu-8gb"  # Default: fast (good balance of speed vs cost)
 
 # Parse arguments (can combine flags)
 for arg in "$@"; do
@@ -94,8 +94,8 @@ for arg in "$@"; do
             log "Using turbo droplet (8CPU/16GB RAM, $96/month) - fastest builds"
             ;;
         "--beast")
-            DROPLET_SIZE="s-8vcpu-32gb"  # $168/month, ultra-fast builds
-            log "Using beast droplet (8CPU/32GB RAM, $168/month) - ultra-fast builds"
+            DROPLET_SIZE="s-8vcpu-16gb"  # $96/month, ultra-fast builds (32GB not available in region)
+            log "Using beast droplet (8CPU/16GB RAM, $96/month) - ultra-fast builds"
             ;;
         "--keep-droplet")
             KEEP_DROPLET=true
@@ -536,11 +536,7 @@ case "$DROPLET_SIZE" in
         ;;
     "s-8vcpu-16gb")
         HOURLY_COST="0.14286"
-        echo "  📍 Turbo droplet: \$0.14286/hour × $(echo "scale=2; $TOTAL_TIME/3600" | bc)h = \$$(echo "scale=4; $HOURLY_COST * $TOTAL_TIME / 3600" | bc)"
-        ;;
-    "s-8vcpu-32gb")
-        HOURLY_COST="0.25000"
-        echo "  📍 Beast droplet: \$0.25000/hour × $(echo "scale=2; $TOTAL_TIME/3600" | bc)h = \$$(echo "scale=4; $HOURLY_COST * $TOTAL_TIME / 3600" | bc)"
+        echo "  📍 Turbo/Beast droplet: \$0.14286/hour × $(echo "scale=2; $TOTAL_TIME/3600" | bc)h = \$$(echo "scale=4; $HOURLY_COST * $TOTAL_TIME / 3600" | bc)"
         ;;
     "s-2vcpu-2gb")
         HOURLY_COST="0.02679"
