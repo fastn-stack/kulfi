@@ -73,16 +73,18 @@ done
 
 success "SSH ready"
 
-# Copy malai binary directly
-log "Copying malai binary to droplet..."
+# Copy malai binary directly (NO COMPILATION - just copy local binary)
+log "Copying local malai binary to droplet (skipping all compilation)..."
 scp -i ~/.ssh/malai-test-key -o StrictHostKeyChecking=no ./target/debug/malai root@"$DROPLET_IP":/usr/local/bin/malai
 ssh -i ~/.ssh/malai-test-key -o StrictHostKeyChecking=no root@"$DROPLET_IP" "chmod +x /usr/local/bin/malai"
 
-# Test binary works
-if ! ssh -i ~/.ssh/malai-test-key -o StrictHostKeyChecking=no root@"$DROPLET_IP" "/usr/local/bin/malai --version" >/dev/null 2>&1; then
-    error "malai binary not working on droplet"
+# Test binary works (this will fail if architecture mismatch, but fast to test)
+log "Testing if Mac ARM64 binary works on Linux x86_64..."
+if ssh -i ~/.ssh/malai-test-key -o StrictHostKeyChecking=no root@"$DROPLET_IP" "/usr/local/bin/malai --version" >/dev/null 2>&1; then
+    success "Local binary works on droplet (unexpected but great!)"
+else
+    error "Mac ARM64 binary doesn't work on Linux x86_64 droplet (expected) - need cross-compilation"
 fi
-success "malai binary working on droplet"
 
 # Create users and setup
 ssh -i ~/.ssh/malai-test-key -o StrictHostKeyChecking=no root@"$DROPLET_IP" "

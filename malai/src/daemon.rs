@@ -91,7 +91,9 @@ async fn start_all_cluster_listeners() -> Result<()> {
     let cluster_roles = crate::config_manager::scan_cluster_roles().await?;
     
     if cluster_roles.is_empty() {
-        tracing::warn!("No clusters found in MALAI_HOME: {}", malai_home.display());
+        let daemon_state = DAEMON_STATE.get().ok_or_else(|| eyre::eyre!("Daemon state not initialized"))?;
+        let state = daemon_state.read().await;
+        tracing::warn!("No clusters found in MALAI_HOME: {}", state.malai_home.display());
         println!("❌ No clusters found in MALAI_HOME");
         println!("💡 Initialize a cluster: malai cluster init <name>");
         return Ok(());
