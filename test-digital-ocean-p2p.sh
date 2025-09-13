@@ -111,7 +111,7 @@ done
 
 # Always build on droplet (simple and reliable)
 log "Building malai on droplet (reliable, ~3 minutes with default turbo)"
-DROPLET_REGION="nyc3"
+DROPLET_REGION="blr1"  # Mumbai region - better availability for high-performance droplets
 DROPLET_IMAGE="ubuntu-22-04-x64"
 
 # Comprehensive cleanup (handles all resources)
