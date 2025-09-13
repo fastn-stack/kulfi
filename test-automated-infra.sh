@@ -48,10 +48,6 @@ else
 fi
 DROPLET_REGION="nyc3"
 DROPLET_IMAGE="ubuntu-22-04-x64"
-success() { echo -e "${GREEN}✅ $1${NC}"; }
-error() { echo -e "${RED}❌ $1${NC}"; exit 1; }
-warn() { echo -e "${YELLOW}⚠️  $1${NC}"; }
-header() { echo -e "${BOLD}${BLUE}$1${NC}"; }
 
 # Comprehensive cleanup (handles all resources)
 cleanup() {
