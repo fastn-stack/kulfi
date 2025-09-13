@@ -10,8 +10,9 @@
 #   CI: ./test-digital-ocean-p2p.sh --use-ci-binary (uses pre-built binary)
 #
 # Droplet sizes for builds:
-#   Small (cheap): ./test-digital-ocean-p2p.sh --small (1GB, slower builds)
-#   Fast (optimal): ./test-digital-ocean-p2p.sh --fast (4GB, faster builds)
+#   Small (cheap): ./test-digital-ocean-p2p.sh --small (1GB, ~20min builds, $0.009/hr)
+#   Fast (balanced): ./test-digital-ocean-p2p.sh --fast (4GB, ~8min builds, $0.071/hr)  
+#   Turbo (fastest): ./test-digital-ocean-p2p.sh --turbo (8CPU/16GB, ~4min builds, $0.143/hr)
 #
 # Debugging:
 #   Keep droplet: ./test-digital-ocean-p2p.sh --keep-droplet (for debugging)
@@ -91,8 +92,12 @@ for arg in "$@"; do
             log "Using small droplet (1GB RAM, $6/month) - slower builds but cheaper"
             ;;
         "--fast")
-            DROPLET_SIZE="s-2vcpu-4gb"  # $24/month, fast builds  
-            log "Using fast droplet (2CPU/4GB RAM, $24/month) - faster builds"
+            DROPLET_SIZE="s-4vcpu-8gb"  # $48/month, fast builds  
+            log "Using fast droplet (4CPU/8GB RAM, $48/month) - faster builds"
+            ;;
+        "--turbo")
+            DROPLET_SIZE="s-8vcpu-16gb"  # $96/month, very fast builds
+            log "Using turbo droplet (8CPU/16GB RAM, $96/month) - fastest builds"
             ;;
         "--keep-droplet")
             KEEP_DROPLET=true
@@ -554,9 +559,13 @@ case "$DROPLET_SIZE" in
         HOURLY_COST="0.00893"
         echo "  📍 Small droplet: \$0.00893/hour × $(echo "scale=2; $TOTAL_TIME/3600" | bc)h = \$$(echo "scale=4; $HOURLY_COST * $TOTAL_TIME / 3600" | bc)"
         ;;
-    "s-2vcpu-4gb")
-        HOURLY_COST="0.03571" 
-        echo "  📍 Fast droplet: \$0.03571/hour × $(echo "scale=2; $TOTAL_TIME/3600" | bc)h = \$$(echo "scale=4; $HOURLY_COST * $TOTAL_TIME / 3600" | bc)"
+    "s-4vcpu-8gb")
+        HOURLY_COST="0.07143" 
+        echo "  📍 Fast droplet: \$0.07143/hour × $(echo "scale=2; $TOTAL_TIME/3600" | bc)h = \$$(echo "scale=4; $HOURLY_COST * $TOTAL_TIME / 3600" | bc)"
+        ;;
+    "s-8vcpu-16gb")
+        HOURLY_COST="0.14286"
+        echo "  📍 Turbo droplet: \$0.14286/hour × $(echo "scale=2; $TOTAL_TIME/3600" | bc)h = \$$(echo "scale=4; $HOURLY_COST * $TOTAL_TIME / 3600" | bc)"
         ;;
     "s-2vcpu-2gb")
         HOURLY_COST="0.02679"
