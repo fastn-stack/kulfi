@@ -5,7 +5,7 @@
 # Self-contained with automatic setup, cleanup, and comprehensive validation.
 #
 # Usage:
-#   Default: ./test-digital-ocean-p2p.sh (builds on droplet - reliable)
+#   Default: ./test-digital-ocean-p2p.sh (beast droplet, ~3min builds)
 #   CI: ./test-digital-ocean-p2p.sh --use-ci-binary (uses pre-built binary)
 #
 # Droplet sizes for builds:
@@ -71,7 +71,7 @@ TEST_TIME=""
 # Deployment mode selection  
 USE_CI_BINARY=false
 KEEP_DROPLET="${KEEP_DROPLET:-false}"
-DROPLET_SIZE="s-4vcpu-8gb"  # Default: fast (good balance of speed vs cost)
+DROPLET_SIZE="s-8vcpu-16gb"  # Default: beast (proven 3min builds, excellent value)
 
 # Parse arguments (can combine flags)
 for arg in "$@"; do
@@ -110,7 +110,7 @@ for arg in "$@"; do
 done
 
 # Always build on droplet (simple and reliable)
-log "Building malai on droplet (reliable, ~3 minutes with default turbo)"
+log "Building malai on droplet (reliable, ~3 minutes with default beast mode)"
 DROPLET_REGION="blr1"  # Mumbai region - better availability for high-performance droplets
 DROPLET_IMAGE="ubuntu-22-04-x64"
 
