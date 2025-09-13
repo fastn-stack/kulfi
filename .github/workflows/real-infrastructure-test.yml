@@ -36,17 +36,6 @@ jobs:
       with:
         token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
         
-    - name: Validate DIGITALOCEAN_ACCESS_TOKEN secret
-      env:
-        DO_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
-      run: |
-        if [[ -z "$DO_TOKEN" ]]; then
-          echo "❌ DIGITALOCEAN_ACCESS_TOKEN secret not configured"
-          echo "💡 Add it at: https://github.com/fastn-stack/kulfi/settings/secrets/actions"
-          exit 1
-        fi
-        echo "✅ Digital Ocean token configured (length: ${#DO_TOKEN} chars)"
-        
     - name: Test real P2P across internet (GitHub CI → Digital Ocean)
       env:
         DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
