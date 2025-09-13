@@ -237,24 +237,11 @@ if [[ "$USE_CI_BINARY" == "true" ]]; then
     fi
     MALAI_BINARY="target/release/malai"
     success "Using pre-built CI binary (optimized)"
-elif [[ "$BUILD_ON_DROPLET" == "true" ]]; then
-    # Fallback mode: Build on droplet (no local binary needed)
+else
+    # Default mode: Build on droplet (simple and reliable)
     log "Will build malai on droplet - no local compilation needed"
     MALAI_BINARY=""  # No local binary needed
-    success "Droplet build mode selected"
-else
-    # Default mode: Try cross-compile, fallback to droplet build
-    log "Attempting cross-compilation for fastest deployment..."
-    if CC_x86_64_unknown_linux_musl=x86_64-linux-musl-gcc cargo build --bin malai --target x86_64-unknown-linux-musl --no-default-features --release 2>/dev/null; then
-        MALAI_BINARY="target/x86_64-unknown-linux-musl/release/malai"
-        success "Cross-compiled Linux binary ready (fastest deployment)"
-    else
-        warn "Cross-compilation failed - falling back to droplet build mode"
-        BUILD_ON_DROPLET=true
-        DROPLET_SIZE="s-2vcpu-2gb"  # Need larger droplet for compilation
-        MALAI_BINARY=""  # No local binary needed for droplet build
-        log "Will build malai on droplet instead"
-    fi
+    success "Droplet build mode selected (default)"
 fi
 
 # Phase 2: Automated droplet provisioning
