@@ -342,7 +342,7 @@ run_rust_test() {
 header "🎯 MALAI LOCAL E2E TESTS"
 echo
 log "This tests malai infrastructure locally (same machine, multiple processes)"
-log "For real cross-internet testing, use: ./test-automated-infra.sh"
+log "For real cross-internet testing, use: ./test-digital-ocean-p2p.sh"
 echo
 
 # Run selected tests

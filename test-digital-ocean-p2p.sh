@@ -1,15 +1,14 @@
 #!/bin/bash
-# 🌐 FULLY AUTOMATED MALAI INFRASTRUCTURE TEST
+# 🌐 DIGITAL OCEAN P2P TEST
 # 
-# Self-contained test requiring NO manual setup beyond Digital Ocean token.
-# Handles all dependencies: MALAI_HOME, SSH keys, droplet lifecycle, cleanup.
+# Tests real malai P2P communication across internet (laptop ↔ Digital Ocean droplet).
+# Self-contained with automatic setup, cleanup, and comprehensive validation.
 #
 # Usage:
-#   Local: ./test-automated-infra.sh (builds on droplet)
-#   CI:    ./test-automated-infra.sh --use-ci-binary (uses pre-built binary)
+#   Local: ./test-digital-ocean-p2p.sh (builds on droplet)
+#   CI:    ./test-digital-ocean-p2p.sh --use-ci-binary (uses pre-built binary)
 #
-# Local requirements: doctl auth init (one-time)
-# CI requirements: DIGITALOCEAN_ACCESS_TOKEN secret
+# Requirements: doctl auth init (one-time setup)
 
 set -euo pipefail
 
