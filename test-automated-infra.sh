@@ -234,9 +234,26 @@ else
     success "malai built and installed on droplet (local mode)"
 fi
 
-# Verify installation works
-if ! ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "/usr/local/bin/malai --version" >/dev/null 2>&1; then
-    error "malai binary not working on droplet"
+# Verify installation works (with debugging)
+log "Testing malai binary on droplet..."
+if ! ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "/usr/local/bin/malai --version" > "$MALAI_HOME/version-test.log" 2>&1; then
+    log "❌ malai binary test failed - debugging..."
+    
+    # Debug information
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "
+    echo 'File info:'
+    file /usr/local/bin/malai
+    echo 'Permissions:'
+    ls -la /usr/local/bin/malai
+    echo 'Ldd check:'
+    ldd /usr/local/bin/malai 2>&1 || echo 'ldd failed'
+    echo 'Direct execution test:'
+    /usr/local/bin/malai --version 2>&1 || echo 'Execution failed'
+    " > "$MALAI_HOME/debug-info.log" 2>&1
+    
+    cat "$MALAI_HOME/debug-info.log"
+    cat "$MALAI_HOME/version-test.log"
+    error "malai binary not working on droplet - see debug info above"
 fi
 success "malai verified working on droplet"
 
