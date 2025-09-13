@@ -19,6 +19,7 @@
 #
 # Requirements: doctl auth init (one-time setup)
 
+#!/bin/bash
 set -euo pipefail
 
 # Colors (define first)
@@ -34,8 +35,16 @@ log() { echo -e "${BLUE}[$(date +'%H:%M:%S')] $1${NC}"; }
 time_checkpoint() { 
     local checkpoint="$1"
     local current_time=$(date +%s)
-    TIMINGS["$checkpoint"]=$((current_time - START_TIME))
-    log "⏱️  $checkpoint: ${TIMINGS[$checkpoint]}s"
+    local elapsed=$((current_time - START_TIME))
+    case "$checkpoint" in
+        "Droplet boot") BOOT_TIME="$elapsed" ;;
+        "SSH ready") SSH_TIME="$elapsed" ;;
+        "Droplet build complete") BUILD_TIME="$elapsed" ;;
+        "Binary verification") VERIFY_TIME="$elapsed" ;;
+        "Cluster setup complete") CLUSTER_TIME="$elapsed" ;;
+        "P2P testing complete") TEST_TIME="$elapsed" ;;
+    esac
+    log "⏱️  $checkpoint: ${elapsed}s"
 }
 success() { echo -e "${GREEN}✅ $1${NC}"; }
 error() { echo -e "${RED}❌ $1${NC}"; exit 1; }
@@ -50,9 +59,14 @@ export MALAI_HOME="/tmp/$TEST_ID"
 TEST_SSH_KEY="/tmp/$TEST_ID-ssh"
 DROPLET_NAME="$TEST_ID"
 
-# Timing tracking
+# Timing tracking (simple approach)
 START_TIME=$(date +%s)
-declare -A TIMINGS
+BOOT_TIME=""
+SSH_TIME=""
+BUILD_TIME=""
+VERIFY_TIME=""
+CLUSTER_TIME=""
+TEST_TIME=""
 
 # Deployment mode selection
 USE_CI_BINARY=false
@@ -73,12 +87,12 @@ for arg in "$@"; do
             log "Will build malai on droplet (fallback mode)"
             ;;
         "--small")
-            DROPLET_SIZE="s-1vcpu-1gb"  # Cheap but slow builds
-            log "Using small droplet (1GB RAM) - slower builds but cheaper"
+            DROPLET_SIZE="s-1vcpu-1gb"  # $6/month, slow builds
+            log "Using small droplet (1GB RAM, $6/month) - slower builds but cheaper"
             ;;
         "--fast")
-            DROPLET_SIZE="s-4vcpu-8gb"  # Fast builds but more expensive
-            log "Using fast droplet (4GB RAM) - faster builds but more expensive"
+            DROPLET_SIZE="s-2vcpu-4gb"  # $24/month, fast builds  
+            log "Using fast droplet (2CPU/4GB RAM, $24/month) - faster builds"
             ;;
         "--keep-droplet")
             KEEP_DROPLET=true
@@ -523,16 +537,32 @@ echo "  ✅ Proper output: Real stdout capture with correct exit codes"
 echo
 echo "⏱️  TIMING BREAKDOWN:"
 echo "  📍 Droplet size: $DROPLET_SIZE"
-echo "  📍 Setup: ${TIMINGS[Setup complete]:-0}s"
-echo "  📍 Droplet boot: ${TIMINGS[Droplet boot]:-0}s" 
-echo "  📍 SSH ready: ${TIMINGS[SSH ready]:-0}s"
-if [[ -n "${TIMINGS[Droplet build complete]:-}" ]]; then
-echo "  📍 Droplet build: ${TIMINGS[Droplet build complete]:-0}s"
+echo "  📍 Droplet boot: ${BOOT_TIME:-0}s" 
+echo "  📍 SSH ready: ${SSH_TIME:-0}s"
+if [[ -n "${BUILD_TIME:-}" ]]; then
+echo "  📍 Droplet build: ${BUILD_TIME:-0}s"
 fi
-echo "  📍 Binary verification: ${TIMINGS[Binary verification]:-0}s"
-echo "  📍 Cluster setup: ${TIMINGS[Cluster setup complete]:-0}s" 
-echo "  📍 P2P testing: ${TIMINGS[P2P testing complete]:-0}s"
-echo "  📍 Total time: $(($(date +%s) - START_TIME))s"
+echo "  📍 Binary verification: ${VERIFY_TIME:-0}s"
+echo "  📍 Cluster setup: ${CLUSTER_TIME:-0}s" 
+echo "  📍 P2P testing: ${TEST_TIME:-0}s"
+TOTAL_TIME=$(($(date +%s) - START_TIME))
+echo "  📍 Total time: ${TOTAL_TIME}s ($(($TOTAL_TIME / 60))m $(($TOTAL_TIME % 60))s)"
+echo
+echo "💰 COST ANALYSIS (per test run):"
+case "$DROPLET_SIZE" in
+    "s-1vcpu-1gb") 
+        HOURLY_COST="0.00893"
+        echo "  📍 Small droplet: \$0.00893/hour × $(echo "scale=2; $TOTAL_TIME/3600" | bc)h = \$$(echo "scale=4; $HOURLY_COST * $TOTAL_TIME / 3600" | bc)"
+        ;;
+    "s-2vcpu-4gb")
+        HOURLY_COST="0.03571" 
+        echo "  📍 Fast droplet: \$0.03571/hour × $(echo "scale=2; $TOTAL_TIME/3600" | bc)h = \$$(echo "scale=4; $HOURLY_COST * $TOTAL_TIME / 3600" | bc)"
+        ;;
+    "s-2vcpu-2gb")
+        HOURLY_COST="0.02679"
+        echo "  📍 Balanced droplet: \$0.02679/hour × $(echo "scale=2; $TOTAL_TIME/3600" | bc)h = \$$(echo "scale=4; $HOURLY_COST * $TOTAL_TIME / 3600" | bc)"
+        ;;
+esac
 echo
 echo "🚀 PRODUCTION READY: malai P2P infrastructure fully validated!"
 echo "💡 Next: Deploy with confidence - real P2P communication proven"
