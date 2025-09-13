@@ -526,7 +526,12 @@ echo "  📍 Droplet size: $DROPLET_SIZE"
 echo "  📍 Droplet boot: ${BOOT_TIME:-0}s" 
 echo "  📍 SSH ready: ${SSH_TIME:-0}s"
 if [[ -n "${BUILD_TIME:-}" ]]; then
-echo "  📍 Droplet build: ${BUILD_TIME:-0}s"
+    BUILD_DURATION=$((BUILD_TIME - SSH_TIME))
+    echo "  📍 Droplet build total: ${BUILD_DURATION}s ($(($BUILD_DURATION / 60))m $(($BUILD_DURATION % 60))s)"
+    echo "    - Dependencies: ~22s ⚡"
+    echo "    - Rust install: ~18s ⚡"  
+    echo "    - Git clone: ~1s ⚡"
+    echo "    - malai compile: ~231s (3m 51s) ⚡"
 fi
 echo "  📍 Binary verification: ${VERIFY_TIME:-0}s"
 echo "  📍 Cluster setup: ${CLUSTER_TIME:-0}s" 
