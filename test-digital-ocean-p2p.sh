@@ -282,31 +282,51 @@ if [[ "$USE_CI_BINARY" == "true" ]] || [[ "$BUILD_ON_DROPLET" == "false" ]]; the
     fi
     
 elif [[ "$BUILD_ON_DROPLET" == "true" ]]; then
-    # SLOW: Build on droplet (original approach for local testing)
-    log "Building malai on droplet (local testing mode)..."
+    # SLOW: Build on droplet (reliable fallback)
+    log "Building malai on droplet (fallback mode - takes ~15 minutes)..."
     ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "
     export DEBIAN_FRONTEND=noninteractive
 
-    # Wait for automatic apt processes
-    while pgrep -x apt > /dev/null; do echo 'Waiting for apt...'; sleep 5; done
+    # Wait for automatic apt processes (Ubuntu does this on boot)
+    echo 'Waiting for Ubuntu automatic updates to complete...'
+    while pgrep -x apt-get > /dev/null || pgrep -x apt > /dev/null || pgrep -x dpkg > /dev/null; do 
+        echo 'Waiting for apt lock...'
+        sleep 5
+    done
 
-    # Install dependencies
+    # Install all dependencies
+    echo 'Installing system dependencies...'
     apt-get update -y
-    apt-get install -y curl git build-essential pkg-config libssl-dev
+    apt-get install -y curl git build-essential pkg-config libssl-dev gcc
 
-    # Install Rust
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-    source \$HOME/.cargo/env
+    # Verify build tools
+    which gcc && gcc --version
+
+    # Install Rust  
+    echo 'Installing Rust...'
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+    source \\\$HOME/.cargo/env
+    
+    # Verify Rust
+    rustc --version && cargo --version
 
     # Clone and build malai
+    echo 'Cloning kulfi repository...'
     cd /tmp
     rm -rf kulfi 2>/dev/null || true
     git clone https://github.com/fastn-stack/kulfi.git
     cd kulfi
     git checkout feat/real-infrastructure-testing
 
-    # Build optimized for server (11-minute build on 2GB droplet)
+    # Build optimized for server
+    echo 'Building malai (this takes ~10-15 minutes)...'
     cargo build --bin malai --no-default-features --release
+
+    # Verify build succeeded
+    if [[ ! -f target/release/malai ]]; then
+        echo '❌ malai build failed'
+        exit 1
+    fi
 
     # Install binary
     cp target/release/malai /usr/local/bin/malai
@@ -320,7 +340,7 @@ elif [[ "$BUILD_ON_DROPLET" == "true" ]]; then
     echo '✅ malai build and installation complete'
     "
     
-    success "malai built and installed on droplet (local mode)"
+    success "malai built and installed on droplet"
 fi
 
 # Verify installation works (with debugging)
