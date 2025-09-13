@@ -76,9 +76,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
-header "🌐 FULLY AUTOMATED MALAI INFRASTRUCTURE TEST"
+header "🌐 FULLY AUTOMATED DIGITAL OCEAN P2P TEST"
 log "Test ID: $TEST_ID"
-log "Self-contained - no manual setup required"
+log "Tests real P2P across internet (laptop ↔ Digital Ocean droplet)"
 echo
 
 # Phase 1: Auto-setup dependencies
