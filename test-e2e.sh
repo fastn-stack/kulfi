@@ -1,5 +1,5 @@
 #!/bin/bash
-# 🎯 MALAI CRITICAL INFRASTRUCTURE TESTS
+# 🎯 MALAI LOCAL E2E TESTS
 #
 # This script runs the most important test in malai - complete P2P infrastructure.
 # If this test passes, the entire malai system is operational.
@@ -72,7 +72,7 @@ cleanup() {
 
 trap cleanup EXIT
 
-log "🎯 Starting malai end-to-end test"
+log "🎯 Starting malai local end-to-end test"
 log "📁 Test directory: $TEST_DIR"
 
 # Setup test environment
@@ -104,7 +104,7 @@ assert_file_exists() {
 
 # Function to run comprehensive malai infrastructure test
 run_bash_test() {
-    header "🏗️  CRITICAL TEST: Complete malai Infrastructure" 
+    header "🏗️  LOCAL E2E TEST: Complete malai Infrastructure" 
     log "Test: Real daemon + CLI integration + self-commands + P2P"
     log "Mode: Multi-identity daemon with comprehensive workflow testing"
     echo
@@ -339,10 +339,10 @@ run_rust_test() {
 }
 
 # Main execution following fastn-me pattern
-header "🎯 MALAI CRITICAL INFRASTRUCTURE TESTS"
+header "🎯 MALAI LOCAL E2E TESTS"
 echo
-log "This is the most important test in malai"
-log "If this passes, the entire infrastructure system is operational"
+log "This tests malai infrastructure locally (same machine, multiple processes)"
+log "For real cross-internet testing, use: ./test-digital-ocean-p2p.sh"
 echo
 
 # Run selected tests

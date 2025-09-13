@@ -258,8 +258,16 @@ pub async fn scan_cluster_roles() -> Result<Vec<(String, fastn_id52::SecretKey, 
                 
                 println!("\n📋 Scanning cluster: {}", cluster_alias);
                 
-                // Detect role (will crash if both configs exist)
-                let role = detect_cluster_role(&cluster_dir)?;
+                // Resilient role detection - don't crash entire daemon on single cluster error
+                let role = match detect_cluster_role(&cluster_dir) {
+                    Ok(role) => role,
+                    Err(e) => {
+                        tracing::error!("Failed to detect role for cluster {}: {}", cluster_alias, e);
+                        println!("   ❌ Configuration error: {}", e);
+                        println!("   ⚠️  Skipping cluster {} (fix config and rescan)", cluster_alias);
+                        continue; // Skip this cluster, continue with others
+                    }
+                };
                 
                 // Load identity based on role (design-compliant)
                 let identity_path = match role {
@@ -269,13 +277,32 @@ pub async fn scan_cluster_roles() -> Result<Vec<(String, fastn_id52::SecretKey, 
                 };
                 
                 if identity_path.exists() {
-                    let key_content = std::fs::read_to_string(&identity_path)?;
-                    let identity = fastn_id52::SecretKey::from_str(key_content.trim())?;
-                    
-                    println!("   🔑 Identity: {}", identity.id52());
-                    cluster_identities.push((cluster_alias, identity, role));
+                    // Resilient key loading - don't crash on single key error
+                    match std::fs::read_to_string(&identity_path) {
+                        Ok(key_content) => {
+                            match fastn_id52::SecretKey::from_str(key_content.trim()) {
+                                Ok(identity) => {
+                                    tracing::info!("Loaded identity for cluster {}: {}", cluster_alias, identity.id52());
+                                    println!("   🔑 Identity: {}", identity.id52());
+                                    cluster_identities.push((cluster_alias, identity, role));
+                                }
+                                Err(e) => {
+                                    tracing::error!("Invalid private key for cluster {}: {}", cluster_alias, e);
+                                    println!("   ❌ Invalid private key: {}", e);
+                                    println!("   ⚠️  Skipping cluster {} (fix key and rescan)", cluster_alias);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!("Cannot read private key for cluster {}: {}", cluster_alias, e);
+                            println!("   ❌ Cannot read private key: {}", e);
+                            println!("   ⚠️  Skipping cluster {} (fix file and rescan)", cluster_alias);
+                        }
+                    }
                 } else {
+                    tracing::warn!("No private key found for cluster {}, role: {:?}", cluster_alias, role);
                     println!("   ❌ No private key found for role: {:?}", role);
+                    println!("   ⚠️  Skipping cluster {} (add key and rescan)", cluster_alias);
                 }
             }
         }

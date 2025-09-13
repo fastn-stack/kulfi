@@ -474,12 +474,41 @@ pub async fn show_detailed_status() -> Result<()> {
     println!("═══════════════════════════════════════");
     println!("📁 MALAI_HOME: {}", malai_home.display());
     
-    // Check daemon status
+    // Check comprehensive daemon status
     let lockfile_path = malai_home.join("malai.lock");
-    if lockfile_path.exists() {
-        println!("🔒 Daemon: RUNNING (lockfile exists)");
-    } else {
-        println!("💤 Daemon: NOT RUNNING");
+    let socket_path = malai_home.join("malai.socket");
+    
+    match (lockfile_path.exists(), socket_path.exists()) {
+        (true, true) => {
+            println!("🔒 Daemon: RUNNING ✅");
+            println!("   📁 Lock: {}", lockfile_path.display());
+            println!("   🔌 Socket: {} (CLI communication active)", socket_path.display());
+        }
+        (true, false) => {
+            println!("🔒 Daemon: STARTING ⚠️  (lock exists but socket not ready)");
+            println!("   📁 Lock: {}", lockfile_path.display());
+        }
+        (false, true) => {
+            println!("🔒 Daemon: CRASHED ❌ (socket exists but no lock - stale socket)");
+            println!("   🧹 Recommend: rm {} && malai daemon", socket_path.display());
+        }
+        (false, false) => {
+            println!("💤 Daemon: NOT RUNNING");
+            println!("   💡 Start with: malai daemon");
+        }
+    }
+    
+    // Test daemon responsiveness if socket exists
+    if socket_path.exists() {
+        print!("🔍 Testing daemon responsiveness... ");
+        match test_daemon_communication(&malai_home).await {
+            Ok(()) => println!("✅ RESPONSIVE"),
+            Err(e) => {
+                println!("❌ UNRESPONSIVE");
+                println!("   ⚠️  Error: {}", e);
+                println!("   💡 Recommend: restart daemon");
+            }
+        }
     }
     
     // Load and show all configs
@@ -556,6 +585,29 @@ pub async fn show_detailed_status() -> Result<()> {
     }
     
     Ok(())
+}
+
+/// Test if daemon is responsive via Unix socket
+async fn test_daemon_communication(malai_home: &std::path::PathBuf) -> Result<()> {
+    // Create a test cluster name that doesn't exist to just test socket communication
+    // without actually rescanning anything
+    let test_cluster = "__test_daemon_ping__".to_string();
+    
+    // This will fail at the "cluster not found" stage but will test socket communication
+    match crate::config_manager::check_cluster_config(&test_cluster).await {
+        Err(e) if e.to_string().contains("not found") => {
+            // Expected error - daemon is responsive, just cluster doesn't exist
+            Ok(())
+        }
+        Err(e) => {
+            // Unexpected error - might be socket communication issue
+            Err(e)
+        }
+        Ok(()) => {
+            // Shouldn't happen for test cluster, but daemon is responsive
+            Ok(())
+        }
+    }
 }
 
 /// TEMPORARILY DISABLED - Start services based on validated configurations (ONE LISTENER PER IDENTITY) 

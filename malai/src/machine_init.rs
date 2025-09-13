@@ -38,18 +38,35 @@ pub async fn init_machine_for_cluster(cluster_manager: String, cluster_alias: St
     let machine_key_path = cluster_dir.join("machine.private-key");
     std::fs::write(&machine_key_path, machine_secret.to_string())?;
     
-    // Save cluster info for future reference
+    // Create machine.toml for proper role detection (daemon expects this)
+    let machine_config = format!(
+        r#"# Machine configuration - presence of this file indicates Machine role
+[cluster_manager]
+id52 = "{}"
+cluster_name = "{}"
+
+[machine.{}]
+id52 = "{}"
+allow_from = "*"
+"#,
+        cluster_manager_id52,
+        cluster_alias,
+        cluster_alias,
+        machine_id52
+    );
+    
+    std::fs::write(cluster_dir.join("machine.toml"), machine_config)?;
+    
+    // Also save cluster info for reference
     let cluster_info = format!(
-        r#"# Cluster registration information
+        r#"# Cluster registration information  
 cluster_alias = "{}"
 cluster_manager_id52 = "{}"
 machine_id52 = "{}"
-domain = "{}"
 "#,
         cluster_alias, 
         cluster_manager_id52, 
-        machine_id52,
-        if cluster_manager.contains('.') { cluster_manager.clone() } else { "".to_string() }
+        machine_id52
     );
     
     std::fs::write(cluster_dir.join("cluster-info.toml"), cluster_info)?;
