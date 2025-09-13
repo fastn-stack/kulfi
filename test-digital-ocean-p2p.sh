@@ -31,7 +31,7 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 # Logging functions (define early)
-log() { echo -e "${BLUE}[$(date +'%H:%M:%S')] $1${NC}"; }
+log() { printf "${BLUE}[$(date +'%H:%M:%S')] $1${NC}\n"; }
 time_checkpoint() { 
     local checkpoint="$1"
     local current_time=$(date +%s)
@@ -44,12 +44,12 @@ time_checkpoint() {
         "Cluster setup complete") CLUSTER_TIME="$elapsed" ;;
         "P2P testing complete") TEST_TIME="$elapsed" ;;
     esac
-    log "⏱️  $checkpoint: ${elapsed}s"
+    printf "${BLUE}[$(date +'%H:%M:%S')] ⏱️  $checkpoint: ${elapsed}s${NC}\n"
 }
-success() { echo -e "${GREEN}✅ $1${NC}"; }
-error() { echo -e "${RED}❌ $1${NC}"; exit 1; }
-warn() { echo -e "${YELLOW}⚠️  $1${NC}"; }
-header() { echo -e "${BOLD}${BLUE}$1${NC}"; }
+success() { printf "${GREEN}✅ $1${NC}\n"; }
+error() { printf "${RED}❌ $1${NC}\n"; exit 1; }
+warn() { printf "${YELLOW}⚠️  $1${NC}\n"; }
+header() { printf "${BOLD}${BLUE}$1${NC}\n"; }
 
 # Self-contained environment (no external dependencies)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
