@@ -10,8 +10,8 @@
 #   CI: ./test-digital-ocean-p2p.sh --use-ci-binary (uses pre-built binary)
 #
 # Droplet sizes for builds:
-#   Small (cheap): ./test-digital-ocean-p2p.sh --droplet=small (1GB, slower builds)
-#   Fast (optimal): ./test-digital-ocean-p2p.sh --droplet=fast (4GB, faster builds)
+#   Small (cheap): ./test-digital-ocean-p2p.sh --small (1GB, slower builds)
+#   Fast (optimal): ./test-digital-ocean-p2p.sh --fast (4GB, faster builds)
 #
 # Debugging:
 #   Keep droplet: ./test-digital-ocean-p2p.sh --keep-droplet (for debugging)
@@ -72,11 +72,11 @@ for arg in "$@"; do
             BUILD_ON_DROPLET=true
             log "Will build malai on droplet (fallback mode)"
             ;;
-        "--droplet=small")
+        "--small")
             DROPLET_SIZE="s-1vcpu-1gb"  # Cheap but slow builds
             log "Using small droplet (1GB RAM) - slower builds but cheaper"
             ;;
-        "--droplet=fast")
+        "--fast")
             DROPLET_SIZE="s-4vcpu-8gb"  # Fast builds but more expensive
             log "Using fast droplet (4GB RAM) - faster builds but more expensive"
             ;;
