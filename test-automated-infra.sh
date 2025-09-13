@@ -57,15 +57,21 @@ cleanup() {
     pkill -f "malai daemon" 2>/dev/null || true
     
     # Destroy droplet
-    if command -v doctl >/dev/null 2>&1 && doctl account get >/dev/null 2>&1; then
-        if doctl compute droplet list --format Name --no-header | grep -q "$DROPLET_NAME"; then
+    if command -v doctl >/dev/null 2>&1; then
+        CLEANUP_DOCTL="doctl"
+    elif [[ -f ~/doctl ]] && [[ -x ~/doctl ]]; then
+        CLEANUP_DOCTL="~/doctl"
+    fi
+    
+    if [[ -n "${CLEANUP_DOCTL:-}" ]] && $CLEANUP_DOCTL account get >/dev/null 2>&1; then
+        if $CLEANUP_DOCTL compute droplet list --format Name --no-header | grep -q "$DROPLET_NAME"; then
             log "Destroying droplet: $DROPLET_NAME"
-            doctl compute droplet delete "$DROPLET_NAME" --force
+            $CLEANUP_DOCTL compute droplet delete "$DROPLET_NAME" --force
         fi
         
         # Remove auto-generated SSH key
-        if doctl compute ssh-key list --format Name --no-header | grep -q "$TEST_ID"; then
-            doctl compute ssh-key delete "$TEST_ID" --force 2>/dev/null || true
+        if $CLEANUP_DOCTL compute ssh-key list --format Name --no-header | grep -q "$TEST_ID"; then
+            $CLEANUP_DOCTL compute ssh-key delete "$TEST_ID" --force 2>/dev/null || true
         fi
     fi
     
@@ -86,19 +92,24 @@ header "🔧 Phase 1: Auto-Setup Dependencies"
 
 # Setup doctl (assume user is logged in for local testing)
 log "Checking Digital Ocean CLI..."
-if ! command -v doctl >/dev/null 2>&1; then
-    error "Install doctl first: brew install doctl"
+if command -v doctl >/dev/null 2>&1; then
+    DOCTL="doctl"
+elif [[ -f ~/doctl ]] && [[ -x ~/doctl ]]; then
+    DOCTL="~/doctl"
+    log "Using doctl from home directory: ~/doctl"
+else
+    error "Install doctl first: brew install doctl (or download to ~/doctl)"
 fi
 
-if ! doctl account get >/dev/null 2>&1; then
+if ! $DOCTL account get >/dev/null 2>&1; then
     # For CI: use environment token
     if [[ -n "${DIGITALOCEAN_ACCESS_TOKEN:-}" ]]; then
         log "Authenticating with CI token..."
-        doctl auth init --access-token "$DIGITALOCEAN_ACCESS_TOKEN"
+        $DOCTL auth init --access-token "$DIGITALOCEAN_ACCESS_TOKEN"
         success "doctl authenticated from environment"
     else
         # For local: guide user to authenticate
-        error "Please authenticate doctl first: doctl auth init"
+        error "Please authenticate doctl first: $DOCTL auth init"
     fi
 else
     success "doctl already authenticated"
@@ -112,7 +123,7 @@ success "SSH key generated: $TEST_SSH_KEY"
 
 # Auto-import SSH key to Digital Ocean
 log "Importing SSH key to Digital Ocean..."
-SSH_KEY_ID=$(doctl compute ssh-key import "$TEST_ID" --public-key-file "$TEST_SSH_KEY.pub" --format ID --no-header)
+SSH_KEY_ID=$($DOCTL compute ssh-key import "$TEST_ID" --public-key-file "$TEST_SSH_KEY.pub" --format ID --no-header)
 success "SSH key imported to DO: $SSH_KEY_ID"
 
 # Auto-setup MALAI_HOME
@@ -145,7 +156,7 @@ fi
 header "🚀 Phase 2: Automated Droplet Provisioning"
 
 log "Creating optimized droplet..."
-DROPLET_ID=$(doctl compute droplet create "$DROPLET_NAME" \
+DROPLET_ID=$($DOCTL compute droplet create "$DROPLET_NAME" \
     --size "$DROPLET_SIZE" \
     --image "$DROPLET_IMAGE" \
     --region "$DROPLET_REGION" \
@@ -157,7 +168,7 @@ log "Droplet ID: $DROPLET_ID"
 log "Waiting for droplet to boot..."
 sleep 60
 
-DROPLET_IP=$(doctl compute droplet get "$DROPLET_ID" --format PublicIPv4 --no-header)
+DROPLET_IP=$($DOCTL compute droplet get "$DROPLET_ID" --format PublicIPv4 --no-header)
 log "Droplet IP: $DROPLET_IP"
 success "Droplet provisioned"
 
