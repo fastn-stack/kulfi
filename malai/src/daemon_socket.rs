@@ -162,28 +162,21 @@ pub async fn send_daemon_rescan_command(malai_home: PathBuf, cluster_name: Optio
     }
 }
 
-/// Perform actual rescan in daemon (placeholder implementation)
-async fn perform_daemon_rescan(cluster_name: Option<String>) -> Result<()> {
-    // TODO: This is where we'd implement the actual daemon rescan logic:
-    // 1. Stop old P2P listeners for affected clusters
-    // 2. Re-read cluster configurations 
-    // 3. Start new P2P listeners with updated configs
-    // 4. Handle errors gracefully (continue with working clusters)
+/// Perform actual rescan in daemon (NOT IMPLEMENTED)
+async fn perform_daemon_rescan(_cluster_name: Option<String>) -> Result<()> {
+    // ❌ FAKE SUCCESS REMOVED: This function was printing success without doing anything!
+    // This explains why E2E tests passed while P2P was broken.
     
-    match cluster_name {
-        Some(cluster) => {
-            println!("🔄 [PLACEHOLDER] Rescanning cluster: {}", cluster);
-            // Simulate selective rescan work
-            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-            println!("✅ [PLACEHOLDER] Cluster {} rescan complete", cluster);
-        }
-        None => {
-            println!("🔄 [PLACEHOLDER] Rescanning all clusters");
-            // Simulate full rescan work  
-            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-            println!("✅ [PLACEHOLDER] Full rescan complete");
-        }
-    }
-    
-    Ok(())
+    panic!(
+        "DAEMON RESCAN NOT IMPLEMENTED: This function was returning Ok() and printing success \
+        without actually rescanning anything! This is why E2E tests gave false confidence. \
+        
+        Need to implement:
+        1. Stop old P2P listeners for affected clusters
+        2. Re-read cluster configurations 
+        3. Start new P2P listeners with updated configs
+        4. Handle errors gracefully (continue with working clusters)
+        
+        Fix this before any rescan functionality will work."
+    );
 }
