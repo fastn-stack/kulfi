@@ -162,21 +162,8 @@ pub async fn send_daemon_rescan_command(malai_home: PathBuf, cluster_name: Optio
     }
 }
 
-/// Perform actual rescan in daemon (NOT IMPLEMENTED)
-async fn perform_daemon_rescan(_cluster_name: Option<String>) -> Result<()> {
-    // ❌ FAKE SUCCESS REMOVED: This function was printing success without doing anything!
-    // This explains why E2E tests passed while P2P was broken.
-    
-    panic!(
-        "DAEMON RESCAN NOT IMPLEMENTED: This function was returning Ok() and printing success \
-        without actually rescanning anything! This is why E2E tests gave false confidence. \
-        
-        Need to implement:
-        1. Stop old P2P listeners for affected clusters
-        2. Re-read cluster configurations 
-        3. Start new P2P listeners with updated configs
-        4. Handle errors gracefully (continue with working clusters)
-        
-        Fix this before any rescan functionality will work."
-    );
+/// Perform actual rescan in daemon (REAL IMPLEMENTATION)
+async fn perform_daemon_rescan(cluster_name: Option<String>) -> Result<()> {
+    // ✅ REAL IMPLEMENTATION: Now calls the actual daemon rescan functionality
+    crate::daemon::perform_real_daemon_rescan(cluster_name).await
 }
