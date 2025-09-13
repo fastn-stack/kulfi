@@ -13,6 +13,21 @@
 
 set -euo pipefail
 
+# Colors (define first)
+BLUE='\033[0;34m'
+GREEN='\033[0;32m' 
+RED='\033[0;31m'
+YELLOW='\033[0;33m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+# Logging functions (define early)
+log() { echo -e "${BLUE}[$(date +'%H:%M:%S')] $1${NC}"; }
+success() { echo -e "${GREEN}✅ $1${NC}"; }
+error() { echo -e "${RED}❌ $1${NC}"; exit 1; }
+warn() { echo -e "${YELLOW}⚠️  $1${NC}"; }
+header() { echo -e "${BOLD}${BLUE}$1${NC}"; }
+
 # Self-contained environment (no external dependencies)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_ID="malai-auto-$(date +%s)"
@@ -20,6 +35,7 @@ TEST_CLUSTER_NAME="auto-test"
 export MALAI_HOME="/tmp/$TEST_ID"
 TEST_SSH_KEY="/tmp/$TEST_ID-ssh"
 DROPLET_NAME="$TEST_ID"
+
 # Check if using pre-built binary from CI
 USE_CI_BINARY=false
 if [[ "${1:-}" == "--use-ci-binary" ]]; then
@@ -32,16 +48,6 @@ else
 fi
 DROPLET_REGION="nyc3"
 DROPLET_IMAGE="ubuntu-22-04-x64"
-
-# Colors
-BLUE='\033[0;34m'
-GREEN='\033[0;32m' 
-RED='\033[0;31m'
-YELLOW='\033[0;33m'
-BOLD='\033[1m'
-NC='\033[0m'
-
-log() { echo -e "${BLUE}[$(date +'%H:%M:%S')] $1${NC}"; }
 success() { echo -e "${GREEN}✅ $1${NC}"; }
 error() { echo -e "${RED}❌ $1${NC}"; exit 1; }
 warn() { echo -e "${YELLOW}⚠️  $1${NC}"; }
