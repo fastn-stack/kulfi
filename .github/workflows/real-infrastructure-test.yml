@@ -24,12 +24,15 @@ jobs:
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
       
-    - name: Build malai for deployment (CI optimization)
+    - name: Build static malai binary for deployment
       run: |
-        echo "🔨 Building malai on GitHub CI (Ubuntu x86_64)"
-        echo "This binary will be deployed to Digital Ocean droplet (also Ubuntu x86_64)"
-        cargo build --bin malai --no-default-features --release
-        echo "✅ Binary built in CI - ready for deployment"
+        echo "🔨 Building static malai binary (no glibc dependencies)"
+        echo "This ensures compatibility across different Ubuntu versions"
+        rustup target add x86_64-unknown-linux-musl
+        cargo build --bin malai --target x86_64-unknown-linux-musl --no-default-features --release
+        # Copy to standard location for script to find
+        cp target/x86_64-unknown-linux-musl/release/malai target/release/malai
+        echo "✅ Static binary built - will work on any Linux system"
         
     - name: Setup Digital Ocean CLI
       uses: digitalocean/action-doctl@v2
