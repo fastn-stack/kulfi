@@ -9,6 +9,10 @@
 #   Fallback: ./test-digital-ocean-p2p.sh --build-on-droplet (if cross-compilation fails)
 #   CI: ./test-digital-ocean-p2p.sh --use-ci-binary (uses pre-built binary)
 #
+# Droplet sizes for builds:
+#   Small (cheap): ./test-digital-ocean-p2p.sh --droplet=small (1GB, slower builds)
+#   Fast (optimal): ./test-digital-ocean-p2p.sh --droplet=fast (4GB, faster builds)
+#
 # Debugging:
 #   Keep droplet: ./test-digital-ocean-p2p.sh --keep-droplet (for debugging)
 #   Or: KEEP_DROPLET=1 ./test-digital-ocean-p2p.sh
@@ -27,6 +31,12 @@ NC='\033[0m'
 
 # Logging functions (define early)
 log() { echo -e "${BLUE}[$(date +'%H:%M:%S')] $1${NC}"; }
+time_checkpoint() { 
+    local checkpoint="$1"
+    local current_time=$(date +%s)
+    TIMINGS["$checkpoint"]=$((current_time - START_TIME))
+    log "⏱️  $checkpoint: ${TIMINGS[$checkpoint]}s"
+}
 success() { echo -e "${GREEN}✅ $1${NC}"; }
 error() { echo -e "${RED}❌ $1${NC}"; exit 1; }
 warn() { echo -e "${YELLOW}⚠️  $1${NC}"; }
@@ -40,10 +50,15 @@ export MALAI_HOME="/tmp/$TEST_ID"
 TEST_SSH_KEY="/tmp/$TEST_ID-ssh"
 DROPLET_NAME="$TEST_ID"
 
+# Timing tracking
+START_TIME=$(date +%s)
+declare -A TIMINGS
+
 # Deployment mode selection
 USE_CI_BINARY=false
 BUILD_ON_DROPLET=false
 KEEP_DROPLET="${KEEP_DROPLET:-false}"
+DROPLET_SIZE="s-2vcpu-2gb"  # Default: balanced
 
 # Parse arguments (can combine flags)
 for arg in "$@"; do
@@ -55,8 +70,15 @@ for arg in "$@"; do
             ;;
         "--build-on-droplet")
             BUILD_ON_DROPLET=true
-            DROPLET_SIZE="s-2vcpu-2gb"  # Needs larger droplet for compilation
             log "Will build malai on droplet (fallback mode)"
+            ;;
+        "--droplet=small")
+            DROPLET_SIZE="s-1vcpu-1gb"  # Cheap but slow builds
+            log "Using small droplet (1GB RAM) - slower builds but cheaper"
+            ;;
+        "--droplet=fast")
+            DROPLET_SIZE="s-4vcpu-8gb"  # Fast builds but more expensive
+            log "Using fast droplet (4GB RAM) - faster builds but more expensive"
             ;;
         "--keep-droplet")
             KEEP_DROPLET=true
@@ -73,7 +95,9 @@ done
 # Default mode if no build method specified
 if [[ "$USE_CI_BINARY" == "false" ]] && [[ "$BUILD_ON_DROPLET" == "false" ]]; then
     # Default: Cross-compile locally (fastest for development)
-    DROPLET_SIZE="s-1vcpu-1gb"  # No compilation needed
+    if [[ "$DROPLET_SIZE" == "s-2vcpu-2gb" ]]; then
+        DROPLET_SIZE="s-1vcpu-1gb"  # No compilation needed for cross-compile mode
+    fi
     log "Will cross-compile locally and deploy binary (fastest)"
 fi
 DROPLET_REGION="nyc3"
@@ -226,6 +250,8 @@ fi
 header "🚀 Phase 2: Automated Droplet Provisioning"
 
 log "Creating optimized droplet..."
+time_checkpoint "Setup complete"
+
 DROPLET_ID=$($DOCTL compute droplet create "$DROPLET_NAME" \
     --size "$DROPLET_SIZE" \
     --image "$DROPLET_IMAGE" \
@@ -234,12 +260,13 @@ DROPLET_ID=$($DOCTL compute droplet create "$DROPLET_NAME" \
     --format ID \
     --no-header)
 
-log "Droplet ID: $DROPLET_ID"
+log "Droplet ID: $DROPLET_ID (size: $DROPLET_SIZE)"
 log "Waiting for droplet to boot..."
 sleep 60
 
 DROPLET_IP=$($DOCTL compute droplet get "$DROPLET_ID" --format PublicIPv4 --no-header)
 log "Droplet IP: $DROPLET_IP"
+time_checkpoint "Droplet boot"
 success "Droplet provisioned"
 
 # Auto-wait for SSH readiness
@@ -251,6 +278,7 @@ for i in {1..30}; do
     log "SSH attempt $i/30..."
     sleep 10
 done
+time_checkpoint "SSH ready"
 success "SSH connection ready"
 
 # Phase 3: Optimized malai deployment
@@ -296,31 +324,43 @@ elif [[ "$BUILD_ON_DROPLET" == "true" ]]; then
 
     # Install all dependencies
     echo 'Installing system dependencies...'
+    START_DEPS=\\\$(date +%s)
     apt-get update -y
     apt-get install -y curl git build-essential pkg-config libssl-dev gcc
+    END_DEPS=\\\$(date +%s)
+    echo \"✅ Dependencies installed in \\\$((END_DEPS - START_DEPS))s\"
 
     # Verify build tools
     which gcc && gcc --version
 
     # Install Rust  
     echo 'Installing Rust...'
+    START_RUST=\\\$(date +%s)
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
     source \\\$HOME/.cargo/env
+    END_RUST=\\\$(date +%s)
+    echo \"✅ Rust installed in \\\$((END_RUST - START_RUST))s\"
     
     # Verify Rust
     rustc --version && cargo --version
 
     # Clone and build malai
     echo 'Cloning kulfi repository...'
+    START_CLONE=\\\$(date +%s)
     cd /tmp
     rm -rf kulfi 2>/dev/null || true
     git clone https://github.com/fastn-stack/kulfi.git
     cd kulfi
     git checkout feat/real-infrastructure-testing
+    END_CLONE=\\\$(date +%s)
+    echo \"✅ Repository cloned in \\\$((END_CLONE - START_CLONE))s\"
 
     # Build optimized for server
     echo 'Building malai (this takes ~10-15 minutes)...'
+    START_BUILD=\\\$(date +%s)
     cargo build --bin malai --no-default-features --release
+    END_BUILD=\\\$(date +%s)
+    echo \"✅ malai built in \\\$((END_BUILD - START_BUILD))s\"
 
     # Verify build succeeded
     if [[ ! -f target/release/malai ]]; then
@@ -340,6 +380,7 @@ elif [[ "$BUILD_ON_DROPLET" == "true" ]]; then
     echo '✅ malai build and installation complete'
     "
     
+    time_checkpoint "Droplet build complete"
     success "malai built and installed on droplet"
 fi
 
@@ -364,6 +405,7 @@ if ! ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "/usr
     cat "$MALAI_HOME/version-test.log"
     error "malai binary not working on droplet - see debug info above"
 fi
+time_checkpoint "Binary verification"
 success "malai verified working on droplet"
 
 # Phase 4: Automated P2P cluster setup
@@ -388,6 +430,7 @@ cat >> "$MALAI_HOME/clusters/$TEST_CLUSTER_NAME/cluster.toml" << EOF
 id52 = "$MACHINE_ID52"  
 allow_from = "*"
 EOF
+time_checkpoint "Cluster setup complete"
 success "Cluster configured with different machine IDs (real P2P setup)"
 
 # Phase 5: Automated daemon startup and testing
@@ -463,18 +506,33 @@ fi
 kill "$LOCAL_DAEMON_PID" 2>/dev/null || true
 wait "$LOCAL_DAEMON_PID" 2>/dev/null || true
 
-# Final results
+time_checkpoint "P2P testing complete"
+
+# Final results with timing summary
 header "🎉 AUTOMATED TEST RESULTS"
 echo
 success "🌐 REAL CROSS-INTERNET P2P COMMUNICATION VERIFIED!"
 echo
 echo "📊 Validation Summary:"
 echo "  ✅ Digital Ocean droplet: Automated provisioning and setup"
-echo "  ✅ malai installation: Automated build and deployment (11min)"  
+echo "  ✅ malai installation: Automated build and deployment"  
 echo "  ✅ P2P cluster setup: Automated cluster manager ↔ machine configuration"
 echo "  ✅ Cross-internet P2P: Real command execution across internet"
 echo "  ✅ Multiple commands: Custom messages, system commands, arguments"
 echo "  ✅ Proper output: Real stdout capture with correct exit codes"
+echo
+echo "⏱️  TIMING BREAKDOWN:"
+echo "  📍 Droplet size: $DROPLET_SIZE"
+echo "  📍 Setup: ${TIMINGS[Setup complete]:-0}s"
+echo "  📍 Droplet boot: ${TIMINGS[Droplet boot]:-0}s" 
+echo "  📍 SSH ready: ${TIMINGS[SSH ready]:-0}s"
+if [[ -n "${TIMINGS[Droplet build complete]:-}" ]]; then
+echo "  📍 Droplet build: ${TIMINGS[Droplet build complete]:-0}s"
+fi
+echo "  📍 Binary verification: ${TIMINGS[Binary verification]:-0}s"
+echo "  📍 Cluster setup: ${TIMINGS[Cluster setup complete]:-0}s" 
+echo "  📍 P2P testing: ${TIMINGS[P2P testing complete]:-0}s"
+echo "  📍 Total time: $(($(date +%s) - START_TIME))s"
 echo
 echo "🚀 PRODUCTION READY: malai P2P infrastructure fully validated!"
 echo "💡 Next: Deploy with confidence - real P2P communication proven"
