@@ -327,43 +327,43 @@ else
 
     # Install all dependencies
     echo 'Installing system dependencies...'
-    START_DEPS=\\\$(date +%s)
+    START_DEPS=\$(date +%s)
     apt-get update -y
     apt-get install -y curl git build-essential pkg-config libssl-dev gcc
-    END_DEPS=\\\$(date +%s)
-    echo \"✅ Dependencies installed in \\\$((END_DEPS - START_DEPS))s\"
+    END_DEPS=\$(date +%s)
+    echo \"Dependencies installed in \$((END_DEPS - START_DEPS))s\"
 
     # Verify build tools
     which gcc && gcc --version
 
     # Install Rust  
     echo 'Installing Rust...'
-    START_RUST=\\\$(date +%s)
+    START_RUST=\$(date +%s)
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-    source \\\$HOME/.cargo/env
-    END_RUST=\\\$(date +%s)
-    echo \"✅ Rust installed in \\\$((END_RUST - START_RUST))s\"
+    source \$HOME/.cargo/env
+    END_RUST=\$(date +%s)
+    echo \"Rust installed in \$((END_RUST - START_RUST))s\"
     
     # Verify Rust
     rustc --version && cargo --version
 
     # Clone and build malai
     echo 'Cloning kulfi repository...'
-    START_CLONE=\\\$(date +%s)
+    START_CLONE=\$(date +%s)
     cd /tmp
     rm -rf kulfi 2>/dev/null || true
     git clone https://github.com/fastn-stack/kulfi.git
     cd kulfi
     git checkout feat/real-infrastructure-testing
-    END_CLONE=\\\$(date +%s)
-    echo \"✅ Repository cloned in \\\$((END_CLONE - START_CLONE))s\"
+    END_CLONE=\$(date +%s)
+    echo \"Repository cloned in \$((END_CLONE - START_CLONE))s\"
 
     # Build optimized for server
     echo 'Building malai (this takes ~10-15 minutes)...'
-    START_BUILD=\\\$(date +%s)
+    START_BUILD=\$(date +%s)
     cargo build --bin malai --no-default-features --release
-    END_BUILD=\\\$(date +%s)
-    echo \"✅ malai built in \\\$((END_BUILD - START_BUILD))s\"
+    END_BUILD=\$(date +%s)
+    echo \"malai built in \$((END_BUILD - START_BUILD))s\"
 
     # Verify build succeeded
     if [[ ! -f target/release/malai ]]; then
