@@ -5,13 +5,11 @@
 # Handles all dependencies: MALAI_HOME, SSH keys, droplet lifecycle, cleanup.
 #
 # Usage:
-#   export DIGITALOCEAN_ACCESS_TOKEN=your_token  # Only requirement
-#   ./test-automated-infra.sh
+#   Local: ./test-automated-infra.sh (builds on droplet)
+#   CI:    ./test-automated-infra.sh --use-ci-binary (uses pre-built binary)
 #
-# Or in CI:
-#   env:
-#     DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
-#   run: ./test-automated-infra.sh
+# Local requirements: doctl auth init (one-time)
+# CI requirements: DIGITALOCEAN_ACCESS_TOKEN secret
 
 set -euo pipefail
 
@@ -22,7 +20,16 @@ TEST_CLUSTER_NAME="auto-test"
 export MALAI_HOME="/tmp/$TEST_ID"
 TEST_SSH_KEY="/tmp/$TEST_ID-ssh"
 DROPLET_NAME="$TEST_ID"
-DROPLET_SIZE="s-2vcpu-2gb"  # Optimized for 11-minute builds
+# Check if using pre-built binary from CI
+USE_CI_BINARY=false
+if [[ "${1:-}" == "--use-ci-binary" ]]; then
+    USE_CI_BINARY=true
+    DROPLET_SIZE="s-1vcpu-1gb"  # Smaller droplet sufficient (no compilation)
+    log "Using pre-built CI binary - no compilation on droplet needed"
+else
+    DROPLET_SIZE="s-2vcpu-2gb"  # Larger droplet needed for 11-minute builds
+    log "Will build malai on droplet (slower but works everywhere)"
+fi
 DROPLET_REGION="nyc3"
 DROPLET_IMAGE="ubuntu-22-04-x64"
 
@@ -111,14 +118,26 @@ log "Setting up isolated test environment..."
 mkdir -p "$MALAI_HOME"
 success "MALAI_HOME: $MALAI_HOME"
 
-# Ensure malai binary exists
+# Ensure malai binary exists (local or CI)
 log "Checking malai binary..."
 cd "$SCRIPT_DIR"
-if [[ ! -f "target/debug/malai" ]]; then
-    log "Building malai locally..."
-    cargo build --bin malai --quiet
+
+if [[ "$USE_CI_BINARY" == "true" ]]; then
+    # CI mode: Use pre-built release binary
+    if [[ ! -f "target/release/malai" ]]; then
+        error "Pre-built release binary not found. Run: cargo build --bin malai --no-default-features --release"
+    fi
+    MALAI_BINARY="target/release/malai"
+    success "Using pre-built CI binary (optimized)"
+else
+    # Local mode: Build debug binary if needed
+    if [[ ! -f "target/debug/malai" ]]; then
+        log "Building malai locally..."
+        cargo build --bin malai --quiet
+    fi
+    MALAI_BINARY="target/debug/malai"
+    success "Local malai binary ready"
 fi
-success "malai binary ready"
 
 # Phase 2: Automated droplet provisioning
 header "🚀 Phase 2: Automated Droplet Provisioning"
@@ -151,58 +170,80 @@ for i in {1..30}; do
 done
 success "SSH connection ready"
 
-# Phase 3: Automated malai installation on droplet
-header "📦 Phase 3: Automated malai Installation"
+# Phase 3: Optimized malai deployment
+header "📦 Phase 3: Optimized malai Deployment"
 
-log "Installing malai on remote machine..."
-ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "
-export DEBIAN_FRONTEND=noninteractive
+if [[ "$USE_CI_BINARY" == "true" ]]; then
+    # FAST: Copy pre-built binary from CI (30 seconds vs 11+ minutes)
+    log "Deploying pre-built binary to droplet (CI optimization)..."
+    
+    # Copy binary directly
+    scp -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no "$MALAI_BINARY" root@"$DROPLET_IP":/usr/local/bin/malai
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "chmod +x /usr/local/bin/malai"
+    
+    # Setup user only (no compilation needed)
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "
+    useradd -r -d /opt/malai -s /bin/bash malai || true
+    mkdir -p /opt/malai
+    chown malai:malai /opt/malai
+    "
+    
+    success "malai deployed via binary copy (fast CI mode)"
+    
+else
+    # SLOW: Build on droplet (original approach for local testing)
+    log "Building malai on droplet (local testing mode)..."
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "
+    export DEBIAN_FRONTEND=noninteractive
 
-# Wait for automatic apt processes
-while pgrep -x apt > /dev/null; do echo 'Waiting for apt...'; sleep 5; done
+    # Wait for automatic apt processes
+    while pgrep -x apt > /dev/null; do echo 'Waiting for apt...'; sleep 5; done
 
-# Install dependencies
-apt-get update -y
-apt-get install -y curl git build-essential pkg-config libssl-dev
+    # Install dependencies
+    apt-get update -y
+    apt-get install -y curl git build-essential pkg-config libssl-dev
 
-# Install Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-source ~/.cargo/env
+    # Install Rust
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    source ~/.cargo/env
 
-# Clone and build malai
-cd /tmp
-rm -rf kulfi 2>/dev/null || true
-git clone https://github.com/fastn-stack/kulfi.git
-cd kulfi
-git checkout feat/real-infrastructure-testing
+    # Clone and build malai
+    cd /tmp
+    rm -rf kulfi 2>/dev/null || true
+    git clone https://github.com/fastn-stack/kulfi.git
+    cd kulfi
+    git checkout feat/real-infrastructure-testing
 
-# Build optimized for server (11-minute build on 2GB droplet)
-cargo build --bin malai --no-default-features --release
+    # Build optimized for server (11-minute build on 2GB droplet)
+    cargo build --bin malai --no-default-features --release
 
-# Install binary
-cp target/release/malai /usr/local/bin/malai
-chmod +x /usr/local/bin/malai
+    # Install binary
+    cp target/release/malai /usr/local/bin/malai
+    chmod +x /usr/local/bin/malai
 
-# Setup malai user
-useradd -r -d /opt/malai -s /bin/bash malai || true
-mkdir -p /opt/malai
-chown malai:malai /opt/malai
+    # Setup malai user
+    useradd -r -d /opt/malai -s /bin/bash malai || true
+    mkdir -p /opt/malai
+    chown malai:malai /opt/malai
 
-echo '✅ malai installation complete'
-"
-
-# Verify installation
-if ! ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "/usr/local/bin/malai --version" >/dev/null 2>&1; then
-    error "malai installation failed on droplet"
+    echo '✅ malai build and installation complete'
+    "
+    
+    success "malai built and installed on droplet (local mode)"
 fi
-success "malai installed and verified on droplet"
+
+# Verify installation works
+if ! ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "/usr/local/bin/malai --version" >/dev/null 2>&1; then
+    error "malai binary not working on droplet"
+fi
+success "malai verified working on droplet"
 
 # Phase 4: Automated P2P cluster setup
 header "🔗 Phase 4: Automated P2P Cluster Setup"
 
 log "Creating cluster locally..."
-./target/debug/malai cluster init "$TEST_CLUSTER_NAME"
-CLUSTER_MANAGER_ID52=$(./target/debug/malai scan-roles | grep "Identity:" | head -1 | cut -d: -f2 | tr -d ' ')
+./"$MALAI_BINARY" cluster init "$TEST_CLUSTER_NAME"
+CLUSTER_MANAGER_ID52=$(./"$MALAI_BINARY" scan-roles | grep "Identity:" | head -1 | cut -d: -f2 | tr -d ' ')
 log "Cluster Manager ID: $CLUSTER_MANAGER_ID52"
 
 log "Initializing machine on droplet..."
@@ -225,7 +266,7 @@ success "Cluster configured with different machine IDs (real P2P setup)"
 header "🧪 Phase 5: Automated P2P Testing"
 
 log "Starting local daemon..."
-./target/debug/malai daemon --foreground > "$MALAI_HOME/local-daemon.log" 2>&1 &
+./"$MALAI_BINARY" daemon --foreground > "$MALAI_HOME/local-daemon.log" 2>&1 &
 LOCAL_DAEMON_PID=$!
 sleep 3
 
@@ -252,7 +293,7 @@ log "Testing real cross-internet P2P communication..."
 log "Laptop (cluster manager) → Digital Ocean (machine) via P2P"
 
 # Test 1: Custom message
-if ./target/debug/malai web01."$TEST_CLUSTER_NAME" echo "SUCCESS: Automated real P2P test!" > "$MALAI_HOME/test1.log" 2>&1; then
+if ./"$MALAI_BINARY" web01."$TEST_CLUSTER_NAME" echo "SUCCESS: Automated real P2P test!" > "$MALAI_HOME/test1.log" 2>&1; then
     if grep -q "SUCCESS: Automated real P2P test!" "$MALAI_HOME/test1.log"; then
         success "Test 1: Custom message via P2P ✅"
     else
@@ -265,7 +306,7 @@ else
 fi
 
 # Test 2: System command
-if ./target/debug/malai web01."$TEST_CLUSTER_NAME" whoami > "$MALAI_HOME/test2.log" 2>&1; then
+if ./"$MALAI_BINARY" web01."$TEST_CLUSTER_NAME" whoami > "$MALAI_HOME/test2.log" 2>&1; then
     if grep -q "malai" "$MALAI_HOME/test2.log"; then
         success "Test 2: System command via P2P ✅"
     else
@@ -278,7 +319,7 @@ else
 fi
 
 # Test 3: Command with arguments
-if ./target/debug/malai web01."$TEST_CLUSTER_NAME" ls -la /opt/malai > "$MALAI_HOME/test3.log" 2>&1; then
+if ./"$MALAI_BINARY" web01."$TEST_CLUSTER_NAME" ls -la /opt/malai > "$MALAI_HOME/test3.log" 2>&1; then
     if grep -q "/opt/malai" "$MALAI_HOME/test3.log"; then
         success "Test 3: Command with arguments via P2P ✅"
     else
