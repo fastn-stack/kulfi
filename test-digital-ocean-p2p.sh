@@ -36,7 +36,7 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 # Logging functions (define early)
-log() { printf "${BLUE}[$(date +'%H:%M:%S')] $1${NC}\n"; }
+log() { printf "%s[%s] %s%s\\n" "${BLUE}" "$(date +'%H:%M:%S')" "$1" "${NC}"; }
 time_checkpoint() { 
     local checkpoint="$1"
     local current_time=$(date +%s)
@@ -49,12 +49,12 @@ time_checkpoint() {
         "Cluster setup complete") CLUSTER_TIME="$elapsed" ;;
         "P2P testing complete") TEST_TIME="$elapsed" ;;
     esac
-    printf "${BLUE}[$(date +'%H:%M:%S')] ⏱️  $checkpoint: ${elapsed}s${NC}\n"
+    printf "%s[%s] ⏱️  %s: %ss%s\\n" "${BLUE}" "$(date +'%H:%M:%S')" "$checkpoint" "$elapsed" "${NC}"
 }
-success() { printf "${GREEN}✅ $1${NC}\n"; }
-error() { printf "${RED}❌ $1${NC}\n"; exit 1; }
-warn() { printf "${YELLOW}⚠️  $1${NC}\n"; }
-header() { printf "${BOLD}${BLUE}$1${NC}\n"; }
+success() { printf "%s✅ %s%s\\n" "${GREEN}" "$1" "${NC}"; }
+error() { printf "%s❌ %s%s\\n" "${RED}" "$1" "${NC}"; exit 1; }
+warn() { printf "%s⚠️  %s%s\\n" "${YELLOW}" "$1" "${NC}"; }
+header() { printf "%s%s%s%s\\n" "${BOLD}" "${BLUE}" "$1" "${NC}"; }
 
 # Setup malai on a droplet (reusable function)
 setup_droplet() {
