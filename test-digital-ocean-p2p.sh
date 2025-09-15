@@ -489,54 +489,97 @@ success "malai verified working on droplet"
 # Phase 4: Automated P2P cluster setup
 header "🔗 Phase 4: Automated P2P Cluster Setup"
 
-log "Creating cluster locally..."
-# For droplet build mode, use local debug binary for cluster setup
-if [[ -z "$MALAI_BINARY" ]]; then
+if [[ "$DUAL_DROPLET" == "true" ]]; then
+    log "Setting up cloud-to-cloud P2P cluster..."
+    
+    # Initialize cluster on cluster droplet
+    log "Initializing cluster manager on cluster droplet..."
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$CLUSTER_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai cluster init $TEST_CLUSTER_NAME"
+    
+    # Get cluster manager ID from cluster droplet
+    CLUSTER_MANAGER_ID52=$(ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$CLUSTER_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai scan-roles | grep 'Identity:' | cut -d: -f2 | tr -d ' '")
+    log "Cluster Manager ID: $CLUSTER_MANAGER_ID52 (on cluster droplet)"
+    
+    # Initialize machine on machine droplet
+    log "Initializing machine on machine droplet..."
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$MACHINE_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai machine init $CLUSTER_MANAGER_ID52 $TEST_CLUSTER_NAME"
+    
+    # Get machine ID from machine droplet
+    MACHINE_ID52=$(ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$MACHINE_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai scan-roles | grep 'Identity:' | cut -d: -f2 | tr -d ' '")
+    log "Machine ID: $MACHINE_ID52 (on machine droplet)"
+    
+    # Add machine to cluster config on cluster droplet
+    log "Adding machine to cluster configuration..."
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$CLUSTER_IP" "sudo -u malai bash -c 'cat >> /opt/malai/clusters/$TEST_CLUSTER_NAME/cluster.toml << EOF
+
+[machine.web01]
+id52 = \"$MACHINE_ID52\"
+allow_from = \"*\"
+EOF'"
+
+    success "Cloud-to-cloud cluster configured (different droplets, different IDs)"
+else
+    log "Setting up Mac ↔ droplet P2P cluster..."
     # Build local binary for cluster management if not exists
-    if [[ ! -f "target/debug/malai" ]]; then
-        log "Building local malai for cluster management..."
-        cargo build --bin malai --quiet
+    if [[ -z "$MALAI_BINARY" ]]; then
+        if [[ ! -f "target/debug/malai" ]]; then
+            log "Building local malai for cluster management..."
+            cargo build --bin malai --quiet
+        fi
+        MALAI_BINARY="target/debug/malai"
     fi
-    MALAI_BINARY="target/debug/malai"
-fi
-./"$MALAI_BINARY" cluster init "$TEST_CLUSTER_NAME"
-CLUSTER_MANAGER_ID52=$(./"$MALAI_BINARY" scan-roles | grep "Identity:" | head -1 | cut -d: -f2 | tr -d ' ')
-log "Cluster Manager ID: $CLUSTER_MANAGER_ID52"
-
-log "Initializing machine on droplet..."
-ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai machine init $CLUSTER_MANAGER_ID52 $TEST_CLUSTER_NAME"
-
-MACHINE_ID52=$(ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai scan-roles | grep 'Identity:' | cut -d: -f2 | tr -d ' '")
-log "Machine ID: $MACHINE_ID52"
-
-# Auto-add machine to cluster config
-log "Configuring cluster automatically..."
-cat >> "$MALAI_HOME/clusters/$TEST_CLUSTER_NAME/cluster.toml" << EOF
+    
+    # Create cluster locally (Mac as cluster manager)
+    ./"$MALAI_BINARY" cluster init "$TEST_CLUSTER_NAME"
+    CLUSTER_MANAGER_ID52=$(./"$MALAI_BINARY" scan-roles | grep "Identity:" | head -1 | cut -d: -f2 | tr -d ' ')
+    log "Cluster Manager ID: $CLUSTER_MANAGER_ID52 (on Mac)"
+    
+    # Initialize machine on droplet
+    log "Initializing machine on droplet..."
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai machine init $CLUSTER_MANAGER_ID52 $TEST_CLUSTER_NAME"
+    
+    MACHINE_ID52=$(ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai scan-roles | grep 'Identity:' | cut -d: -f2 | tr -d ' '")
+    log "Machine ID: $MACHINE_ID52 (on droplet)"
+    
+    # Add machine to cluster config locally
+    log "Configuring cluster automatically..."
+    cat >> "$MALAI_HOME/clusters/$TEST_CLUSTER_NAME/cluster.toml" << EOF
 
 [machine.web01]
 id52 = "$MACHINE_ID52"  
 allow_from = "*"
 EOF
+
+    success "Mac ↔ droplet cluster configured (different machine IDs)"
+fi
 time_checkpoint "Cluster setup complete"
 success "Cluster configured with different machine IDs (real P2P setup)"
 
 # Phase 5: Automated daemon startup and testing
 header "🧪 Phase 5: Automated P2P Testing"
 
-log "Starting local daemon..."
-./"$MALAI_BINARY" daemon --foreground > "$MALAI_HOME/local-daemon.log" 2>&1 &
-LOCAL_DAEMON_PID=$!
-sleep 3
+if [[ "$DUAL_DROPLET" == "true" ]]; then
+    log "Starting daemons on both droplets..."
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$CLUSTER_IP" "sudo -u malai env MALAI_HOME=/opt/malai nohup /usr/local/bin/malai daemon --foreground > /opt/malai/daemon.log 2>&1 &"
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$MACHINE_IP" "sudo -u malai env MALAI_HOME=/opt/malai nohup /usr/local/bin/malai daemon --foreground > /opt/malai/daemon.log 2>&1 &"
+    sleep 5
+    success "Daemons running on both droplets"
+else
+    log "Starting local daemon..."
+    ./"$MALAI_BINARY" daemon --foreground > "$MALAI_HOME/local-daemon.log" 2>&1 &
+    LOCAL_DAEMON_PID=$!
+    sleep 3
 
-if ! kill -0 "$LOCAL_DAEMON_PID" 2>/dev/null; then
-    cat "$MALAI_HOME/local-daemon.log"
-    error "Local daemon failed to start"
+    if ! kill -0 "$LOCAL_DAEMON_PID" 2>/dev/null; then
+        cat "$MALAI_HOME/local-daemon.log"
+        error "Local daemon failed to start"
+    fi
+    success "Local daemon running"
+
+    log "Starting remote daemon..."
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "sudo -u malai env MALAI_HOME=/opt/malai nohup /usr/local/bin/malai daemon --foreground > /opt/malai/daemon.log 2>&1 &"
+    sleep 5
 fi
-success "Local daemon running"
-
-log "Starting remote daemon..."
-ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "sudo -u malai env MALAI_HOME=/opt/malai nohup /usr/local/bin/malai daemon --foreground > /opt/malai/daemon.log 2>&1 &"
-sleep 5
 
 # Verify remote daemon
 if ! ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai status | grep -q 'RUNNING'"; then
@@ -547,11 +590,29 @@ success "Remote daemon running"
 # Phase 6: Critical P2P validation
 header "🎯 Phase 6: Critical P2P Validation"
 
-log "Testing real cross-internet P2P communication..."
-log "Laptop (cluster manager) → Digital Ocean (machine) via P2P"
+if [[ "$DUAL_DROPLET" == "true" ]]; then
+    log "Testing cloud-to-cloud P2P communication..."
+    log "Cluster droplet → Machine droplet via P2P"
+    
+    # Test cloud-to-cloud P2P
+    if ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$CLUSTER_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai web01.$TEST_CLUSTER_NAME echo 'SUCCESS: Cloud-to-cloud P2P working!'" > "$MALAI_HOME/dual-test.log" 2>&1; then
+        if grep -q "SUCCESS: Cloud-to-cloud P2P working!" "$MALAI_HOME/dual-test.log"; then
+            success "🎉 CLOUD-TO-CLOUD P2P COMMUNICATION WORKING!"
+            cat "$MALAI_HOME/dual-test.log"
+        else
+            cat "$MALAI_HOME/dual-test.log"
+            error "Cloud-to-cloud P2P response not received"
+        fi
+    else
+        cat "$MALAI_HOME/dual-test.log"
+        error "Cloud-to-cloud P2P command failed"
+    fi
+else
+    log "Testing real cross-internet P2P communication..."
+    log "Mac (cluster manager) → Digital Ocean (machine) via P2P"
 
-# Test 1: Custom message
-if ./"$MALAI_BINARY" web01."$TEST_CLUSTER_NAME" echo "SUCCESS: Automated real P2P test!" > "$MALAI_HOME/test1.log" 2>&1; then
+    # Test 1: Custom message
+    if ./"$MALAI_BINARY" web01."$TEST_CLUSTER_NAME" echo "SUCCESS: Automated real P2P test!" > "$MALAI_HOME/test1.log" 2>&1; then
     if grep -q "SUCCESS: Automated real P2P test!" "$MALAI_HOME/test1.log"; then
         success "Test 1: Custom message via P2P ✅"
     else
