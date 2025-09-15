@@ -83,29 +83,37 @@ setup_droplet() {
         sleep 10
     done
     
-    # Install malai
+    # Install malai with clean logging
     ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$droplet_ip" "
     export DEBIAN_FRONTEND=noninteractive
+    
+    echo 'Setting up $role_name droplet...'
     
     # Disable auto-updates
     systemctl stop apt-daily.timer unattended-upgrades || true
     killall apt-get apt dpkg || true
     sleep 3
     
-    # Install dependencies
-    apt-get update -y
-    apt-get install -y curl git build-essential pkg-config libssl-dev gcc
+    # Install dependencies (log to file)
+    echo 'Installing dependencies...'
+    apt-get update -y > /tmp/apt-update.log 2>&1
+    apt-get install -y curl git build-essential pkg-config libssl-dev gcc > /tmp/apt-install.log 2>&1
+    echo 'Dependencies installed. Logs: /tmp/apt-update.log, /tmp/apt-install.log'
     
-    # Install Rust
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+    # Install Rust (log to file)
+    echo 'Installing Rust...'
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable > /tmp/rust-install.log 2>&1
     source \$HOME/.cargo/env
+    echo 'Rust installed. Log: /tmp/rust-install.log'
     
-    # Clone and build
+    # Clone and build (log to file)
+    echo 'Cloning and building malai...'
     cd /tmp
-    git clone https://github.com/fastn-stack/kulfi.git
+    git clone https://github.com/fastn-stack/kulfi.git > /tmp/git-clone.log 2>&1
     cd kulfi
-    git checkout main
-    cargo build --bin malai --no-default-features --release
+    git checkout main >> /tmp/git-clone.log 2>&1
+    cargo build --bin malai --no-default-features --release > /tmp/cargo-build.log 2>&1
+    echo 'malai built. Logs: /tmp/git-clone.log, /tmp/cargo-build.log'
     
     # Install
     cp target/release/malai /usr/local/bin/malai
@@ -117,7 +125,9 @@ setup_droplet() {
     chown malai:malai /opt/malai
     
     # Verify
+    echo 'Verifying malai installation...'
     /usr/local/bin/malai --version
+    echo '$role_name droplet setup complete'
     "
     
     # Return IP address
