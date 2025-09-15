@@ -666,18 +666,52 @@ if [[ "$DUAL_DROPLET" == "true" ]]; then
     log "Testing cloud-to-cloud P2P communication..."
     log "Cluster droplet → Machine droplet via P2P"
     
-    # Test cloud-to-cloud P2P
-    if ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$CLUSTER_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai web01.$TEST_CLUSTER_NAME echo 'SUCCESS: Cloud-to-cloud P2P working!'" > "$MALAI_HOME/dual-test.log" 2>&1; then
-        if grep -q "SUCCESS: Cloud-to-cloud P2P working!" "$MALAI_HOME/dual-test.log"; then
-            success "🎉 CLOUD-TO-CLOUD P2P COMMUNICATION WORKING!"
-            cat "$MALAI_HOME/dual-test.log"
+    # Test 1: Cloud-to-cloud P2P custom message
+    log "Test 1: Custom message via cloud P2P..."
+    CMD_START=$(date +%s)
+    if ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$CLUSTER_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai web01.$TEST_CLUSTER_NAME echo 'SUCCESS: Cloud-to-cloud P2P working!'" > "$MALAI_HOME/dual-test1.log" 2>&1; then
+        CMD_END=$(date +%s)
+        if grep -q "SUCCESS: Cloud-to-cloud P2P working!" "$MALAI_HOME/dual-test1.log"; then
+            success "Test 1: Cloud P2P custom message ✅ (${CMD_END}s - ${CMD_START}s = $((CMD_END - CMD_START))s)"
         else
-            cat "$MALAI_HOME/dual-test.log"
-            error "Cloud-to-cloud P2P response not received"
+            cat "$MALAI_HOME/dual-test1.log"
+            error "Test 1: Cloud P2P response not received"
         fi
     else
-        cat "$MALAI_HOME/dual-test.log"
-        error "Cloud-to-cloud P2P command failed"
+        cat "$MALAI_HOME/dual-test1.log"
+        error "Test 1: Cloud P2P command failed"
+    fi
+    
+    # Test 2: Cloud-to-cloud P2P system command
+    log "Test 2: System command via cloud P2P..."
+    CMD_START=$(date +%s)
+    if ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$CLUSTER_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai web01.$TEST_CLUSTER_NAME whoami" > "$MALAI_HOME/dual-test2.log" 2>&1; then
+        CMD_END=$(date +%s)
+        if grep -q "malai" "$MALAI_HOME/dual-test2.log"; then
+            success "Test 2: Cloud P2P system command ✅ ($((CMD_END - CMD_START))s)"
+        else
+            cat "$MALAI_HOME/dual-test2.log"
+            error "Test 2: Unexpected whoami output"
+        fi
+    else
+        cat "$MALAI_HOME/dual-test2.log"
+        error "Test 2: Cloud P2P system command failed"
+    fi
+    
+    # Test 3: Cloud-to-cloud P2P command with arguments
+    log "Test 3: Command with arguments via cloud P2P..."
+    CMD_START=$(date +%s)
+    if ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$CLUSTER_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai web01.$TEST_CLUSTER_NAME ls -la /opt/malai" > "$MALAI_HOME/dual-test3.log" 2>&1; then
+        CMD_END=$(date +%s)
+        if grep -q "malai" "$MALAI_HOME/dual-test3.log" && grep -q "drwx" "$MALAI_HOME/dual-test3.log"; then
+            success "Test 3: Cloud P2P command with arguments ✅ ($((CMD_END - CMD_START))s)"
+        else
+            cat "$MALAI_HOME/dual-test3.log"
+            error "Test 3: Command arguments not processed correctly"
+        fi
+    else
+        cat "$MALAI_HOME/dual-test3.log"
+        error "Test 3: Cloud P2P command with arguments failed"
     fi
 else
     log "Testing real cross-internet P2P communication..."
