@@ -5,16 +5,21 @@
 # Self-contained with automatic setup, cleanup, and comprehensive validation.
 #
 # Usage:
-#   Default: ./test-digital-ocean-p2p.sh (beast droplet, ~3min builds)
+#   Default: ./test-digital-ocean-p2p.sh (Mac ↔ beast droplet, ~3min builds)
+#   Dual droplet: ./test-digital-ocean-p2p.sh --dual (droplet ↔ droplet, eliminates CI issues)
 #   CI: ./test-digital-ocean-p2p.sh --use-ci-binary (uses pre-built binary)
 #
 # Droplet sizes for builds:
 #   Small (cheap): ./test-digital-ocean-p2p.sh --small (1GB, ~20min builds, $0.009/hr)
 #   Fast (balanced): ./test-digital-ocean-p2p.sh --fast (4GB, ~8min builds, $0.071/hr)  
-#   Turbo (fastest): ./test-digital-ocean-p2p.sh --turbo (8CPU/16GB, ~4min builds, $0.143/hr)
+#   Turbo/Beast (fastest): ./test-digital-ocean-p2p.sh --beast (8CPU/16GB, ~3min builds, $0.143/hr)
+#
+# Testing modes:
+#   Mac to droplet: ./test-digital-ocean-p2p.sh (tests Mac ↔ Linux P2P)
+#   Droplet to droplet: ./test-digital-ocean-p2p.sh --dual (tests cloud ↔ cloud P2P)
 #
 # Debugging:
-#   Keep droplet: ./test-digital-ocean-p2p.sh --keep-droplet (for debugging)
+#   Keep droplet(s): ./test-digital-ocean-p2p.sh --keep-droplet (for debugging)
 #   Or: KEEP_DROPLET=1 ./test-digital-ocean-p2p.sh
 #
 # Requirements: doctl auth init (one-time setup)
@@ -31,7 +36,7 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 # Logging functions (define early)
-log() { printf "${BLUE}[$(date +'%H:%M:%S')] $1${NC}\n"; }
+log() { printf "%s[%s] %s%s\\n" "${BLUE}" "$(date +'%H:%M:%S')" "$1" "${NC}"; }
 time_checkpoint() { 
     local checkpoint="$1"
     local current_time=$(date +%s)
@@ -44,12 +49,90 @@ time_checkpoint() {
         "Cluster setup complete") CLUSTER_TIME="$elapsed" ;;
         "P2P testing complete") TEST_TIME="$elapsed" ;;
     esac
-    printf "${BLUE}[$(date +'%H:%M:%S')] ⏱️  $checkpoint: ${elapsed}s${NC}\n"
+    printf "%s[%s] ⏱️  %s: %ss%s\\n" "${BLUE}" "$(date +'%H:%M:%S')" "$checkpoint" "$elapsed" "${NC}"
 }
-success() { printf "${GREEN}✅ $1${NC}\n"; }
-error() { printf "${RED}❌ $1${NC}\n"; exit 1; }
-warn() { printf "${YELLOW}⚠️  $1${NC}\n"; }
-header() { printf "${BOLD}${BLUE}$1${NC}\n"; }
+success() { printf "%s✅ %s%s\\n" "${GREEN}" "$1" "${NC}"; }
+error() { printf "%s❌ %s%s\\n" "${RED}" "$1" "${NC}"; exit 1; }
+warn() { printf "%s⚠️  %s%s\\n" "${YELLOW}" "$1" "${NC}"; }
+header() { printf "%s%s%s%s\\n" "${BOLD}" "${BLUE}" "$1" "${NC}"; }
+
+# Setup malai on a droplet (reusable function)
+setup_droplet() {
+    local droplet_name="$1"
+    local role_name="$2"  # "cluster" or "machine"
+    
+    # Create droplet
+    local droplet_id=$($DOCTL compute droplet create "$droplet_name" \
+        --size "$DROPLET_SIZE" \
+        --image "$DROPLET_IMAGE" \
+        --region "$DROPLET_REGION" \
+        --ssh-keys "$SSH_KEY_ID" \
+        --format ID --no-header)
+    
+    # Wait for boot
+    sleep 60
+    
+    # Get IP
+    local droplet_ip=$($DOCTL compute droplet get "$droplet_id" --format PublicIPv4 --no-header)
+    
+    # Wait for SSH
+    for i in {1..30}; do
+        if ssh -i "$TEST_SSH_KEY" -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@"$droplet_ip" echo "ready" >/dev/null 2>&1; then
+            break
+        fi
+        sleep 10
+    done
+    
+    # Install malai with clean logging
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$droplet_ip" "
+    export DEBIAN_FRONTEND=noninteractive
+    
+    echo 'Setting up $role_name droplet...'
+    
+    # Disable auto-updates
+    systemctl stop apt-daily.timer unattended-upgrades || true
+    killall apt-get apt dpkg || true
+    sleep 3
+    
+    # Install dependencies (log to file)
+    echo 'Installing dependencies...'
+    apt-get update -y > /tmp/apt-update.log 2>&1
+    apt-get install -y curl git build-essential pkg-config libssl-dev gcc > /tmp/apt-install.log 2>&1
+    echo 'Dependencies installed. Logs: /tmp/apt-update.log, /tmp/apt-install.log'
+    
+    # Install Rust (log to file)
+    echo 'Installing Rust...'
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable > /tmp/rust-install.log 2>&1
+    source \$HOME/.cargo/env
+    echo 'Rust installed. Log: /tmp/rust-install.log'
+    
+    # Clone and build (log to file)
+    echo 'Cloning and building malai...'
+    cd /tmp
+    git clone https://github.com/fastn-stack/kulfi.git > /tmp/git-clone.log 2>&1
+    cd kulfi
+    git checkout main >> /tmp/git-clone.log 2>&1
+    cargo build --bin malai --no-default-features --release > /tmp/cargo-build.log 2>&1
+    echo 'malai built. Logs: /tmp/git-clone.log, /tmp/cargo-build.log'
+    
+    # Install
+    cp target/release/malai /usr/local/bin/malai
+    chmod +x /usr/local/bin/malai
+    
+    # Setup user
+    useradd -r -d /opt/malai -s /bin/bash malai || true
+    mkdir -p /opt/malai
+    chown malai:malai /opt/malai
+    
+    # Verify
+    echo 'Verifying malai installation...'
+    /usr/local/bin/malai --version
+    echo '$role_name droplet setup complete'
+    "
+    
+    # Return IP address
+    echo "$droplet_ip"
+}
 
 # Self-contained environment (no external dependencies)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -58,6 +141,7 @@ TEST_CLUSTER_NAME="auto-test"
 export MALAI_HOME="/tmp/$TEST_ID"
 TEST_SSH_KEY="/tmp/$TEST_ID-ssh"
 DROPLET_NAME="$TEST_ID"
+MACHINE_DROPLET="$TEST_ID-machine"  # For dual droplet mode
 
 # Timing tracking (simple approach)
 START_TIME=$(date +%s)
@@ -70,6 +154,7 @@ TEST_TIME=""
 
 # Deployment mode selection  
 USE_CI_BINARY=false
+DUAL_DROPLET=false
 KEEP_DROPLET="${KEEP_DROPLET:-false}"
 DROPLET_SIZE="s-8vcpu-16gb"  # Default: beast (proven 3min builds, excellent value)
 
@@ -80,6 +165,10 @@ for arg in "$@"; do
             USE_CI_BINARY=true
             DROPLET_SIZE="s-1vcpu-1gb"  # No compilation needed
             log "Using pre-built CI binary - no compilation needed"
+            ;;
+        "--dual")
+            DUAL_DROPLET=true
+            log "🌐 DUAL DROPLET MODE: Testing droplet ↔ droplet P2P (eliminates CI restrictions)"
             ;;
         "--small")
             DROPLET_SIZE="s-1vcpu-1gb"  # $6/month, slow builds
@@ -175,10 +264,17 @@ trap cleanup EXIT
 
 header "🌐 FULLY AUTOMATED DIGITAL OCEAN P2P TEST"
 log "Test ID: $TEST_ID"
-log "Tests real P2P across internet (laptop ↔ Digital Ocean droplet)"
 
-if [[ "$KEEP_DROPLET" != "true" ]]; then
-    log "💡 For debugging failed tests, use: ./test-digital-ocean-p2p.sh --keep-droplet"
+if [[ "$DUAL_DROPLET" == "true" ]]; then
+    log "Tests cloud-to-cloud P2P (droplet ↔ droplet) - eliminates CI networking restrictions"
+    if [[ "$KEEP_DROPLET" != "true" ]]; then
+        log "💡 For debugging failed tests, use: ./test-digital-ocean-p2p.sh --dual --keep-droplet"
+    fi
+else
+    log "Tests real P2P across internet (Mac ↔ Digital Ocean droplet)"
+    if [[ "$KEEP_DROPLET" != "true" ]]; then
+        log "💡 For debugging failed tests, use: ./test-digital-ocean-p2p.sh --keep-droplet"
+    fi
 fi
 echo
 
@@ -247,58 +343,120 @@ fi
 # Phase 2: Automated droplet provisioning
 header "🚀 Phase 2: Automated Droplet Provisioning"
 
-log "Creating optimized droplet..."
-time_checkpoint "Setup complete"
-
-DROPLET_ID=$($DOCTL compute droplet create "$DROPLET_NAME" \
-    --size "$DROPLET_SIZE" \
-    --image "$DROPLET_IMAGE" \
-    --region "$DROPLET_REGION" \
-    --ssh-keys "$SSH_KEY_ID" \
-    --format ID \
-    --no-header)
-
-log "Droplet ID: $DROPLET_ID (size: $DROPLET_SIZE)"
-log "Waiting for droplet to boot..."
-sleep 60
-
-DROPLET_IP=$($DOCTL compute droplet get "$DROPLET_ID" --format PublicIPv4 --no-header)
-log "Droplet IP: $DROPLET_IP"
-time_checkpoint "Droplet boot"
-success "Droplet provisioned"
-
-# Auto-wait for SSH readiness
-log "Waiting for SSH to be ready..."
-for i in {1..30}; do
-    if ssh -i "$TEST_SSH_KEY" -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@"$DROPLET_IP" echo "ready" >/dev/null 2>&1; then
-        break
-    fi
-    log "SSH attempt $i/30..."
-    sleep 10
-done
-time_checkpoint "SSH ready"
-success "SSH connection ready"
+if [[ "$DUAL_DROPLET" == "true" ]]; then
+    log "Setting up dual droplets in parallel for cloud-to-cloud P2P testing..."
+    time_checkpoint "Setup complete"
+    
+    # Setup both droplets in parallel using reusable function
+    {
+        DROPLET_IP=$(setup_droplet "$DROPLET_NAME" "cluster")
+        echo "$DROPLET_IP" > "/tmp/$TEST_ID-cluster-ip"
+    } &
+    
+    {
+        MACHINE_IP=$(setup_droplet "$MACHINE_DROPLET" "machine")  
+        echo "$MACHINE_IP" > "/tmp/$TEST_ID-machine-ip"
+    } &
+    
+    log "Building malai on both droplets in parallel..."
+    wait
+    
+    # Get IPs from temp files
+    DROPLET_IP=$(cat "/tmp/$TEST_ID-cluster-ip")
+    MACHINE_IP=$(cat "/tmp/$TEST_ID-machine-ip")
+    
+    log "Cluster droplet: $DROPLET_IP (size: $DROPLET_SIZE)"
+    log "Machine droplet: $MACHINE_IP (size: $DROPLET_SIZE)"
+    time_checkpoint "Dual droplets ready"
+    success "Both droplets fully set up in parallel"
+else
+    log "Setting up single droplet for Mac ↔ droplet testing..."
+    time_checkpoint "Setup complete"
+    
+    DROPLET_IP=$(setup_droplet "$DROPLET_NAME" "machine")
+    log "Droplet IP: $DROPLET_IP (size: $DROPLET_SIZE)"
+    time_checkpoint "Droplet ready"
+    success "Droplet fully set up"
+fi
 
 # Phase 3: Optimized malai deployment
 header "📦 Phase 3: Optimized malai Deployment"
 
 if [[ "$USE_CI_BINARY" == "true" ]]; then
     # FAST: Copy pre-built CI binary
-    log "Deploying pre-built CI binary to droplet..."
+    if [[ "$DUAL_DROPLET" == "true" ]]; then
+        log "Deploying pre-built CI binary to both droplets..."
+        # Copy to both droplets in parallel
+        scp -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no "$MALAI_BINARY" root@"$CLUSTER_IP":/usr/local/bin/malai &
+        scp -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no "$MALAI_BINARY" root@"$MACHINE_IP":/usr/local/bin/malai &
+        wait
+        
+        # Setup on both droplets
+        ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$CLUSTER_IP" "chmod +x /usr/local/bin/malai && useradd -r -d /opt/malai -s /bin/bash malai || true && mkdir -p /opt/malai && chown malai:malai /opt/malai" &
+        ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$MACHINE_IP" "chmod +x /usr/local/bin/malai && useradd -r -d /opt/malai -s /bin/bash malai || true && mkdir -p /opt/malai && chown malai:malai /opt/malai" &
+        wait
+        
+        success "malai deployed to both droplets via CI binary copy"
+    else
+        log "Deploying pre-built CI binary to droplet..."
+        scp -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no "$MALAI_BINARY" root@"$DROPLET_IP":/usr/local/bin/malai
+        ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "chmod +x /usr/local/bin/malai && useradd -r -d /opt/malai -s /bin/bash malai || true && mkdir -p /opt/malai && chown malai:malai /opt/malai"
+        success "malai deployed via CI binary copy"
+    fi
     
-    # Copy binary directly
-    scp -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no "$MALAI_BINARY" root@"$DROPLET_IP":/usr/local/bin/malai
-    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "chmod +x /usr/local/bin/malai"
+elif [[ "$DUAL_DROPLET" == "true" ]]; then
+    # Dual droplet mode: Build on one, copy to other (faster than building twice)
+    log "Building malai on cluster droplet, then copying to machine droplet..."
     
-    # Setup user only (no compilation needed)
-    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "
+    # Build only on cluster droplet
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$CLUSTER_IP" "
+    export DEBIAN_FRONTEND=noninteractive
+    
+    # Disable auto-updates
+    systemctl stop apt-daily.timer unattended-upgrades || true
+    killall apt-get apt dpkg || true
+    sleep 3
+    
+    # Install dependencies
+    apt-get update -y
+    apt-get install -y curl git build-essential pkg-config libssl-dev gcc
+    
+    # Install Rust
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+    source \$HOME/.cargo/env
+    
+    # Clone and build
+    cd /tmp
+    git clone https://github.com/fastn-stack/kulfi.git
+    cd kulfi
+    git checkout main
+    cargo build --bin malai --no-default-features --release
+    
+    # Install
+    cp target/release/malai /usr/local/bin/malai
+    chmod +x /usr/local/bin/malai
+    
+    # Setup user
     useradd -r -d /opt/malai -s /bin/bash malai || true
     mkdir -p /opt/malai
     chown malai:malai /opt/malai
     "
     
-    success "malai deployed via CI binary copy"
+    # Copy binary from cluster to machine droplet
+    log "Copying malai binary from cluster to machine droplet..."
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$CLUSTER_IP" "scp -o StrictHostKeyChecking=no /usr/local/bin/malai root@$MACHINE_IP:/usr/local/bin/malai"
     
+    # Setup user on machine droplet
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$MACHINE_IP" "
+    chmod +x /usr/local/bin/malai
+    useradd -r -d /opt/malai -s /bin/bash malai || true
+    mkdir -p /opt/malai
+    chown malai:malai /opt/malai
+    "
+    
+    time_checkpoint "Dual droplet build complete"
+    success "malai built on cluster droplet and copied to machine droplet"
+
 else
     # SLOW: Build on droplet (reliable fallback)
     log "Building malai on droplet (fallback mode - takes ~15 minutes)..."
@@ -413,54 +571,97 @@ success "malai verified working on droplet"
 # Phase 4: Automated P2P cluster setup
 header "🔗 Phase 4: Automated P2P Cluster Setup"
 
-log "Creating cluster locally..."
-# For droplet build mode, use local debug binary for cluster setup
-if [[ -z "$MALAI_BINARY" ]]; then
+if [[ "$DUAL_DROPLET" == "true" ]]; then
+    log "Setting up cloud-to-cloud P2P cluster..."
+    
+    # Initialize cluster on cluster droplet
+    log "Initializing cluster manager on cluster droplet..."
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$CLUSTER_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai cluster init $TEST_CLUSTER_NAME"
+    
+    # Get cluster manager ID from cluster droplet
+    CLUSTER_MANAGER_ID52=$(ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$CLUSTER_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai scan-roles | grep 'Identity:' | cut -d: -f2 | tr -d ' '")
+    log "Cluster Manager ID: $CLUSTER_MANAGER_ID52 (on cluster droplet)"
+    
+    # Initialize machine on machine droplet
+    log "Initializing machine on machine droplet..."
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$MACHINE_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai machine init $CLUSTER_MANAGER_ID52 $TEST_CLUSTER_NAME"
+    
+    # Get machine ID from machine droplet
+    MACHINE_ID52=$(ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$MACHINE_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai scan-roles | grep 'Identity:' | cut -d: -f2 | tr -d ' '")
+    log "Machine ID: $MACHINE_ID52 (on machine droplet)"
+    
+    # Add machine to cluster config on cluster droplet
+    log "Adding machine to cluster configuration..."
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$CLUSTER_IP" "sudo -u malai bash -c 'cat >> /opt/malai/clusters/$TEST_CLUSTER_NAME/cluster.toml << EOF
+
+[machine.web01]
+id52 = \"$MACHINE_ID52\"
+allow_from = \"*\"
+EOF'"
+
+    success "Cloud-to-cloud cluster configured (different droplets, different IDs)"
+else
+    log "Setting up Mac ↔ droplet P2P cluster..."
     # Build local binary for cluster management if not exists
-    if [[ ! -f "target/debug/malai" ]]; then
-        log "Building local malai for cluster management..."
-        cargo build --bin malai --quiet
+    if [[ -z "$MALAI_BINARY" ]]; then
+        if [[ ! -f "target/debug/malai" ]]; then
+            log "Building local malai for cluster management..."
+            cargo build --bin malai --quiet
+        fi
+        MALAI_BINARY="target/debug/malai"
     fi
-    MALAI_BINARY="target/debug/malai"
-fi
-./"$MALAI_BINARY" cluster init "$TEST_CLUSTER_NAME"
-CLUSTER_MANAGER_ID52=$(./"$MALAI_BINARY" scan-roles | grep "Identity:" | head -1 | cut -d: -f2 | tr -d ' ')
-log "Cluster Manager ID: $CLUSTER_MANAGER_ID52"
-
-log "Initializing machine on droplet..."
-ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai machine init $CLUSTER_MANAGER_ID52 $TEST_CLUSTER_NAME"
-
-MACHINE_ID52=$(ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai scan-roles | grep 'Identity:' | cut -d: -f2 | tr -d ' '")
-log "Machine ID: $MACHINE_ID52"
-
-# Auto-add machine to cluster config
-log "Configuring cluster automatically..."
-cat >> "$MALAI_HOME/clusters/$TEST_CLUSTER_NAME/cluster.toml" << EOF
+    
+    # Create cluster locally (Mac as cluster manager)
+    ./"$MALAI_BINARY" cluster init "$TEST_CLUSTER_NAME"
+    CLUSTER_MANAGER_ID52=$(./"$MALAI_BINARY" scan-roles | grep "Identity:" | head -1 | cut -d: -f2 | tr -d ' ')
+    log "Cluster Manager ID: $CLUSTER_MANAGER_ID52 (on Mac)"
+    
+    # Initialize machine on droplet
+    log "Initializing machine on droplet..."
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai machine init $CLUSTER_MANAGER_ID52 $TEST_CLUSTER_NAME"
+    
+    MACHINE_ID52=$(ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai scan-roles | grep 'Identity:' | cut -d: -f2 | tr -d ' '")
+    log "Machine ID: $MACHINE_ID52 (on droplet)"
+    
+    # Add machine to cluster config locally
+    log "Configuring cluster automatically..."
+    cat >> "$MALAI_HOME/clusters/$TEST_CLUSTER_NAME/cluster.toml" << EOF
 
 [machine.web01]
 id52 = "$MACHINE_ID52"  
 allow_from = "*"
 EOF
+
+    success "Mac ↔ droplet cluster configured (different machine IDs)"
+fi
 time_checkpoint "Cluster setup complete"
 success "Cluster configured with different machine IDs (real P2P setup)"
 
 # Phase 5: Automated daemon startup and testing
 header "🧪 Phase 5: Automated P2P Testing"
 
-log "Starting local daemon..."
-./"$MALAI_BINARY" daemon --foreground > "$MALAI_HOME/local-daemon.log" 2>&1 &
-LOCAL_DAEMON_PID=$!
-sleep 3
+if [[ "$DUAL_DROPLET" == "true" ]]; then
+    log "Starting daemons on both droplets..."
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$CLUSTER_IP" "sudo -u malai env MALAI_HOME=/opt/malai nohup /usr/local/bin/malai daemon --foreground > /opt/malai/daemon.log 2>&1 &"
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$MACHINE_IP" "sudo -u malai env MALAI_HOME=/opt/malai nohup /usr/local/bin/malai daemon --foreground > /opt/malai/daemon.log 2>&1 &"
+    sleep 5
+    success "Daemons running on both droplets"
+else
+    log "Starting local daemon..."
+    ./"$MALAI_BINARY" daemon --foreground > "$MALAI_HOME/local-daemon.log" 2>&1 &
+    LOCAL_DAEMON_PID=$!
+    sleep 3
 
-if ! kill -0 "$LOCAL_DAEMON_PID" 2>/dev/null; then
-    cat "$MALAI_HOME/local-daemon.log"
-    error "Local daemon failed to start"
+    if ! kill -0 "$LOCAL_DAEMON_PID" 2>/dev/null; then
+        cat "$MALAI_HOME/local-daemon.log"
+        error "Local daemon failed to start"
+    fi
+    success "Local daemon running"
+
+    log "Starting remote daemon..."
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "sudo -u malai env MALAI_HOME=/opt/malai nohup /usr/local/bin/malai daemon --foreground > /opt/malai/daemon.log 2>&1 &"
+    sleep 5
 fi
-success "Local daemon running"
-
-log "Starting remote daemon..."
-ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "sudo -u malai env MALAI_HOME=/opt/malai nohup /usr/local/bin/malai daemon --foreground > /opt/malai/daemon.log 2>&1 &"
-sleep 5
 
 # Verify remote daemon
 if ! ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai status | grep -q 'RUNNING'"; then
@@ -471,11 +672,63 @@ success "Remote daemon running"
 # Phase 6: Critical P2P validation
 header "🎯 Phase 6: Critical P2P Validation"
 
-log "Testing real cross-internet P2P communication..."
-log "Laptop (cluster manager) → Digital Ocean (machine) via P2P"
+if [[ "$DUAL_DROPLET" == "true" ]]; then
+    log "Testing cloud-to-cloud P2P communication..."
+    log "Cluster droplet → Machine droplet via P2P"
+    
+    # Test 1: Cloud-to-cloud P2P custom message
+    log "Test 1: Custom message via cloud P2P..."
+    CMD_START=$(date +%s)
+    if ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$CLUSTER_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai web01.$TEST_CLUSTER_NAME echo 'SUCCESS: Cloud-to-cloud P2P working!'" > "$MALAI_HOME/dual-test1.log" 2>&1; then
+        CMD_END=$(date +%s)
+        if grep -q "SUCCESS: Cloud-to-cloud P2P working!" "$MALAI_HOME/dual-test1.log"; then
+            success "Test 1: Cloud P2P custom message ✅ (${CMD_END}s - ${CMD_START}s = $((CMD_END - CMD_START))s)"
+        else
+            cat "$MALAI_HOME/dual-test1.log"
+            error "Test 1: Cloud P2P response not received"
+        fi
+    else
+        cat "$MALAI_HOME/dual-test1.log"
+        error "Test 1: Cloud P2P command failed"
+    fi
+    
+    # Test 2: Cloud-to-cloud P2P system command
+    log "Test 2: System command via cloud P2P..."
+    CMD_START=$(date +%s)
+    if ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$CLUSTER_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai web01.$TEST_CLUSTER_NAME whoami" > "$MALAI_HOME/dual-test2.log" 2>&1; then
+        CMD_END=$(date +%s)
+        if grep -q "malai" "$MALAI_HOME/dual-test2.log"; then
+            success "Test 2: Cloud P2P system command ✅ ($((CMD_END - CMD_START))s)"
+        else
+            cat "$MALAI_HOME/dual-test2.log"
+            error "Test 2: Unexpected whoami output"
+        fi
+    else
+        cat "$MALAI_HOME/dual-test2.log"
+        error "Test 2: Cloud P2P system command failed"
+    fi
+    
+    # Test 3: Cloud-to-cloud P2P command with arguments
+    log "Test 3: Command with arguments via cloud P2P..."
+    CMD_START=$(date +%s)
+    if ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$CLUSTER_IP" "sudo -u malai env MALAI_HOME=/opt/malai /usr/local/bin/malai web01.$TEST_CLUSTER_NAME ls -la /opt/malai" > "$MALAI_HOME/dual-test3.log" 2>&1; then
+        CMD_END=$(date +%s)
+        if grep -q "malai" "$MALAI_HOME/dual-test3.log" && grep -q "drwx" "$MALAI_HOME/dual-test3.log"; then
+            success "Test 3: Cloud P2P command with arguments ✅ ($((CMD_END - CMD_START))s)"
+        else
+            cat "$MALAI_HOME/dual-test3.log"
+            error "Test 3: Command arguments not processed correctly"
+        fi
+    else
+        cat "$MALAI_HOME/dual-test3.log"
+        error "Test 3: Cloud P2P command with arguments failed"
+    fi
+else
+    log "Testing real cross-internet P2P communication..."
+    log "Mac (cluster manager) → Digital Ocean (machine) via P2P"
 
-# Test 1: Custom message
-if ./"$MALAI_BINARY" web01."$TEST_CLUSTER_NAME" echo "SUCCESS: Automated real P2P test!" > "$MALAI_HOME/test1.log" 2>&1; then
+    # Test 1: Custom message
+    if ./"$MALAI_BINARY" web01."$TEST_CLUSTER_NAME" echo "SUCCESS: Automated real P2P test!" > "$MALAI_HOME/test1.log" 2>&1; then
     if grep -q "SUCCESS: Automated real P2P test!" "$MALAI_HOME/test1.log"; then
         success "Test 1: Custom message via P2P ✅"
     else

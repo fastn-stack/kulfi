@@ -1,0 +1,49 @@
+name: Dual Droplet P2P Test
+
+on:
+  # Run on all pushes to main
+  push:
+    branches: [ main ]
+  # Run on all pull requests to main  
+  pull_request:
+    branches: [ main ]
+  # Allow manual triggering
+  workflow_dispatch:
+  # Run weekly to catch regressions
+  schedule:
+    - cron: '0 10 * * 1'  # Every Monday at 10 AM UTC
+
+jobs:
+  dual-droplet-p2p-test:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15  # Beast mode dual droplets (fast builds)
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      
+    - name: Setup Digital Ocean CLI
+      uses: digitalocean/action-doctl@v2
+      with:
+        token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        
+    - name: Test cloud-to-cloud P2P (dual beast droplets in Mumbai)
+      env:
+        DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+      run: |
+        echo "🌐 Testing malai P2P between two beast Digital Ocean droplets"
+        echo "📍 This eliminates CI networking restrictions"
+        echo "🎯 8CPU/16GB droplets ↔ droplet P2P in Mumbai region"
+        echo "⚡ Beast mode: ~3min builds vs ~20min small droplets"
+        ./test-digital-ocean-p2p.sh --dual --beast
+        
+    - name: Report dual droplet P2P success
+      if: success()
+      run: |
+        echo "🎉 DUAL DROPLET P2P TEST PASSED!"
+        echo "✅ Cloud-to-cloud P2P communication validated"
+        echo "🌐 Digital Ocean ↔ Digital Ocean P2P working"
+        echo "🚀 Production cloud deployment confidence verified"
