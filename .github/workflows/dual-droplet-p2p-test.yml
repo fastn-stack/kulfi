@@ -1,0 +1,56 @@
+name: Dual Droplet P2P Test
+
+on:
+  # Run on pushes to main and P2P testing branches
+  push:
+    branches: 
+      - main
+      - feat/dual-droplet-p2p-testing
+  # Allow manual triggering
+  workflow_dispatch:
+  # Run weekly to catch regressions
+  schedule:
+    - cron: '0 10 * * 1'  # Every Monday at 10 AM UTC
+
+jobs:
+  dual-droplet-p2p-test:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30  # Dual droplet builds + P2P testing
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      
+    - name: Setup Digital Ocean CLI
+      uses: digitalocean/action-doctl@v2
+      with:
+        token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        
+    - name: Test cloud-to-cloud P2P (dual droplets in Mumbai)
+      env:
+        DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+      run: |
+        echo "🌐 Testing malai P2P between two Digital Ocean droplets"
+        echo "📍 This eliminates CI networking restrictions"
+        echo "🎯 Droplet ↔ Droplet P2P communication in Mumbai region"
+        ./test-digital-ocean-p2p.sh --dual --small
+        
+    - name: Archive test logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: dual-droplet-p2p-logs-${{ github.run_number }}
+        path: |
+          /tmp/malai-auto-*/
+        retention-days: 7
+        
+    - name: Report dual droplet P2P success
+      if: success()
+      run: |
+        echo "🎉 DUAL DROPLET P2P TEST PASSED!"
+        echo "✅ Cloud-to-cloud P2P communication validated"
+        echo "🌐 Digital Ocean ↔ Digital Ocean P2P working"
+        echo "🚀 Production cloud deployment confidence verified"
