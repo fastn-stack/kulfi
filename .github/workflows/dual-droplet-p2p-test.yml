@@ -15,7 +15,7 @@ on:
 jobs:
   dual-droplet-p2p-test:
     runs-on: ubuntu-22.04
-    timeout-minutes: 30  # Dual droplet builds + P2P testing
+    timeout-minutes: 15  # Beast mode dual droplets (fast builds)
     
     steps:
     - name: Checkout code
@@ -29,14 +29,15 @@ jobs:
       with:
         token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
         
-    - name: Test cloud-to-cloud P2P (dual droplets in Mumbai)
+    - name: Test cloud-to-cloud P2P (dual beast droplets in Mumbai)
       env:
         DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
       run: |
-        echo "🌐 Testing malai P2P between two Digital Ocean droplets"
+        echo "🌐 Testing malai P2P between two beast Digital Ocean droplets"
         echo "📍 This eliminates CI networking restrictions"
-        echo "🎯 Droplet ↔ Droplet P2P communication in Mumbai region"
-        ./test-digital-ocean-p2p.sh --dual --small
+        echo "🎯 8CPU/16GB droplets ↔ droplet P2P in Mumbai region"
+        echo "⚡ Beast mode: ~3min builds vs ~20min small droplets"
+        ./test-digital-ocean-p2p.sh --dual --beast
         
     - name: Archive test logs on failure
       if: failure()
