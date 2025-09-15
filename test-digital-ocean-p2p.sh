@@ -269,21 +269,34 @@ if [[ "$DUAL_DROPLET" == "true" ]]; then
     log "Creating dual droplets for cloud-to-cloud P2P testing..."
     time_checkpoint "Setup complete"
     
-    log "Creating cluster manager droplet..."
-    DROPLET_ID=$($DOCTL compute droplet create "$DROPLET_NAME" \
-        --size "$DROPLET_SIZE" \
-        --image "$DROPLET_IMAGE" \
-        --region "$DROPLET_REGION" \
-        --ssh-keys "$SSH_KEY_ID" \
-        --format ID --no-header)
+    log "Creating both droplets in parallel..."
+    # Create both droplets simultaneously for faster setup
+    {
+        DROPLET_ID=$($DOCTL compute droplet create "$DROPLET_NAME" \
+            --size "$DROPLET_SIZE" \
+            --image "$DROPLET_IMAGE" \
+            --region "$DROPLET_REGION" \
+            --ssh-keys "$SSH_KEY_ID" \
+            --format ID --no-header)
+        echo "$DROPLET_ID" > "/tmp/$TEST_ID-cluster-id"
+    } &
     
-    log "Creating machine droplet..."
-    MACHINE_DROPLET_ID=$($DOCTL compute droplet create "$MACHINE_DROPLET" \
-        --size "$DROPLET_SIZE" \
-        --image "$DROPLET_IMAGE" \
-        --region "$DROPLET_REGION" \
-        --ssh-keys "$SSH_KEY_ID" \
-        --format ID --no-header)
+    {
+        MACHINE_DROPLET_ID=$($DOCTL compute droplet create "$MACHINE_DROPLET" \
+            --size "$DROPLET_SIZE" \
+            --image "$DROPLET_IMAGE" \
+            --region "$DROPLET_REGION" \
+            --ssh-keys "$SSH_KEY_ID" \
+            --format ID --no-header)
+        echo "$MACHINE_DROPLET_ID" > "/tmp/$TEST_ID-machine-id"
+    } &
+    
+    # Wait for both creations to complete
+    wait
+    DROPLET_ID=$(cat "/tmp/$TEST_ID-cluster-id")
+    MACHINE_DROPLET_ID=$(cat "/tmp/$TEST_ID-machine-id")
+    
+    log "Both droplets created simultaneously (cluster: $DROPLET_ID, machine: $MACHINE_DROPLET_ID)"
     
     log "Waiting for both droplets to boot..."
     sleep 60
