@@ -1,11 +1,12 @@
 name: Dual Droplet P2P Test
 
 on:
-  # Run on pushes to main and P2P testing branches
+  # Run on all pushes to main
   push:
-    branches: 
-      - main
-      - feat/dual-droplet-p2p-testing
+    branches: [ main ]
+  # Run on all pull requests to main  
+  pull_request:
+    branches: [ main ]
   # Allow manual triggering
   workflow_dispatch:
   # Run weekly to catch regressions
