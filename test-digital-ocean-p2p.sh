@@ -56,6 +56,74 @@ error() { printf "${RED}❌ $1${NC}\n"; exit 1; }
 warn() { printf "${YELLOW}⚠️  $1${NC}\n"; }
 header() { printf "${BOLD}${BLUE}$1${NC}\n"; }
 
+# Setup malai on a droplet (reusable function)
+setup_droplet() {
+    local droplet_name="$1"
+    local role_name="$2"  # "cluster" or "machine"
+    
+    # Create droplet
+    local droplet_id=$($DOCTL compute droplet create "$droplet_name" \
+        --size "$DROPLET_SIZE" \
+        --image "$DROPLET_IMAGE" \
+        --region "$DROPLET_REGION" \
+        --ssh-keys "$SSH_KEY_ID" \
+        --format ID --no-header)
+    
+    # Wait for boot
+    sleep 60
+    
+    # Get IP
+    local droplet_ip=$($DOCTL compute droplet get "$droplet_id" --format PublicIPv4 --no-header)
+    
+    # Wait for SSH
+    for i in {1..30}; do
+        if ssh -i "$TEST_SSH_KEY" -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@"$droplet_ip" echo "ready" >/dev/null 2>&1; then
+            break
+        fi
+        sleep 10
+    done
+    
+    # Install malai
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$droplet_ip" "
+    export DEBIAN_FRONTEND=noninteractive
+    
+    # Disable auto-updates
+    systemctl stop apt-daily.timer unattended-upgrades || true
+    killall apt-get apt dpkg || true
+    sleep 3
+    
+    # Install dependencies
+    apt-get update -y
+    apt-get install -y curl git build-essential pkg-config libssl-dev gcc
+    
+    # Install Rust
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+    source \$HOME/.cargo/env
+    
+    # Clone and build
+    cd /tmp
+    git clone https://github.com/fastn-stack/kulfi.git
+    cd kulfi
+    git checkout main
+    cargo build --bin malai --no-default-features --release
+    
+    # Install
+    cp target/release/malai /usr/local/bin/malai
+    chmod +x /usr/local/bin/malai
+    
+    # Setup user
+    useradd -r -d /opt/malai -s /bin/bash malai || true
+    mkdir -p /opt/malai
+    chown malai:malai /opt/malai
+    
+    # Verify
+    /usr/local/bin/malai --version
+    "
+    
+    # Return IP address
+    echo "$droplet_ip"
+}
+
 # Self-contained environment (no external dependencies)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_ID="malai-auto-$(date +%s)"
@@ -266,93 +334,39 @@ fi
 header "🚀 Phase 2: Automated Droplet Provisioning"
 
 if [[ "$DUAL_DROPLET" == "true" ]]; then
-    log "Creating dual droplets for cloud-to-cloud P2P testing..."
+    log "Setting up dual droplets in parallel for cloud-to-cloud P2P testing..."
     time_checkpoint "Setup complete"
     
-    log "Creating both droplets in parallel..."
-    # Create both droplets simultaneously for faster setup
+    # Setup both droplets in parallel using reusable function
     {
-        DROPLET_ID=$($DOCTL compute droplet create "$DROPLET_NAME" \
-            --size "$DROPLET_SIZE" \
-            --image "$DROPLET_IMAGE" \
-            --region "$DROPLET_REGION" \
-            --ssh-keys "$SSH_KEY_ID" \
-            --format ID --no-header)
-        echo "$DROPLET_ID" > "/tmp/$TEST_ID-cluster-id"
+        DROPLET_IP=$(setup_droplet "$DROPLET_NAME" "cluster")
+        echo "$DROPLET_IP" > "/tmp/$TEST_ID-cluster-ip"
     } &
     
     {
-        MACHINE_DROPLET_ID=$($DOCTL compute droplet create "$MACHINE_DROPLET" \
-            --size "$DROPLET_SIZE" \
-            --image "$DROPLET_IMAGE" \
-            --region "$DROPLET_REGION" \
-            --ssh-keys "$SSH_KEY_ID" \
-            --format ID --no-header)
-        echo "$MACHINE_DROPLET_ID" > "/tmp/$TEST_ID-machine-id"
+        MACHINE_IP=$(setup_droplet "$MACHINE_DROPLET" "machine")  
+        echo "$MACHINE_IP" > "/tmp/$TEST_ID-machine-ip"
     } &
     
-    # Wait for both creations to complete
+    log "Building malai on both droplets in parallel..."
     wait
-    DROPLET_ID=$(cat "/tmp/$TEST_ID-cluster-id")
-    MACHINE_DROPLET_ID=$(cat "/tmp/$TEST_ID-machine-id")
     
-    log "Both droplets created simultaneously (cluster: $DROPLET_ID, machine: $MACHINE_DROPLET_ID)"
-    
-    log "Waiting for both droplets to boot..."
-    sleep 60
-    
-    DROPLET_IP=$($DOCTL compute droplet get "$DROPLET_ID" --format PublicIPv4 --no-header)
-    MACHINE_IP=$($DOCTL compute droplet get "$MACHINE_DROPLET_ID" --format PublicIPv4 --no-header)
+    # Get IPs from temp files
+    DROPLET_IP=$(cat "/tmp/$TEST_ID-cluster-ip")
+    MACHINE_IP=$(cat "/tmp/$TEST_ID-machine-ip")
     
     log "Cluster droplet: $DROPLET_IP (size: $DROPLET_SIZE)"
     log "Machine droplet: $MACHINE_IP (size: $DROPLET_SIZE)"
     time_checkpoint "Dual droplets ready"
-    success "Dual droplets provisioned"
+    success "Both droplets fully set up in parallel"
 else
-    log "Creating single droplet for Mac ↔ droplet testing..."
+    log "Setting up single droplet for Mac ↔ droplet testing..."
     time_checkpoint "Setup complete"
     
-    DROPLET_ID=$($DOCTL compute droplet create "$DROPLET_NAME" \
-        --size "$DROPLET_SIZE" \
-        --image "$DROPLET_IMAGE" \
-        --region "$DROPLET_REGION" \
-        --ssh-keys "$SSH_KEY_ID" \
-        --format ID --no-header)
-    
-    log "Droplet ID: $DROPLET_ID (size: $DROPLET_SIZE)"
-    log "Waiting for droplet to boot..."
-    sleep 60
-    
-    DROPLET_IP=$($DOCTL compute droplet get "$DROPLET_ID" --format PublicIPv4 --no-header)
-    log "Droplet IP: $DROPLET_IP"
-    time_checkpoint "Droplet boot"
-    success "Droplet provisioned"
-fi
-
-# Auto-wait for SSH readiness
-if [[ "$DUAL_DROPLET" == "true" ]]; then
-    log "Waiting for SSH on both droplets..."
-    for i in {1..30}; do
-        if ssh -i "$TEST_SSH_KEY" -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@"$DROPLET_IP" echo "ready" >/dev/null 2>&1 && \
-           ssh -i "$TEST_SSH_KEY" -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@"$MACHINE_IP" echo "ready" >/dev/null 2>&1; then
-            break
-        fi
-        log "SSH attempt $i/30 (both droplets)..."
-        sleep 10
-    done
-    time_checkpoint "SSH ready (both)"
-    success "SSH connections ready on both droplets"
-else
-    log "Waiting for SSH to be ready..."
-    for i in {1..30}; do
-        if ssh -i "$TEST_SSH_KEY" -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@"$DROPLET_IP" echo "ready" >/dev/null 2>&1; then
-            break
-        fi
-        log "SSH attempt $i/30..."
-        sleep 10
-    done
-    time_checkpoint "SSH ready"
-    success "SSH connection ready"
+    DROPLET_IP=$(setup_droplet "$DROPLET_NAME" "machine")
+    log "Droplet IP: $DROPLET_IP (size: $DROPLET_SIZE)"
+    time_checkpoint "Droplet ready"
+    success "Droplet fully set up"
 fi
 
 # Phase 3: Optimized malai deployment
@@ -360,21 +374,79 @@ header "📦 Phase 3: Optimized malai Deployment"
 
 if [[ "$USE_CI_BINARY" == "true" ]]; then
     # FAST: Copy pre-built CI binary
-    log "Deploying pre-built CI binary to droplet..."
+    if [[ "$DUAL_DROPLET" == "true" ]]; then
+        log "Deploying pre-built CI binary to both droplets..."
+        # Copy to both droplets in parallel
+        scp -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no "$MALAI_BINARY" root@"$CLUSTER_IP":/usr/local/bin/malai &
+        scp -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no "$MALAI_BINARY" root@"$MACHINE_IP":/usr/local/bin/malai &
+        wait
+        
+        # Setup on both droplets
+        ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$CLUSTER_IP" "chmod +x /usr/local/bin/malai && useradd -r -d /opt/malai -s /bin/bash malai || true && mkdir -p /opt/malai && chown malai:malai /opt/malai" &
+        ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$MACHINE_IP" "chmod +x /usr/local/bin/malai && useradd -r -d /opt/malai -s /bin/bash malai || true && mkdir -p /opt/malai && chown malai:malai /opt/malai" &
+        wait
+        
+        success "malai deployed to both droplets via CI binary copy"
+    else
+        log "Deploying pre-built CI binary to droplet..."
+        scp -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no "$MALAI_BINARY" root@"$DROPLET_IP":/usr/local/bin/malai
+        ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "chmod +x /usr/local/bin/malai && useradd -r -d /opt/malai -s /bin/bash malai || true && mkdir -p /opt/malai && chown malai:malai /opt/malai"
+        success "malai deployed via CI binary copy"
+    fi
     
-    # Copy binary directly
-    scp -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no "$MALAI_BINARY" root@"$DROPLET_IP":/usr/local/bin/malai
-    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "chmod +x /usr/local/bin/malai"
+elif [[ "$DUAL_DROPLET" == "true" ]]; then
+    # Dual droplet mode: Build on one, copy to other (faster than building twice)
+    log "Building malai on cluster droplet, then copying to machine droplet..."
     
-    # Setup user only (no compilation needed)
-    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$DROPLET_IP" "
+    # Build only on cluster droplet
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$CLUSTER_IP" "
+    export DEBIAN_FRONTEND=noninteractive
+    
+    # Disable auto-updates
+    systemctl stop apt-daily.timer unattended-upgrades || true
+    killall apt-get apt dpkg || true
+    sleep 3
+    
+    # Install dependencies
+    apt-get update -y
+    apt-get install -y curl git build-essential pkg-config libssl-dev gcc
+    
+    # Install Rust
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+    source \$HOME/.cargo/env
+    
+    # Clone and build
+    cd /tmp
+    git clone https://github.com/fastn-stack/kulfi.git
+    cd kulfi
+    git checkout main
+    cargo build --bin malai --no-default-features --release
+    
+    # Install
+    cp target/release/malai /usr/local/bin/malai
+    chmod +x /usr/local/bin/malai
+    
+    # Setup user
     useradd -r -d /opt/malai -s /bin/bash malai || true
     mkdir -p /opt/malai
     chown malai:malai /opt/malai
     "
     
-    success "malai deployed via CI binary copy"
+    # Copy binary from cluster to machine droplet
+    log "Copying malai binary from cluster to machine droplet..."
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$CLUSTER_IP" "scp -o StrictHostKeyChecking=no /usr/local/bin/malai root@$MACHINE_IP:/usr/local/bin/malai"
     
+    # Setup user on machine droplet
+    ssh -i "$TEST_SSH_KEY" -o StrictHostKeyChecking=no root@"$MACHINE_IP" "
+    chmod +x /usr/local/bin/malai
+    useradd -r -d /opt/malai -s /bin/bash malai || true
+    mkdir -p /opt/malai
+    chown malai:malai /opt/malai
+    "
+    
+    time_checkpoint "Dual droplet build complete"
+    success "malai built on cluster droplet and copied to machine droplet"
+
 else
     # SLOW: Build on droplet (reliable fallback)
     log "Building malai on droplet (fallback mode - takes ~15 minutes)..."
