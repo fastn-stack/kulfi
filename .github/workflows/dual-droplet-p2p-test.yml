@@ -39,15 +39,6 @@ jobs:
         echo "⚡ Beast mode: ~3min builds vs ~20min small droplets"
         ./test-digital-ocean-p2p.sh --dual --beast
         
-    - name: Archive test logs on failure
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: dual-droplet-p2p-logs-${{ github.run_number }}
-        path: |
-          /tmp/malai-auto-*/
-        retention-days: 7
-        
     - name: Report dual droplet P2P success
       if: success()
       run: |
