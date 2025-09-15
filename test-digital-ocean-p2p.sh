@@ -5,16 +5,21 @@
 # Self-contained with automatic setup, cleanup, and comprehensive validation.
 #
 # Usage:
-#   Default: ./test-digital-ocean-p2p.sh (beast droplet, ~3min builds)
+#   Default: ./test-digital-ocean-p2p.sh (Mac ↔ beast droplet, ~3min builds)
+#   Dual droplet: ./test-digital-ocean-p2p.sh --dual (droplet ↔ droplet, eliminates CI issues)
 #   CI: ./test-digital-ocean-p2p.sh --use-ci-binary (uses pre-built binary)
 #
 # Droplet sizes for builds:
 #   Small (cheap): ./test-digital-ocean-p2p.sh --small (1GB, ~20min builds, $0.009/hr)
 #   Fast (balanced): ./test-digital-ocean-p2p.sh --fast (4GB, ~8min builds, $0.071/hr)  
-#   Turbo (fastest): ./test-digital-ocean-p2p.sh --turbo (8CPU/16GB, ~4min builds, $0.143/hr)
+#   Turbo/Beast (fastest): ./test-digital-ocean-p2p.sh --beast (8CPU/16GB, ~3min builds, $0.143/hr)
+#
+# Testing modes:
+#   Mac to droplet: ./test-digital-ocean-p2p.sh (tests Mac ↔ Linux P2P)
+#   Droplet to droplet: ./test-digital-ocean-p2p.sh --dual (tests cloud ↔ cloud P2P)
 #
 # Debugging:
-#   Keep droplet: ./test-digital-ocean-p2p.sh --keep-droplet (for debugging)
+#   Keep droplet(s): ./test-digital-ocean-p2p.sh --keep-droplet (for debugging)
 #   Or: KEEP_DROPLET=1 ./test-digital-ocean-p2p.sh
 #
 # Requirements: doctl auth init (one-time setup)
@@ -58,6 +63,7 @@ TEST_CLUSTER_NAME="auto-test"
 export MALAI_HOME="/tmp/$TEST_ID"
 TEST_SSH_KEY="/tmp/$TEST_ID-ssh"
 DROPLET_NAME="$TEST_ID"
+MACHINE_DROPLET="$TEST_ID-machine"  # For dual droplet mode
 
 # Timing tracking (simple approach)
 START_TIME=$(date +%s)
@@ -70,6 +76,7 @@ TEST_TIME=""
 
 # Deployment mode selection  
 USE_CI_BINARY=false
+DUAL_DROPLET=false
 KEEP_DROPLET="${KEEP_DROPLET:-false}"
 DROPLET_SIZE="s-8vcpu-16gb"  # Default: beast (proven 3min builds, excellent value)
 
@@ -80,6 +87,10 @@ for arg in "$@"; do
             USE_CI_BINARY=true
             DROPLET_SIZE="s-1vcpu-1gb"  # No compilation needed
             log "Using pre-built CI binary - no compilation needed"
+            ;;
+        "--dual")
+            DUAL_DROPLET=true
+            log "🌐 DUAL DROPLET MODE: Testing droplet ↔ droplet P2P (eliminates CI restrictions)"
             ;;
         "--small")
             DROPLET_SIZE="s-1vcpu-1gb"  # $6/month, slow builds
@@ -175,10 +186,17 @@ trap cleanup EXIT
 
 header "🌐 FULLY AUTOMATED DIGITAL OCEAN P2P TEST"
 log "Test ID: $TEST_ID"
-log "Tests real P2P across internet (laptop ↔ Digital Ocean droplet)"
 
-if [[ "$KEEP_DROPLET" != "true" ]]; then
-    log "💡 For debugging failed tests, use: ./test-digital-ocean-p2p.sh --keep-droplet"
+if [[ "$DUAL_DROPLET" == "true" ]]; then
+    log "Tests cloud-to-cloud P2P (droplet ↔ droplet) - eliminates CI networking restrictions"
+    if [[ "$KEEP_DROPLET" != "true" ]]; then
+        log "💡 For debugging failed tests, use: ./test-digital-ocean-p2p.sh --dual --keep-droplet"
+    fi
+else
+    log "Tests real P2P across internet (Mac ↔ Digital Ocean droplet)"
+    if [[ "$KEEP_DROPLET" != "true" ]]; then
+        log "💡 For debugging failed tests, use: ./test-digital-ocean-p2p.sh --keep-droplet"
+    fi
 fi
 echo
 
@@ -247,37 +265,82 @@ fi
 # Phase 2: Automated droplet provisioning
 header "🚀 Phase 2: Automated Droplet Provisioning"
 
-log "Creating optimized droplet..."
-time_checkpoint "Setup complete"
-
-DROPLET_ID=$($DOCTL compute droplet create "$DROPLET_NAME" \
-    --size "$DROPLET_SIZE" \
-    --image "$DROPLET_IMAGE" \
-    --region "$DROPLET_REGION" \
-    --ssh-keys "$SSH_KEY_ID" \
-    --format ID \
-    --no-header)
-
-log "Droplet ID: $DROPLET_ID (size: $DROPLET_SIZE)"
-log "Waiting for droplet to boot..."
-sleep 60
-
-DROPLET_IP=$($DOCTL compute droplet get "$DROPLET_ID" --format PublicIPv4 --no-header)
-log "Droplet IP: $DROPLET_IP"
-time_checkpoint "Droplet boot"
-success "Droplet provisioned"
+if [[ "$DUAL_DROPLET" == "true" ]]; then
+    log "Creating dual droplets for cloud-to-cloud P2P testing..."
+    time_checkpoint "Setup complete"
+    
+    log "Creating cluster manager droplet..."
+    DROPLET_ID=$($DOCTL compute droplet create "$DROPLET_NAME" \
+        --size "$DROPLET_SIZE" \
+        --image "$DROPLET_IMAGE" \
+        --region "$DROPLET_REGION" \
+        --ssh-keys "$SSH_KEY_ID" \
+        --format ID --no-header)
+    
+    log "Creating machine droplet..."
+    MACHINE_DROPLET_ID=$($DOCTL compute droplet create "$MACHINE_DROPLET" \
+        --size "$DROPLET_SIZE" \
+        --image "$DROPLET_IMAGE" \
+        --region "$DROPLET_REGION" \
+        --ssh-keys "$SSH_KEY_ID" \
+        --format ID --no-header)
+    
+    log "Waiting for both droplets to boot..."
+    sleep 60
+    
+    DROPLET_IP=$($DOCTL compute droplet get "$DROPLET_ID" --format PublicIPv4 --no-header)
+    MACHINE_IP=$($DOCTL compute droplet get "$MACHINE_DROPLET_ID" --format PublicIPv4 --no-header)
+    
+    log "Cluster droplet: $DROPLET_IP (size: $DROPLET_SIZE)"
+    log "Machine droplet: $MACHINE_IP (size: $DROPLET_SIZE)"
+    time_checkpoint "Dual droplets ready"
+    success "Dual droplets provisioned"
+else
+    log "Creating single droplet for Mac ↔ droplet testing..."
+    time_checkpoint "Setup complete"
+    
+    DROPLET_ID=$($DOCTL compute droplet create "$DROPLET_NAME" \
+        --size "$DROPLET_SIZE" \
+        --image "$DROPLET_IMAGE" \
+        --region "$DROPLET_REGION" \
+        --ssh-keys "$SSH_KEY_ID" \
+        --format ID --no-header)
+    
+    log "Droplet ID: $DROPLET_ID (size: $DROPLET_SIZE)"
+    log "Waiting for droplet to boot..."
+    sleep 60
+    
+    DROPLET_IP=$($DOCTL compute droplet get "$DROPLET_ID" --format PublicIPv4 --no-header)
+    log "Droplet IP: $DROPLET_IP"
+    time_checkpoint "Droplet boot"
+    success "Droplet provisioned"
+fi
 
 # Auto-wait for SSH readiness
-log "Waiting for SSH to be ready..."
-for i in {1..30}; do
-    if ssh -i "$TEST_SSH_KEY" -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@"$DROPLET_IP" echo "ready" >/dev/null 2>&1; then
-        break
-    fi
-    log "SSH attempt $i/30..."
-    sleep 10
-done
-time_checkpoint "SSH ready"
-success "SSH connection ready"
+if [[ "$DUAL_DROPLET" == "true" ]]; then
+    log "Waiting for SSH on both droplets..."
+    for i in {1..30}; do
+        if ssh -i "$TEST_SSH_KEY" -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@"$DROPLET_IP" echo "ready" >/dev/null 2>&1 && \
+           ssh -i "$TEST_SSH_KEY" -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@"$MACHINE_IP" echo "ready" >/dev/null 2>&1; then
+            break
+        fi
+        log "SSH attempt $i/30 (both droplets)..."
+        sleep 10
+    done
+    time_checkpoint "SSH ready (both)"
+    success "SSH connections ready on both droplets"
+else
+    log "Waiting for SSH to be ready..."
+    for i in {1..30}; do
+        if ssh -i "$TEST_SSH_KEY" -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@"$DROPLET_IP" echo "ready" >/dev/null 2>&1; then
+            break
+        fi
+        log "SSH attempt $i/30..."
+        sleep 10
+    done
+    time_checkpoint "SSH ready"
+    success "SSH connection ready"
+fi
 
 # Phase 3: Optimized malai deployment
 header "📦 Phase 3: Optimized malai Deployment"
