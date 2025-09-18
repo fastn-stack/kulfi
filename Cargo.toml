@@ -1,5 +1,5 @@
 [workspace]
-members = ["malai", "kulfi", "kulfi-utils", "kulfi-id52", "malai-cli-test-utils", "malai-next"]
+members = ["malai", "kulfi", "kulfi-utils", "kulfi-id52", "malai-cli-test-utils"]
 resolver = "2"
 
 [workspace.package]
