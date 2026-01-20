@@ -44,26 +44,24 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
       # - uses: Swatinem/rust-cache@v2
-      # Disabled temporarily - focusing on functionality over formatting
-      # - name: Run cargo fmt
-      #   id: fmt
-      #   run: cargo fmt --all -- --check
-      #   continue-on-error: true
-      # - name: Run cargo clippy
-      #   id: clippy
-      #   continue-on-error: true
-      #   run: cargo clippy --all -- -D warnings
+      - name: Run cargo fmt
+        id: fmt
+        run: cargo fmt --all -- --check
+        continue-on-error: true
+      - name: Run cargo clippy
+        id: clippy
+        continue-on-error: true
+        run: cargo clippy --all -- -D warnings
       - name: Run cargo test
         id: test
         continue-on-error: true
         run: cargo test
-      # Disabled temporarily - focusing on functionality over formatting
-      # - name: Check if code is properly formatted
-      #   if: steps.fmt.outcome != 'success'
-      #   run: exit 1
-      # - name: Check if clippy is happy
-      #   if: steps.clippy.outcome != 'success'
-      #   run: exit 1
+      - name: Check if code is properly formatted
+        if: steps.fmt.outcome != 'success'
+        run: exit 1
+      - name: Check if clippy is happy
+        if: steps.clippy.outcome != 'success'
+        run: exit 1
       - name: Check if test succeeded
         if: steps.test.outcome != 'success'
         run: exit 1

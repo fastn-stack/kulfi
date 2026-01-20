@@ -4,24 +4,9 @@
 
 extern crate self as malai;
 
-use chrono as _;
 use clap as _;
 use clap_verbosity_flag as _;
-use diffy as _;
-use dirs as _;
-use fastn_id52 as _;
-use file_guard as _;
-use fastn_net as _;
-use fastn_p2p as _;
-use kulfi_id52 as _;
-use libc as _;
-use toml as _;
 use tracing_subscriber as _;
-
-#[cfg(test)]
-use malai_cli_test_utils as _;
-#[cfg(test)]
-use tempfile as _;
 
 mod browse;
 mod expose_http;
@@ -32,16 +17,7 @@ mod http_proxy;
 mod http_proxy_remote;
 mod keygen;
 mod run;
-mod config_manager;  // Config validation and reload utilities
-mod malai_server;  // Real malai server - clean and readable
-mod daemon;  // Real malai daemon - MVP implementation
-mod machine_init;  // Machine initialization with security-first design
-mod simple_server;  // Ultra-simple server for testing
-mod cli;  // Direct CLI execution mode
-// mod core;  // Old SSH module with compilation issues
-mod core_utils;  // Core malai utilities
 mod tcp_bridge;
-mod daemon_socket;  // Unix socket communication for daemon-CLI
 
 pub use browse::browse;
 pub use expose_http::expose_http;
@@ -52,17 +28,6 @@ pub use http_proxy::{ProxyData, http_proxy};
 pub use http_proxy_remote::http_proxy_remote;
 pub use keygen::keygen;
 pub use run::run;
-pub use core_utils::{
-    init_cluster, show_cluster_info, show_detailed_status
-    // Removed: create_cluster (dead code), start_malai_daemon (replaced by daemon::start_real_daemon)
-};
-// pub use server::run_malai_server;
-pub use simple_server::{test_simple_server, run_simple_malai_server};
-pub use malai_server::{run_malai_server, send_config, send_command};
-pub use daemon::start_real_daemon;
-pub use cli::execute_direct_command;
-pub use machine_init::init_machine_for_cluster;
-pub use config_manager::{validate_config_file, check_all_configs, check_cluster_config, reload_daemon_config, reload_daemon_config_selective, scan_cluster_roles, ClusterRole};
 pub use tcp_bridge::tcp_bridge;
 
 #[cfg(feature = "ui")]

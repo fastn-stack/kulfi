@@ -16,23 +16,14 @@ ui = ["tauri", "tauri-plugin-opener", "tauri-build"]
 [dependencies]
 clap-verbosity-flag.workspace = true
 clap.workspace = true
-chrono.workspace = true
 colored.workspace = true
-diffy.workspace = true
-dirs.workspace = true
 eyre.workspace = true
-file-guard.workspace = true
-fastn-p2p.workspace = true
-fastn-net.workspace = true  
-fastn-id52.workspace = true
 futures-util.workspace = true
 http-body-util.workspace = true
 hyper-util.workspace = true
 hyper.workspace = true
 iroh.workspace = true
 kulfi-utils.workspace = true
-kulfi-id52.workspace = true
-libc.workspace = true
 mime_guess.workspace = true
 percent-encoding.workspace = true
 serde.workspace = true
@@ -41,14 +32,9 @@ tauri = { workspace = true, optional = true }
 tauri-plugin-opener = { workspace = true, optional = true }
 tokio.workspace = true
 tokio-util.workspace = true
-toml.workspace = true
 tracing-subscriber.workspace = true
 tracing.workspace = true
 webbrowser.workspace = true
-
-[dev-dependencies]
-tempfile.workspace = true
-malai-cli-test-utils = { path = "../malai-cli-test-utils" }
 
 [build-dependencies]
 tauri-build = { workspace = true, optional = true }
