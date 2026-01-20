@@ -86,10 +86,14 @@
             font-weight: 500;
         }
 
-        #loading {
+        #status {
             font-size: 12px;
             color: #666;
             min-width: 60px;
+        }
+
+        #status.error {
+            color: #d32f2f;
         }
 
         #content {
@@ -139,7 +143,7 @@
             </button>
             <input id="url" placeholder="Enter kulfi:// or https:// URL" type="text" />
             <button id="go-btn" title="Go">Go</button>
-            <span id="loading"></span>
+            <span id="status"></span>
         </nav>
 
         <div id="welcome">
@@ -152,14 +156,22 @@
 
     <script>
         const urlInput = document.getElementById("url");
-        const loading = document.getElementById("loading");
+        const status = document.getElementById("status");
         const content = document.getElementById("content");
         const welcome = document.getElementById("welcome");
         const backBtn = document.getElementById("back");
         const forwardBtn = document.getElementById("forward");
         const goBtn = document.getElementById("go-btn");
 
-        const invoke = window.__TAURI__.core.invoke;
+        function showStatus(msg, isError = false) {
+            status.textContent = msg;
+            status.classList.toggle("error", isError);
+        }
+
+        function clearStatus() {
+            status.textContent = "";
+            status.classList.remove("error");
+        }
 
         // Navigation history for kulfi:// URLs (iframe doesn't track these well)
         let historyStack = [];
@@ -194,20 +206,21 @@
         }
 
         function goToUrl() {
+            clearStatus();
             let url = urlInput.value.trim();
 
-            url = validate(url);
+            const result = validate(url);
 
-            if (!url) {
-                console.error("Invalid URL format");
+            if (result.error) {
+                showStatus(result.error, true);
                 return;
             }
 
-            loadUrl(url, true);
+            loadUrl(result.url, true);
         }
 
         function loadUrl(url, addToHistory) {
-            loading.textContent = "Loading...";
+            showStatus("Loading...");
 
             // Show iframe, hide welcome
             welcome.classList.add("hidden");
@@ -229,7 +242,7 @@
         }
 
         content.addEventListener("load", () => {
-            loading.textContent = "";
+            clearStatus();
 
             // Try to get the current URL from iframe (works for same-origin only)
             try {
@@ -243,16 +256,16 @@
         });
 
         content.addEventListener("error", () => {
-            loading.textContent = "Error";
+            showStatus("Failed to load", true);
         });
 
         /**
          * @param {string} url - The URL to validate.
-         * @returns {string | null} The rewritten URL if valid, null otherwise.
+         * @returns {{url: string} | {error: string}} The rewritten URL or error message.
          */
         function validate(url) {
             if (!url) {
-                return null;
+                return { error: "Please enter a URL" };
             }
 
             // If no protocol specified, detect kulfi:// vs https://
@@ -270,15 +283,19 @@
             try {
                 const parsed = new URL(url);
 
-                if (parsed.protocol === "kulfi:" && parsed.hostname.length !== 52) {
-                    console.error("kulfi:// protocol requires hostname to be 52-char ID52");
-                    return null;
+                if (parsed.protocol === "kulfi:") {
+                    const len = parsed.hostname.length;
+                    if (len !== 52) {
+                        return { error: `ID52 must be 52 chars (got ${len})` };
+                    }
+                    if (!/^[a-z0-9]+$/i.test(parsed.hostname)) {
+                        return { error: "ID52 must be alphanumeric only" };
+                    }
                 }
 
-                return parsed.toString();
+                return { url: parsed.toString() };
             } catch (e) {
-                console.error("Invalid URL format:", e);
-                return null;
+                return { error: "Invalid URL format" };
             }
         }
 
