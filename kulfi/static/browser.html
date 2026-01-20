@@ -141,14 +141,14 @@
                     <path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"></path>
                 </svg>
             </button>
-            <input id="url" placeholder="Enter kulfi:// or https:// URL" type="text" />
+            <input id="url" placeholder="Enter kulfi:// URL or ID52" type="text" />
             <button id="go-btn" title="Go">Go</button>
             <span id="status"></span>
         </nav>
 
         <div id="welcome">
             <h1>Kulfi Browser</h1>
-            <p>Enter a URL above and press Enter</p>
+            <p>Enter a kulfi:// URL or ID52 above and press Enter</p>
         </div>
 
         <iframe id="content" class="hidden"></iframe>
@@ -265,32 +265,27 @@
          */
         function validate(url) {
             if (!url) {
-                return { error: "Please enter a URL" };
+                return { error: "Please enter a kulfi:// URL or ID52" };
             }
 
-            // If no protocol specified, detect kulfi:// vs https://
+            // If no protocol specified, assume kulfi://
             if (!/^([a-z][a-z0-9+\-.]*):\/\//i.test(url)) {
-                const firstPart = url.split("/")[0];
-                if (firstPart.length === 52 && /^[a-z0-9]+$/i.test(firstPart)) {
-                    // Looks like an ID52, assume kulfi://
-                    url = `kulfi://${url}`;
-                } else {
-                    // Assume https://
-                    url = `https://${url}`;
-                }
+                url = `kulfi://${url}`;
             }
 
             try {
                 const parsed = new URL(url);
 
-                if (parsed.protocol === "kulfi:") {
-                    const len = parsed.hostname.length;
-                    if (len !== 52) {
-                        return { error: `ID52 must be 52 chars (got ${len})` };
-                    }
-                    if (!/^[a-z0-9]+$/i.test(parsed.hostname)) {
-                        return { error: "ID52 must be alphanumeric only" };
-                    }
+                if (parsed.protocol !== "kulfi:") {
+                    return { error: "Only kulfi:// URLs are supported" };
+                }
+
+                const len = parsed.hostname.length;
+                if (len !== 52) {
+                    return { error: `ID52 must be 52 chars (got ${len})` };
+                }
+                if (!/^[a-z0-9]+$/i.test(parsed.hostname)) {
+                    return { error: "ID52 must be alphanumeric only" };
                 }
 
                 return { url: parsed.toString() };
