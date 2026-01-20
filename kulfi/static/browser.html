@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kulfi Browser</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        #container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+        }
+
+        #navbar {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            padding: 6px 8px;
+            background-color: #f5f5f5;
+            border-bottom: 1px solid #ddd;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        #navbar button {
+            height: 32px;
+            width: 32px;
+            padding: 4px;
+            border: none;
+            background: transparent;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #navbar button:hover {
+            background-color: #e0e0e0;
+        }
+
+        #navbar button:active {
+            background-color: #d0d0d0;
+        }
+
+        #navbar button svg {
+            width: 20px;
+            height: 20px;
+            fill: #333;
+        }
+
+        #url {
+            flex: 1;
+            height: 32px;
+            font-size: 14px;
+            padding: 0 10px;
+            border: 1px solid #ccc;
+            border-radius: 16px;
+            background-color: #fff;
+            outline: none;
+        }
+
+        #url:focus {
+            border-color: #007aff;
+        }
+
+        #go-btn {
+            width: auto !important;
+            padding: 0 12px !important;
+            font-size: 14px;
+            color: #007aff;
+            font-weight: 500;
+        }
+
+        #loading {
+            font-size: 12px;
+            color: #666;
+            min-width: 60px;
+        }
+
+        #content {
+            flex: 1;
+            width: 100%;
+            border: none;
+            background: #fff;
+        }
+
+        #welcome {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+        }
+
+        #welcome h1 {
+            font-size: 24px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        #welcome p {
+            font-size: 14px;
+            color: #999;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <nav id="navbar">
+            <button id="back" title="Back">
+                <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M165.66,202.34a8,8,0,0,1-11.32,11.32l-80-80a8,8,0,0,1,0-11.32l80-80a8,8,0,0,1,11.32,11.32L91.31,128Z"></path>
+                </svg>
+            </button>
+            <button id="forward" title="Forward">
+                <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"></path>
+                </svg>
+            </button>
+            <input id="url" placeholder="Enter kulfi:// or https:// URL" type="text" />
+            <button id="go-btn" title="Go">Go</button>
+            <span id="loading"></span>
+        </nav>
+
+        <div id="welcome">
+            <h1>Kulfi Browser</h1>
+            <p>Enter a URL above and press Enter</p>
+        </div>
+
+        <iframe id="content" class="hidden"></iframe>
+    </div>
+
+    <script>
+        const urlInput = document.getElementById("url");
+        const loading = document.getElementById("loading");
+        const content = document.getElementById("content");
+        const welcome = document.getElementById("welcome");
+        const backBtn = document.getElementById("back");
+        const forwardBtn = document.getElementById("forward");
+        const goBtn = document.getElementById("go-btn");
+
+        const invoke = window.__TAURI__.core.invoke;
+
+        // Navigation history for kulfi:// URLs (iframe doesn't track these well)
+        let historyStack = [];
+        let historyIndex = -1;
+
+        urlInput.addEventListener("keydown", function(event) {
+            if (event.key === "Enter") {
+                goToUrl();
+            }
+        });
+
+        goBtn.addEventListener("click", goToUrl);
+
+        backBtn.addEventListener("click", () => {
+            if (historyIndex > 0) {
+                historyIndex--;
+                navigateToHistoryEntry();
+            }
+        });
+
+        forwardBtn.addEventListener("click", () => {
+            if (historyIndex < historyStack.length - 1) {
+                historyIndex++;
+                navigateToHistoryEntry();
+            }
+        });
+
+        function navigateToHistoryEntry() {
+            const url = historyStack[historyIndex];
+            urlInput.value = url;
+            loadUrl(url, false); // Don't add to history when navigating history
+        }
+
+        function goToUrl() {
+            let url = urlInput.value.trim();
+
+            url = validate(url);
+
+            if (!url) {
+                console.error("Invalid URL format");
+                return;
+            }
+
+            loadUrl(url, true);
+        }
+
+        function loadUrl(url, addToHistory) {
+            loading.textContent = "Loading...";
+
+            // Show iframe, hide welcome
+            welcome.classList.add("hidden");
+            content.classList.remove("hidden");
+
+            // Navigate iframe
+            content.src = url;
+
+            if (addToHistory) {
+                // Truncate forward history if we're not at the end
+                if (historyIndex < historyStack.length - 1) {
+                    historyStack = historyStack.slice(0, historyIndex + 1);
+                }
+                historyStack.push(url);
+                historyIndex = historyStack.length - 1;
+            }
+
+            urlInput.value = url;
+        }
+
+        content.addEventListener("load", () => {
+            loading.textContent = "";
+
+            // Try to get the current URL from iframe (works for same-origin only)
+            try {
+                const iframeUrl = content.contentWindow.location.href;
+                if (iframeUrl && iframeUrl !== "about:blank") {
+                    urlInput.value = iframeUrl;
+                }
+            } catch (e) {
+                // Cross-origin, can't access - that's fine
+            }
+        });
+
+        content.addEventListener("error", () => {
+            loading.textContent = "Error";
+        });
+
+        /**
+         * @param {string} url - The URL to validate.
+         * @returns {string | null} The rewritten URL if valid, null otherwise.
+         */
+        function validate(url) {
+            if (!url) {
+                return null;
+            }
+
+            // If no protocol specified, detect kulfi:// vs https://
+            if (!/^([a-z][a-z0-9+\-.]*):\/\//i.test(url)) {
+                const firstPart = url.split("/")[0];
+                if (firstPart.length === 52 && /^[a-z0-9]+$/i.test(firstPart)) {
+                    // Looks like an ID52, assume kulfi://
+                    url = `kulfi://${url}`;
+                } else {
+                    // Assume https://
+                    url = `https://${url}`;
+                }
+            }
+
+            try {
+                const parsed = new URL(url);
+
+                if (parsed.protocol === "kulfi:" && parsed.hostname.length !== 52) {
+                    console.error("kulfi:// protocol requires hostname to be 52-char ID52");
+                    return null;
+                }
+
+                return parsed.toString();
+            } catch (e) {
+                console.error("Invalid URL format:", e);
+                return null;
+            }
+        }
+
+        // Focus URL input on load
+        urlInput.focus();
+    </script>
+</body>
+</html>
