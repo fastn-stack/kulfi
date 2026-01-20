@@ -3,8 +3,9 @@ pub async fn get_endpoint(secret_key: kulfi_id52::SecretKey) -> eyre::Result<iro
     let iroh_secret_key = iroh::SecretKey::from_bytes(&secret_key.to_bytes());
 
     match iroh::Endpoint::builder()
-        .discovery_n0()
-        .discovery_local_network()
+        .discovery(iroh::discovery::pkarr::PkarrPublisher::n0_dns())
+        .discovery(iroh::discovery::dns::DnsDiscovery::n0_dns())
+        .discovery(iroh::discovery::mdns::MdnsDiscovery::builder())
         .alpns(vec![crate::APNS_IDENTITY.into()])
         .secret_key(iroh_secret_key)
         .bind()

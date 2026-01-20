@@ -44,7 +44,7 @@ http = "1"
 http-body-util = "0.1"
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1.15", features = ["tokio", "server"] }
-iroh = { version = "0.91", features = ["discovery-local-network"] }
+iroh = { version = "0.95", features = ["discovery-local-network"] }
 keyring = { version = "3", features = [
     "apple-native",
     "windows-native",
@@ -69,14 +69,9 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 webbrowser = "1"
 zip = { version = "7", default-features = false }
+rand = "0.9"
 
 [workspace.dependencies.tauri]
 version = "2"
 default-features = false
 features = ["custom-protocol", "wry", "common-controls-v6", "unstable"]
-
-[workspace.dependencies.rand]
-# we are intentionally using an older version to be compatible with the rand
-# version used in the iroh crate
-# https://github.com/n0-computer/iroh/issues/3198
-version = "0.8.5"

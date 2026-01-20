@@ -60,10 +60,8 @@ pub async fn handle_connection(
     client_pools: kulfi_utils::HttpConnectionPools,
     fastn_port: u16,
 ) -> eyre::Result<()> {
-    tracing::info!("got connection from: {:?}", conn.remote_node_id());
-    let remote_id52 = kulfi_utils::get_remote_id52(&conn)
-        .await
-        .inspect_err(|e| tracing::error!("failed to get remote id: {e:?}"))?;
+    tracing::info!("got connection from: {:?}", conn.remote_id());
+    let remote_id52 = kulfi_utils::get_remote_id52(&conn);
     tracing::info!("new client: {remote_id52}, waiting for bidirectional stream");
     loop {
         let client_pools = client_pools.clone();

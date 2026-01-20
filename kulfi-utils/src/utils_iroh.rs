@@ -1,23 +1,11 @@
 // Functions that work with iroh types
 
-pub async fn get_remote_id52(conn: &iroh::endpoint::Connection) -> eyre::Result<String> {
-    let remote_node_id = match conn.remote_node_id() {
-        Ok(id) => id,
-        Err(e) => {
-            tracing::error!("could not read remote node id: {e}, closing connection");
-            // TODO: is this how we close the connection in error cases or do we send some error
-            //       and wait for other side to close the connection?
-            let e2 = conn.closed().await;
-            tracing::info!("connection closed: {e2}");
-            // TODO: send another error_code to indicate bad remote node id?
-            conn.close(0u8.into(), &[]);
-            return Err(eyre::anyhow!("could not read remote node id: {e}"));
-        }
-    };
+pub fn get_remote_id52(conn: &iroh::endpoint::Connection) -> String {
+    let remote_id = conn.remote_id();
 
-    // Convert iroh::PublicKey to ID52 string
-    let bytes = remote_node_id.as_bytes();
-    Ok(data_encoding::BASE32_DNSSEC.encode(bytes))
+    // Convert iroh::EndpointId to ID52 string
+    let bytes = remote_id.as_bytes();
+    data_encoding::BASE32_DNSSEC.encode(bytes)
 }
 
 async fn ack(send: &mut iroh::endpoint::SendStream) -> eyre::Result<()> {
@@ -145,8 +133,9 @@ pub async fn global_iroh_endpoint() -> iroh::Endpoint {
     async fn new_iroh_endpoint() -> iroh::Endpoint {
         // TODO: read secret key from ENV VAR
         iroh::Endpoint::builder()
-            .discovery_n0()
-            .discovery_local_network()
+            .discovery(iroh::discovery::pkarr::PkarrPublisher::n0_dns())
+            .discovery(iroh::discovery::dns::DnsDiscovery::n0_dns())
+            .discovery(iroh::discovery::mdns::MdnsDiscovery::builder())
             .alpns(vec![crate::APNS_IDENTITY.into()])
             .bind()
             .await

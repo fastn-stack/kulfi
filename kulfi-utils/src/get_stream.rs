@@ -67,7 +67,7 @@ async fn get_stream_request_sender(
     graceful: crate::Graceful,
 ) -> StreamRequestSender {
     // Convert iroh::PublicKey to ID52 string
-    let self_id52 = data_encoding::BASE32_DNSSEC.encode(self_endpoint.node_id().as_bytes());
+    let self_id52 = data_encoding::BASE32_DNSSEC.encode(self_endpoint.id().as_bytes());
     let mut senders = peer_stream_senders.lock().await;
 
     if let Some(sender) = senders.get(&(self_id52.clone(), remote_node_id52.clone())) {
@@ -166,7 +166,7 @@ async fn connection_manager_(
                 use std::str::FromStr;
                 let public_key = kulfi_id52::PublicKey::from_str(&remote_node_id52)
                     .map_err(|e| eyre::anyhow!("{}", e))?;
-                iroh::NodeId::from(iroh::PublicKey::from_bytes(&public_key.to_bytes())?)
+                iroh::EndpointId::from_bytes(&public_key.to_bytes())?
             },
             crate::APNS_IDENTITY,
         )
