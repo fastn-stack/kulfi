@@ -1,82 +1,20 @@
-const BROWSER_WEBVIEW: &str = "browser_view";
-const NAV_WEBVIEW: &str = "navigation";
-
 #[allow(unexpected_cfgs)]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn ui() -> eyre::Result<()> {
-    const BROWSER_INIT_SCRIPT: &str = r#"
-        console.log("Browser Init Script Loaded");
-
-        const listen = window.__TAURI__.event.listen;
-        const emitTo = window.__TAURI__.event.emitTo;
-
-        // https://developer.mozilla.org/en-US/docs/Web/API/Window/pageshow_event
-        window.addEventListener("pageshow", () => {
-            console.info("Page show event triggered");
-            emitUrlChange(window.location.href);
-        });
-
-        listen("nav-back", () => {
-            console.log("going back one page");
-            history.back();
-        });
-
-        listen("nav-forward", () => {
-            console.log("going forward one page");
-            history.forward();
-        });
-
-
-        /**
-         * @param {string} url
-         */
-        function emitUrlChange(url) {
-            console.log("Current URL:", url);
-            if (url.startsWith("tauri://")) {
-                console.info("URL starts with tauri://, ignoring emitUrlChange");
-                return;
-            }
-
-            emitTo("navigation", "url-changed", url).
-              then(() => {
-                console.log("URL change emitted to navigation webview");
-              })
-              .catch(err => {
-                console.error("Failed to emit URL change:", err);
-              });
-        }
-    "#;
-
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            use tauri::{LogicalPosition, LogicalSize, WebviewUrl};
+            use tauri::WebviewUrl;
 
-            let width = 800.0;
-            let height = 600.0;
-            let bottom_height = 45.0;
-            let top_height = height - bottom_height;
-
-            let window = tauri::window::WindowBuilder::new(app, "main")
-                .title("Kulfi")
-                .center()
-                .inner_size(width, height)
-                .build()?;
-
-            let _browser_window = window.add_child(
-                tauri::webview::WebviewBuilder::new(BROWSER_WEBVIEW, tauri::WebviewUrl::App("init_view.html".into()))
-                    .auto_resize()
-                    .initialization_script(BROWSER_INIT_SCRIPT),
-                LogicalPosition::new(0., 0.),
-                LogicalSize::new(width, top_height), // TODO:
-            )?;
-
-            let _webview2 = window.add_child(
-                tauri::webview::WebviewBuilder::new(NAV_WEBVIEW, WebviewUrl::App("navigation.html".into()))
-                    .auto_resize(),
-                LogicalPosition::new(0., top_height),
-                LogicalSize::new(width, bottom_height), // TODO:
-            )?;
+            let _window = tauri::WebviewWindowBuilder::new(
+                app,
+                "main",
+                WebviewUrl::App("browser.html".into()),
+            )
+            .title("Kulfi")
+            .center()
+            .inner_size(800.0, 600.0)
+            .build()?;
 
             Ok(())
         })
@@ -159,35 +97,10 @@ pub fn ui() -> eyre::Result<()> {
                 }
             });
         })
-        .invoke_handler(tauri::generate_handler![open_url])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 
     Ok(())
-}
-
-/// Called from `navigation.html` frontend when the user enters a kulfi url and hits the enter key
-#[tauri::command]
-async fn open_url(app_handle: tauri::AppHandle, url: String) -> Result<(), OpenUrlError> {
-    use tauri::Manager;
-
-    tracing::info!("{:?}", app_handle.webviews().get("browser_view"));
-
-    app_handle
-        .get_webview(BROWSER_WEBVIEW)
-        .ok_or(OpenUrlError::NoWebview)?
-        .navigate(url.parse().map_err(|_| OpenUrlError::InvalidUrl)?)
-        .map_err(|_| OpenUrlError::Navigation)
-}
-
-#[derive(Debug, thiserror::Error, serde::Serialize)]
-enum OpenUrlError {
-    #[error("No webview found to open the URL")]
-    NoWebview,
-    #[error("Invalid URL provided")]
-    InvalidUrl,
-    #[error("Failed to navigate to the URL")]
-    Navigation,
 }
 
 fn kulfi_uri_to_path_and_id52(uri: &hyper::Uri) -> (String, String) {
