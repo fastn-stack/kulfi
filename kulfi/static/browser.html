@@ -27,8 +27,7 @@
 
         #navbar {
             display: flex;
-            flex-direction: row;
-            align-items: center;
+            flex-direction: column;
             padding: 6px 8px;
             background-color: #f5f5f5;
             border-bottom: 1px solid #ddd;
@@ -36,7 +35,14 @@
             flex-shrink: 0;
         }
 
-        #navbar button {
+        #navbar-row {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 4px;
+        }
+
+        #navbar-row button {
             height: 32px;
             width: 32px;
             padding: 4px;
@@ -49,15 +55,15 @@
             justify-content: center;
         }
 
-        #navbar button:hover {
+        #navbar-row button:hover {
             background-color: #e0e0e0;
         }
 
-        #navbar button:active {
+        #navbar-row button:active {
             background-color: #d0d0d0;
         }
 
-        #navbar button svg {
+        #navbar-row button svg {
             width: 20px;
             height: 20px;
             fill: #333;
@@ -89,7 +95,12 @@
         #status {
             font-size: 12px;
             color: #666;
-            min-width: 60px;
+            padding-left: 68px; /* align with URL input (back + forward + gaps) */
+            min-height: 16px;
+        }
+
+        #status:empty {
+            display: none;
         }
 
         #status.error {
@@ -131,19 +142,21 @@
 <body>
     <div id="container">
         <nav id="navbar">
-            <button id="back" title="Back">
-                <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M165.66,202.34a8,8,0,0,1-11.32,11.32l-80-80a8,8,0,0,1,0-11.32l80-80a8,8,0,0,1,11.32,11.32L91.31,128Z"></path>
-                </svg>
-            </button>
-            <button id="forward" title="Forward">
-                <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"></path>
-                </svg>
-            </button>
-            <input id="url" placeholder="Enter kulfi:// URL or ID52" type="text" />
-            <button id="go-btn" title="Go">Go</button>
-            <span id="status"></span>
+            <div id="navbar-row">
+                <button id="back" title="Back">
+                    <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M165.66,202.34a8,8,0,0,1-11.32,11.32l-80-80a8,8,0,0,1,0-11.32l80-80a8,8,0,0,1,11.32,11.32L91.31,128Z"></path>
+                    </svg>
+                </button>
+                <button id="forward" title="Forward">
+                    <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"></path>
+                    </svg>
+                </button>
+                <input id="url" placeholder="Enter kulfi:// URL or ID52" type="text" />
+                <button id="go-btn" title="Go">Go</button>
+            </div>
+            <div id="status"></div>
         </nav>
 
         <div id="welcome">
