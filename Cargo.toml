@@ -55,9 +55,8 @@ kulfi-utils = { path = "kulfi-utils" }
 kulfi-id52 = { path = "kulfi-id52" }
 mime_guess = "2"
 percent-encoding = "2"
-reqwest = { version = "0.12", default-features = false, features = [
-    "rustls-tls",
-] }
+reqwest = { version = "0.13", default-features = false, features = [
+    "rustls", "stream"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tauri-build = { version = "2", features = ["config-json5"] }
