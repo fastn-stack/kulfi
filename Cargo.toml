@@ -12,7 +12,7 @@ license = "UPL-1.0"
 repository = "https://github.com/fastn-stack/kulfi"
 homepage = "https://kulfi.app"
 publish = true
-rust-version = "1.89" # update this when you update rust-toolchain.toml
+rust-version = "1.92" # update this when you update rust-toolchain.toml
 
 [profile.release]
 strip = true
@@ -69,7 +69,7 @@ thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 webbrowser = "1"
-zip = { version = "4", default-features = false }
+zip = { version = "7", default-features = false }
 
 [workspace.dependencies.tauri]
 version = "2"
