@@ -15,7 +15,11 @@ publish = true
 rust-version = "1.92" # update this when you update rust-toolchain.toml
 
 [profile.release]
-strip = true
+codegen-units = 1 # Allows LLVM to perform better optimization.
+lto = true        # Enables link-time-optimizations.
+opt-level = 3
+panic = "abort"   # Higher performance by disabling panic handlers.
+strip = true      # Ensures debug symbols are removed.
 
 [workspace.dependencies]
 # Please do not specify a dependency more precisely than needed. If version "1" works, do
@@ -40,7 +44,6 @@ directories = "6.0.0"
 eyre = "0.6"
 file-guard = "0.2.0"
 futures-util = "0.3"
-http = "1"
 http-body-util = "0.1"
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1.15", features = ["tokio", "server"] }

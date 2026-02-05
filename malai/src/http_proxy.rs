@@ -130,7 +130,7 @@ async fn handle_request(
     remote: String,
     graceful: kulfi_utils::Graceful,
 ) -> kulfi_utils::http::ProxyResult<eyre::Error> {
-    tracing::info!("got request for {remote}");
+    tracing::debug!("got request for {remote}");
 
     let graceful_for_upgrade = graceful.clone();
     let host = match r

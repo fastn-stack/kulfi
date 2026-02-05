@@ -1,6 +1,6 @@
 [package]
 name = "malai"
-version = "0.2.9"
+version = "0.3.0"
 authors.workspace = true
 edition.workspace = true
 description = "malai: Kulfi Network Toolkit"
@@ -24,6 +24,7 @@ hyper-util.workspace = true
 hyper.workspace = true
 iroh.workspace = true
 kulfi-utils.workspace = true
+kulfi-id52.workspace = true
 mime_guess.workspace = true
 percent-encoding.workspace = true
 serde.workspace = true
@@ -35,6 +36,8 @@ tokio-util.workspace = true
 tracing-subscriber.workspace = true
 tracing.workspace = true
 webbrowser.workspace = true
+toml = "0.9.5"
+tracing-appender = "0.2.3"
 
 [build-dependencies]
 tauri-build = { workspace = true, optional = true }

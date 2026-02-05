@@ -58,10 +58,19 @@ pub async fn folder(path: String, bridge: String, graceful: kulfi_utils::Gracefu
     let graceful_for_expose_http = graceful.clone();
 
     graceful.spawn(async move {
+        let (id52, secret_key) = match kulfi_utils::read_or_create_key().await {
+            Ok(v) => v,
+            Err(e) => {
+                malai::identity_read_err_msg(e);
+                std::process::exit(1);
+            }
+        };
         malai::expose_http(
             "127.0.0.1".to_string(),
             port,
             bridge,
+            id52,
+            secret_key,
             graceful_for_expose_http,
         )
         .await

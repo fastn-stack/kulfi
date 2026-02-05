@@ -10,7 +10,7 @@ repository.workspace = true
 readme.workspace = true
 
 [dependencies]
-kulfi-id52 = { path = "../kulfi-id52", version = "0.1.0" }
+kulfi-id52.workspace = true
 bb8.workspace = true
 bytes.workspace = true
 colored.workspace = true

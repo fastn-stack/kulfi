@@ -4,17 +4,40 @@
     windows_subsystem = "windows"
 )]
 
+use std::path::Path;
+
+use kulfi_utils::Graceful;
+
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
     use clap::Parser;
 
-    // run with RUST_LOG="malai=trace,kulfi_utils=trace" to see logs
-    tracing_subscriber::fmt::init();
-
     let cli = Cli::parse();
-
     let graceful = kulfi_utils::Graceful::default();
+    if let Some(Command::Run { home }) = cli.command {
+        let home = match &home {
+            Some(home) => Path::new(home),
+            None => &std::env::current_dir()?,
+        };
+        let conf_file = if home.is_file() {
+            home
+        } else {
+            &home.join("malai.toml")
+        };
+        if !conf_file.exists() {
+            eprintln!("Unable to find malai.toml in {}", conf_file.display());
+            return Ok(());
+        }
+        malai::run(conf_file, graceful.clone()).await;
+        graceful.shutdown().await
+    } else {
+        // run with RUST_LOG="malai=trace,kulfi_utils=trace" to see logs
+        tracing_subscriber::fmt::init();
+        match_cli(cli, graceful.clone()).await
+    }
+}
 
+async fn match_cli(cli: Cli, graceful: Graceful) -> eyre::Result<()> {
     match cli.command {
         Some(Command::Http {
             port,
@@ -35,7 +58,22 @@ async fn main() -> eyre::Result<()> {
             tracing::info!(port, host, verbose = ?cli.verbose, "Exposing HTTP service on kulfi.");
             let graceful_for_export_http = graceful.clone();
             graceful.spawn(async move {
-                malai::expose_http(host, port, bridge, graceful_for_export_http).await
+                let (id52, secret_key) = match kulfi_utils::read_or_create_key().await {
+                    Ok(v) => v,
+                    Err(e) => {
+                        malai::identity_read_err_msg(e);
+                        std::process::exit(1);
+                    }
+                };
+                malai::expose_http(
+                    host,
+                    port,
+                    bridge,
+                    id52,
+                    secret_key,
+                    graceful_for_export_http,
+                )
+                .await
             });
         }
         Some(Command::HttpBridge { proxy_target, port }) => {
@@ -56,8 +94,16 @@ async fn main() -> eyre::Result<()> {
 
             tracing::info!(port, host, verbose = ?cli.verbose, "Exposing TCP service on kulfi.");
             let graceful_for_expose_tcp = graceful.clone();
-            graceful
-                .spawn(async move { malai::expose_tcp(host, port, graceful_for_expose_tcp).await });
+            graceful.spawn(async move {
+                let (id52, secret_key) = match kulfi_utils::read_or_create_key().await {
+                    Ok(v) => v,
+                    Err(e) => {
+                        malai::identity_read_err_msg(e);
+                        std::process::exit(1);
+                    }
+                };
+                malai::expose_tcp(host, port, id52, secret_key, graceful_for_expose_tcp).await;
+            });
         }
         Some(Command::TcpBridge { proxy_target, port }) => {
             tracing::info!(port, proxy_target, verbose = ?cli.verbose, "Starting TCP bridge.");
@@ -84,10 +130,9 @@ async fn main() -> eyre::Result<()> {
             let graceful_for_folder = graceful.clone();
             graceful.spawn(async move { malai::folder(path, bridge, graceful_for_folder).await });
         }
-        Some(Command::Run { home }) => {
-            tracing::info!(verbose = ?cli.verbose, "Running all services.");
-            let graceful_for_run = graceful.clone();
-            graceful.spawn(async move { malai::run(home, graceful_for_run).await });
+        Some(Command::Run { home: _ }) => {
+            // Handled brfore
+            return Ok(());
         }
         Some(Command::HttpProxyRemote { public }) => {
             if !malai::public_check(
@@ -113,6 +158,21 @@ async fn main() -> eyre::Result<()> {
             malai::keygen(file);
             return Ok(());
         }
+        Some(Command::Identity { cmd }) => {
+            match cmd {
+                IdentityCmd::Create { file } => {
+                    if let Err(e) = malai::create_identity(file) {
+                        tracing::error!(error = ?e, "Error creating identity.");
+                    }
+                }
+                IdentityCmd::Delete { id52, file } => {
+                    if let Err(e) = malai::delete_identity(id52, file) {
+                        tracing::error!(error = ?e, "Error deleting identity.");
+                    }
+                }
+            }
+            return Ok(());
+        }
         #[cfg(feature = "ui")]
         None => {
             tracing::info!(verbose = ?cli.verbose, "Starting UI.");
@@ -126,7 +186,6 @@ async fn main() -> eyre::Result<()> {
             return Ok(());
         }
     };
-
     graceful.shutdown().await
 }
 
@@ -250,7 +309,11 @@ pub enum Command {
     },
     #[clap(about = "Run all the services")]
     Run {
-        #[arg(long, help = "Malai Home", env = "MALAI_HOME")]
+        #[arg(
+            long,
+            help = "Malai Home directory or the config file",
+            env = "MALAI_HOME"
+        )]
         home: Option<String>,
     },
     #[clap(about = "Run an iroh remote server that handles requests from http-proxy.")]
@@ -276,6 +339,44 @@ pub enum Command {
             num_args=0..=1,
             default_missing_value=kulfi_utils::SECRET_KEY_FILE,
             help = "The file where the private key of the identity will be stored. If not provided, the private key will be printed to stdout."
+        )]
+        file: Option<String>,
+    },
+    #[clap(about = "Create or delete ID52s in the system keyring")]
+    Identity {
+        #[clap(subcommand)]
+        cmd: IdentityCmd,
+    },
+}
+
+#[derive(clap::Subcommand, Debug)]
+pub enum IdentityCmd {
+    #[clap(about = "Create a new identity and store the private key to system keyring.")]
+    Create {
+        #[arg(
+            long,
+            short,
+            num_args=0..=1,
+            default_missing_value=kulfi_utils::ID52_FILE,
+            help = "The file or the folder to store the private key."
+        )]
+        file: Option<String>,
+    },
+    #[clap(about = "Delete the identity from system keyring.")]
+    Delete {
+        #[arg(
+            long,
+            short,
+            num_args = 1,
+            help = "Delete the ID52 from system keyring."
+        )]
+        id52: Option<String>,
+        #[arg(
+            long,
+            short,
+            num_args=0..=1,
+            default_missing_value=kulfi_utils::ID52_FILE,
+            help = "Delete the ID52 in the file from system keyring."
         )]
         file: Option<String>,
     },

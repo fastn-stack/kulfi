@@ -50,8 +50,8 @@ impl Graceful {
                 .await
                 .wrap_err_with(|| "failed to get ctrl-c signal handler")?;
 
-            tracing::info!("Received ctrl-c signal, showing info.");
-            tracing::info!("Pending tasks: {}", self.tracker.len());
+            tracing::debug!("Received ctrl-c signal, showing info.");
+            tracing::debug!("Pending tasks: {}", self.tracker.len());
 
             self.show_info_tx
                 .send(true)
@@ -85,7 +85,7 @@ impl Graceful {
                     break;
                 }
                 _ = tokio::time::sleep(std::time::Duration::from_secs(3)) => {
-                    tracing::info!("Timeout expired. Continuing...");
+                    tracing::debug!("Timeout expired. Continuing...");
                     println!("Did not receive ctrl+c within 3 secs. Press ctrl+c in quick succession to exit.");
                 }
             }
